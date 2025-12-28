@@ -63,6 +63,7 @@ All notable changes to this project will be documented in this file.
 - Eliminado el comando `!sopa` (Sopa de Letras) y archivos asociados por decisión del mantenedor.
 - `!cplayd` ahora usa `yt-dlp` como fallback si `ytdl-core` falla al extraer firmas (reduce errores: "Could not extract functions").
   - Nota: el fallback usa `python3 -m yt_dlp` o `python -m yt_dlp` si no existe binario `yt-dlp` en PATH; asegúrate de que `yt-dlp` esté instalado (ver `install.sh`).
+  - Además, `cplay2` ahora usa la misma lógica de descarga/envío que `cplay` cuando el usuario selecciona una pista: descarga por URL, envía MP3 como audio y documento, y genera una nota de voz OGG (PTT).
 
 ### Security/Notes
 - Se añadió el evento global "Saqueo del Jefe Maestro" que puede confiscar un 90% de fondos de los jugadores cuando ocurre (probabilidad baja por invocación). Habilitar con precaución y mantener backups.
