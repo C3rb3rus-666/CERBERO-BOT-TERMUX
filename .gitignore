@@ -1,0 +1,18 @@
+node_modules/
+sessions/
+.env
+.env.local
+.env*.local
+*.log
+temp/
+tmp/
+backup/sessions/
+.DS_Store
+
+# Device lists, credentials and generated files
+creds.json
+creds.bak.json
+device-list-*.json
+qr.txt
+logs/
+.vscode/
