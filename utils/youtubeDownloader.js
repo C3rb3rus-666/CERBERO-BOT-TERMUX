@@ -7,13 +7,18 @@ import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 
 function findYtDlpCommand() {
-    // Prefer system binary 'yt-dlp', then 'yt_dlp', else fallback to 'python -m yt_dlp'
+    // Prefer system binary 'yt-dlp', then 'yt_dlp', else fallback to 'python3 -m yt_dlp' or 'python -m yt_dlp'
     const has = (cmd) => {
-        try { return require('child_process').execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0 } catch(e){ return false }
+        try { return require('child_process').execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0; } catch(e){ return false; }
     }
+
     if (has('yt-dlp')) return { cmd: 'yt-dlp', args: [] };
     if (has('yt_dlp')) return { cmd: 'yt_dlp', args: [] };
-    // fallback to python -m yt_dlp
+    // fallback to python3 or python
+    if (has('python3')) return { cmd: 'python3', args: ['-m', 'yt_dlp'] };
+    if (has('python')) return { cmd: 'python', args: ['-m', 'yt_dlp'] };
+
+    // Last resort: try invoking 'node' - unlikely to work, but keep as final fallback
     return { cmd: process.execPath, args: ['-m', 'yt_dlp'] };
 }
 
@@ -28,10 +33,12 @@ async function runYtDlp(url, outPrefix) {
     ]);
 
     return new Promise((resolve, reject) => {
-        const child = spawn(cmd, args, { stdio: 'inherit' });
+        const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+        let stderr = '';
+        child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
         child.on('error', (err) => reject(err));
         child.on('close', (code) => {
-            if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}`));
+            if (code !== 0) return reject(new Error(`yt-dlp exited with code ${code}: ${stderr.trim().split('\n').slice(-5).join(' | ')}`));
             // find produced file
             const files = fs.readdirSync(path.dirname(outPrefix));
             const base = path.basename(outPrefix);
