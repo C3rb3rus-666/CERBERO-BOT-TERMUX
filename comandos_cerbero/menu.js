@@ -66,40 +66,61 @@ export async function menuCommand(sock, msg) {
 
 ---
 
-*🔧 UTILIDADES* (básicas / ayuda)
+*🔧 GENERAL / UTILIDADES*
 • \`!ping\` — ✅ Latencia / salud del bot
-• \`!help\` — 🆘 Guía rápida
+• \`!help\` / \`!ayuda\` / \`!guia\` — 🆘 Guía rápida
 • \`!menu\` — 📋 Muestra este menú
 • \`!google <consulta>\` — 🔎 Buscar en Google
+• \`!buscar <texto>\` — 🔎 Buscar interno (alias de buscador)
+• \`!$\` — 💰 Mostrar saldo rápido (alias: \`!\$\`)
+
+---
+
+*🤖 IA & BÚSQUEDAS*
 • \`!cerbero <texto>\` — 🤖 Chat con IA local (alias: \`!bot\`)
+• \`!simi <texto>\` — 🤖 Chat Simi
+• \`!cerbero_search <consulta>\` — 🔎 Búsqueda avanzada (cerbero search)
+• \`!cerbero_yt <url|consulta>\` — 📺 Buscar/extraer YouTube
 
 ---
 
 *🎵 MULTIMEDIA & REPRODUCCIÓN*
 • \`!cplay <busqueda>\` — 🎶 Reproducir/descargar música
 • \`!cplay2 <busqueda>\` — 🎬 Búsqueda YouTube con preview y selección de descarga
+• \`!cplayd <id>\` — 📥 Descargar desde preview (cplayd)
+• \`!cprueba\` — 🧪 Pruebas de cplay
 • \`!youtube / !yt_search\` — 🔍 Búsqueda y enlaces
+• \`!extractor <media>\` — 🛠️ Extraer contenido (extractor)
+• \`!sticker\` — 🏷️ Crear sticker desde imagen/video
 
 ---
 
-*📊 ESTADÍSTICAS & CONTADORES*
+*📊 ESTADÍSTICAS, RANKS & CONTADORES*
 • \`!actividad\` — 📈 Lista de usuarios activos/inactivos (menciones correctas)
+• \`!activos\` — 👥 Mostrar usuarios activos
+• \`!level\` — 📚 Nivel / experiencia
+• \`!top\` / \`!top5\` / \`!topricos\` — 🏆 Rankings
 • Contadores persistentes: \`utils/messageCounter.js\` (flush periódico y backups)
 
 ---
 
-*❤️ SOCIAL* (parejas, roles)
+*❤️ SOCIAL & PAREJAS*
 • \`!parejas\` — 👩‍❤️‍👨 TOP parejas
+• \`!pareja @usuario\` — 💞 Ver/gestionar pareja individual
 • \`!casarme @usuario\` — 💍 Proponer matrimonio
+• \`!casemonos\` — 💒 Confirmar matrimonio (alias)
 • \`!aceptar\` / \`!rechazar\` — ✅ Responder propuesta
 • \`!mipareja\` — 💌 Ver tu pareja
+• \`!divorcio\` / \`!divorciarse\` — 💔 Romper matrimonio
+• \`!estadoamor\` — ❤️ Estado de pareja
 
 ---
 
-*🎮 JUEGOS & MISIONES*
+*🎮 JUEGOS, MINIJUEGOS & MISIONES*
 • Misiones diarias: objetivos, notificaciones, recompensas (XP / dinero)
 • Comandos de minijuegos: \`!adivinapalabra\`, \`!ahorcado\`
-• \`!impostor\` eliminado por seguridad
+• \`!impostor\` — (eliminado por seguridad en algunos grupos)
+• \`!nuevos\` — 👀 Mostrar usuarios recientes
 
 ---
 
@@ -109,6 +130,7 @@ export async function menuCommand(sock, msg) {
 • \`!hunt\` / \`!fish\` (\`!pescar\`) — 🦌/🐟 Actividades con recompensas
 • \`!buy\` / \`!sell\` / \`!inventory\` / \`!profile\` — Comercio y perfil
 • \`!banco\` / \`!depositar\` / \`!retirar\` / \`!invertir\` — Gestión bancaria/inversiones
+• \`!guardar\` / \`!sacar\` — 💾 Guardar / retirar recursos (caja/almacen)
 • \`!donar @usuario <cantidad>\`, \`!robbanco\`, \`!caja\` / \`!cajafuerte\` — Transferencias y acciones avanzadas
 
 ---
@@ -120,18 +142,24 @@ export async function menuCommand(sock, msg) {
 
 ---
 
-*⚠️ CONTENIDO SENSIBLE & PREMIUM*
-• Comandos 'adultos' (premium): \`!putas\` / \`!stalin\` / \`!lujuria\` — 🔞 (uso con costo)
+*🧩 ROLEPLAY, HUMOR & TOPICOS*
+• \`!cachudos\` / \`!pajeros\` / \`!maricones\` — 😂 Comandos de humor/social
+• \`!infieles\` — 🕵️‍♂️ Búsqueda de infidelidades (juego)
 • Temas de rol: \`!drogas\` / \`!narco\` / \`!trafico\` — contenido simulado
 
 ---
 
 *🛡️ ADMIN (privado / críticos)*
+• \`!admins\` — 🧑‍💼 Lista de administradores del bot
 • \`!ban\` / \`!kick\` — ❌ Expulsar usuarios
 • \`!promote\` / \`!demote\` — 🔼/🔽 Cambiar roles
 • \`!antilink [activar|desactivar]\` — 🚫 Protección de enlaces
 • \`!bienvenida [activar|desactivar]\` — 🙌 Mensajes de bienvenida
 • \`!todos\` / \`!tag_group\` — 🔔 Etiquetar a todos (respeta \`config/always_tag.json\`)
+• \`!bot_join\` — ➕ Forzar que el bot se una a un grupo (Owner)
+• \`!grupo\` — ⚙️ Configuración de grupo / info
+• \`!leerlog\` — 📑 Leer registros
+• \`!guardar\` / \`!sacar\` — 💾 Guardar/recuperar backups locales
 • \`!killgroup\` — 💣 Eliminar grupo (uso responsable)
 • \`!clear_log\` — 🧹 Limpiar registros
 • \`!purga\` / \`!purgarsistema\` / \`!saquear\` — ⚠️ Comandos críticos (Owner only)
