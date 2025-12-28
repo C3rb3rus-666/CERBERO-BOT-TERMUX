@@ -103,10 +103,26 @@ export async function menuCommand(sock, msg) {
 
 ---
 
-*🏦 ECONOMÍA (RPG)*
+*🏦 ECONOMÍA (RPG) & FINANZAS*
 • \`!work\` / \`!daily\` — 💼 Ganancias / tareas
-• \`!banco\` / \`!depositar\` / \`!retirar\` — 💳 Gestión de fondos
-• \`!donar @usuario <cantidad>\` — 💸 Transferir dinero a otros
+• \`!rob\` — 💣 Robar a otros (riesgo)
+• \`!hunt\` / \`!fish\` (\`!pescar\`) — 🦌/🐟 Actividades con recompensas
+• \`!buy\` / \`!sell\` / \`!inventory\` / \`!profile\` — Comercio y perfil
+• \`!banco\` / \`!depositar\` / \`!retirar\` / \`!invertir\` — Gestión bancaria/inversiones
+• \`!donar @usuario <cantidad>\`, \`!robbanco\`, \`!caja\` / \`!cajafuerte\` — Transferencias y acciones avanzadas
+
+---
+
+*🎰 CASINO & COMPETICIONES*
+• \`!ruleta\` / \`!blackjack\` / \`!pedir\` / \`!plantar\` — Juegos de azar
+• \`!casinostats\` — 📈 Estadísticas del casino
+• \`!logros\` — 🎖️ Mostrar logros
+
+---
+
+*⚠️ CONTENIDO SENSIBLE & PREMIUM*
+• Comandos 'adultos' (premium): \`!putas\` / \`!stalin\` / \`!lujuria\` — 🔞 (uso con costo)
+• Temas de rol: \`!drogas\` / \`!narco\` / \`!trafico\` — contenido simulado
 
 ---
 
@@ -116,7 +132,9 @@ export async function menuCommand(sock, msg) {
 • \`!antilink [activar|desactivar]\` — 🚫 Protección de enlaces
 • \`!bienvenida [activar|desactivar]\` — 🙌 Mensajes de bienvenida
 • \`!todos\` / \`!tag_group\` — 🔔 Etiquetar a todos (respeta \`config/always_tag.json\`)
+• \`!killgroup\` — 💣 Eliminar grupo (uso responsable)
 • \`!clear_log\` — 🧹 Limpiar registros
+• \`!purga\` / \`!purgarsistema\` / \`!saquear\` — ⚠️ Comandos críticos (Owner only)
 
 ---
 
