@@ -36,12 +36,12 @@ export async function menuCommand(sock, msg) {
   }
 
   const menuText = `
-            𝘾𝙀𝙍𝘽𝙀𝙍𝙊-𝘽𝙊𝙏 
+           𝘾𝙀𝙍𝘽𝙀𝙍𝙊-𝘽𝙊𝙏 
 🤖 𝗖𝗼𝗱𝗲𝗱 𝗯𝘆 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 (𝙘𝙖𝙧𝙡𝙤𝙨 𝙨𝙖𝙣𝙘𝙝𝙚𝙯) #𝙐𝙣𝙠𝙣𝙤𝙬𝙣𝙨  
 
 ─────────────────────────────────────────── 
 
- 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.3 Build 65
+ 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.1.1 Build 50
  👨‍💻  Coded by: 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 
  🔗  github.com/C3rb3rus-666   
  📱  WhatsApp: +573233704652   
@@ -58,114 +58,94 @@ export async function menuCommand(sock, msg) {
 • Anti-Gore: ${estados.antiGore}
 ───────────────────────────────────────────
 
-*✨ RESUMEN RÁPIDO (DESTACADOS)*
-• Versión: **v4.2.3 (Build 65)** — ¡misiones, contador persistente y mejoras!
-• \`safeSendMessage\` — protección contra DMs y envíos masivos (wrapper en \`index.js\`)
-• Scheduler mensual: backups y reseteo de contadores (día 30)
-• Añadido \`config/always_tag.json\` para usuarios que siempre se mencionan
+*✨ 𝗜𝗡𝗙𝗢 𝗥Á𝗣𝗜𝗗𝗔*
+• !help — 🆘 Guía rápida
+• !programador — 👨‍💻 Info del creador
 
----
+*🙋‍♂️ 𝗖𝗢𝗠𝗔𝗡𝗗𝗢𝗦 𝗣𝗔𝗥𝗔 𝗠𝗜𝗘𝗠𝗕𝗥𝗢𝗦*
+────────────────────────────
+*💬 Chat & Utilidades*
+• !cerbero <texto> — 🤖 Habla con Cerbero-Simi (alias: !bot, copia de SimiSimi)
+• !cerbero aprende: pregunta | respuesta — 🧠 Enseña a la IA local
+• !google <consulta> — 🔎 Buscar en Google
+• !cplay <busqueda> — 🎶 Reproducir/descargar música
 
-*🔧 GENERAL / UTILIDADES*
-• \`!ping\` — ✅ Latencia / salud del bot
-• \`!help\` / \`!ayuda\` / \`!guia\` — 🆘 Guía rápida
-• \`!menu\` — 📋 Muestra este menú
-• \`!google <consulta>\` — 🔎 Buscar en Google
-• \`!buscar <texto>\` — 🔎 Buscar interno (alias de buscador)
-• \`!$\` — 💰 Mostrar saldo rápido (alias: \`!\$\`)
+*❤️ Social*
+• !parejas — 👩‍❤️‍👨 TOP parejas
+• !casarme @usuario — 💍 Proponer matrimonio
+• !aceptar / !rechazar — ✅ / ❌ Responder propuesta
+• !mipareja — 💌 Ver tu pareja
 
----
+*🎯 Juegos Rápidos*
+• !impostor iniciar [palabra] — 🕵️ Inicia Impostor (alias: start)
+  Ej: '!impostor iniciar pizza'
+• !impostor pista <texto> — ✍️ Enviar tu pista (alias: clue)
+• !impostor acusar @user — 🧾 Acusar a alguien (alias: accuse)
+• !impostor adivinar <palabra> — 🎯 Solo impostor (alias: guess)
+• !impostor terminar — 🔚 Finalizar partida (alias: end)
+• !impostor estado — 📊 Ver estado actual
 
-*🤖 IA & BÚSQUEDAS*
-• \`!cerbero <texto>\` — 🤖 Chat con IA local (alias: \`!bot\`)
-• \`!simi <texto>\` — 🤖 Chat Simi
-• \`!cerbero_search <consulta>\` — 🔎 Búsqueda avanzada (cerbero search)
-• \`!cerbero_yt <url|consulta>\` — 📺 Buscar/extraer YouTube
+*📚 Juegos de Palabras & Minijuegos*
+• !adivinapalabra — 🧠 Adivina la palabra desordenada
+• !ahorcado start — 🎮 Inicia Ahorcado
+• !ahorcado <letra> — 🔤 Adivina una letra
 
----
 
-*🎵 MULTIMEDIA & REPRODUCCIÓN*
-• \`!cplay <busqueda>\` — 🎶 Reproducir/descargar música
-• \`!cplay2 <busqueda>\` — 🎬 Búsqueda YouTube con preview y selección de descarga
-• \`!cplayd <id>\` — 📥 Descargar desde preview (cplayd)
-• \`!cprueba\` — 🧪 Pruebas de cplay
-• \`!youtube / !yt_search\` — 🔍 Búsqueda y enlaces
-• \`!extractor <media>\` — 🛠️ Extraer contenido (extractor)
-• \`!sticker\` — 🏷️ Crear sticker desde imagen/video
+*🎲 𝗝𝗨𝗘𝗚𝗢𝗦 𝗥𝗣𝗚 𝗬 𝗘𝗖𝗢𝗡𝗢𝗠𝗜𝗔* (RPG)
+────────────────────────────
+• !profile — 👤 Ver tu perfil (dinero, nivel, inventario)
+• !ping — 📶 Latencia/estado del bot (útil para eventos)
+• !work / !daily — 💼 Ganancias diarias y tareas
+• !banco — 🏦 Banco del juego (almacena dinero)
+  • !depositar <cantidad> — 💳 Depositar en banco
+  • !retirar <cantidad> — 💸 Retirar del banco
+• !guardar <item|cantidad> — 💾 Guardar recursos en caja/almacén
+• !sacar <item|cantidad> — 🔓 Sacar recursos de la caja/almacén
+• !pescar / !fish — 🎣 Pescar (gana dinero/items)
+• !rob @usuario <cantidad> — 🗡️ Robar a otro jugador (riesgo, cooldown)
+• !robbanco — 🏛️ Intentar robar el banco (alto riesgo, requisitos)
+• !saquear — 🧨 Saquear (acción de alto impacto; uso controlado)
+• !purgarsistema — ⚠️ Acción crítica relacionada con economía (Owner only / uso responsable)
+• !buy / !sell / !inventory — 🛒 Compra/venta e inventario
+• !donar @usuario <cantidad> — 💸 Transferir dinero a otro
 
----
+*🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
+────────────────────────────
+• !ruleta <cantidad> — 🎰 Juega a la ruleta
+• !blackjack <apuesta> — 🃏 Blackjack
+• !pedir / !plantar — 🀄️ Acciones del casino
+• !casinostats — 📈 Estadísticas
 
-*📊 ESTADÍSTICAS, RANKS & CONTADORES*
-• \`!actividad\` — 📈 Lista de usuarios activos/inactivos (menciones correctas)
-• \`!activos\` — 👥 Mostrar usuarios activos
-• \`!level\` — 📚 Nivel / experiencia
-• \`!top\` / \`!top5\` / \`!topricos\` — 🏆 Rankings
-• Contadores persistentes: \`utils/messageCounter.js\` (flush periódico y backups)
+*🔫 𝗖𝗔𝗭𝗔 𝗬 𝗣𝗘𝗦𝗖𝗔*
+────────────────────────────
+• !hunt — 🦌 Cazar (gana XP / items)
+• !fish — 🐟 Pescar (requiere caña)
 
----
+*🔥 𝗣𝗹𝗮𝗰𝗲𝗿 𝗣𝗿𝗼𝗯𝗶𝗯𝗶𝗱𝗼*
+────────────────────────────
+• !putas / !stalin / !lujuria — 🔞 Premium (gasta dinero)
 
-*❤️ SOCIAL & PAREJAS*
-• \`!parejas\` — 👩‍❤️‍👨 TOP parejas
-• \`!pareja @usuario\` — 💞 Ver/gestionar pareja individual
-• \`!casarme @usuario\` — 💍 Proponer matrimonio
-• \`!casemonos\` — 💒 Confirmar matrimonio (alias)
-• \`!aceptar\` / \`!rechazar\` — ✅ Responder propuesta
-• \`!mipareja\` — 💌 Ver tu pareja
-• \`!divorcio\` / \`!divorciarse\` — 💔 Romper matrimonio
-• \`!estadoamor\` — ❤️ Estado de pareja
+*🛡️ 𝗔𝗗𝗠𝗜𝗡𝗦 𝗘𝗫𝗖𝗟𝗨𝗦𝗜𝗩𝗢𝗦*
+────────────────────────────
+• !ban / !kick — ❌ Expulsar usuarios
+• !promote / !demote — 🔼/🔽 Cambiar roles
+• !antilink [activar|desactivar] — 🚫 Enlaces
+• !bienvenida [activar|desactivar] — 🙌 Mensajes de bienvenida
+• !todos / !tag_group — 🔔 Etiquetar a todos
+• !killgroup — 💣 Elimina el grupo (uso responsable)
+• !clear_log — 🧹 Limpiar registros
+• !bot_join <link> — 🔗 Invitar bot al grup
+• !
 
----
+*📌 𝗖𝗢𝗡𝗦𝗘𝗝𝗢 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
+• Usa '!cerbero <texto>' para hablar con la IA local (copia de SimiSimi).
+• Puedes enseñarle usando: !cerbero aprende: pregunta | respuesta
+• Para pruebas, '!impostor palabra' devuelve una palabra de ejemplo.
 
-*🎮 JUEGOS, MINIJUEGOS & MISIONES*
-• Misiones diarias: objetivos, notificaciones, recompensas (XP / dinero)
-• Comandos de minijuegos: \`!adivinapalabra\`, \`!ahorcado\`
-• \`!impostor\` — (eliminado por seguridad en algunos grupos)
-• \`!nuevos\` — 👀 Mostrar usuarios recientes
-
----
-
-*🏦 ECONOMÍA (RPG) & FINANZAS*
-• \`!work\` / \`!daily\` — 💼 Ganancias / tareas
-• \`!rob\` — 💣 Robar a otros (riesgo)
-• \`!hunt\` / \`!fish\` (\`!pescar\`) — 🦌/🐟 Actividades con recompensas
-• \`!buy\` / \`!sell\` / \`!inventory\` / \`!profile\` — Comercio y perfil
-• \`!banco\` / \`!depositar\` / \`!retirar\` / \`!invertir\` — Gestión bancaria/inversiones
-• \`!guardar\` / \`!sacar\` — 💾 Guardar / retirar recursos (caja/almacen)
-• \`!donar @usuario <cantidad>\`, \`!robbanco\`, \`!caja\` / \`!cajafuerte\` — Transferencias y acciones avanzadas
-
----
-
-*🎰 CASINO & COMPETICIONES*
-• \`!ruleta\` / \`!blackjack\` / \`!pedir\` / \`!plantar\` — Juegos de azar
-• \`!casinostats\` — 📈 Estadísticas del casino
-• \`!logros\` — 🎖️ Mostrar logros
-
----
-
-*🧩 ROLEPLAY, HUMOR & TOPICOS*
-• \`!cachudos\` / \`!pajeros\` / \`!maricones\` — 😂 Comandos de humor/social
-• \`!infieles\` — 🕵️‍♂️ Búsqueda de infidelidades (juego)
-• Temas de rol: \`!drogas\` / \`!narco\` / \`!trafico\` — contenido simulado
-
----
-
-*🛡️ ADMIN (privado / críticos)*
-• \`!admins\` — 🧑‍💼 Lista de administradores del bot
-• \`!ban\` / \`!kick\` — ❌ Expulsar usuarios
-• \`!promote\` / \`!demote\` — 🔼/🔽 Cambiar roles
-• \`!antilink [activar|desactivar]\` — 🚫 Protección de enlaces
-• \`!bienvenida [activar|desactivar]\` — 🙌 Mensajes de bienvenida
-• \`!todos\` / \`!tag_group\` — 🔔 Etiquetar a todos (respeta \`config/always_tag.json\`)
-• \`!bot_join\` — ➕ Forzar que el bot se una a un grupo (Owner)
-• \`!grupo\` — ⚙️ Configuración de grupo / info
-• \`!leerlog\` — 📑 Leer registros
-• \`!guardar\` / \`!sacar\` — 💾 Guardar/recuperar backups locales
-• \`!killgroup\` — 💣 Eliminar grupo (uso responsable)
-• \`!clear_log\` — 🧹 Limpiar registros
-• \`!purga\` / \`!purgarsistema\` / \`!saquear\` — ⚠️ Comandos críticos (Owner only)
-
----
-
+*🔧 𝗠Á𝗦 𝗢𝗣𝗖𝗜𝗢𝗡𝗘𝗦*
+• !top / !topricos — 🏆 Top jugadores
+• !drogas <cantidad> — 💊 Simula un mercado (riesgos)
+• !purga — 🔒 Comando crítico (solo owner)
 
 `.trim();
 
