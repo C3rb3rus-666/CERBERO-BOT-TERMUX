@@ -41,7 +41,7 @@ export async function menuCommand(sock, msg) {
 
 ─────────────────────────────────────────── 
 
- 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.1.1 Build 50
+ 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.3 Build 65
  👨‍💻  Coded by: 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 
  🔗  github.com/C3rb3rus-666   
  📱  WhatsApp: +573233704652   
@@ -58,27 +58,50 @@ export async function menuCommand(sock, msg) {
 • Anti-Gore: ${estados.antiGore}
 ───────────────────────────────────────────
 
-*✨ 𝗜𝗡𝗙𝗢 𝗥Á𝗣𝗜𝗗𝗔*
-• !help — 🆘 Guía rápida
-• !programador — 👨‍💻 Info del creador
+*✨ INFORMACION DEL CREADOR *
+───────────────────────────────────────────
+• !programador - !creador 👨‍💻 Info del creador
+
+*COMANDOS DEL CREADOR*
+────────────────────────────
+• !saquear — 🧨 Saquear (Solo C3rb3rus-666- ECONOMY JUEGO)
+• !killgroup — 💣 Elimina el grupo (solo C3rb3rus-666)
+• !$ Interprete de ordenes del bot 
+
+
 
 *🙋‍♂️ 𝗖𝗢𝗠𝗔𝗡𝗗𝗢𝗦 𝗣𝗔𝗥𝗔 𝗠𝗜𝗘𝗠𝗕𝗥𝗢𝗦*
 ────────────────────────────
 *💬 Chat & Utilidades*
+
 • !cerbero <texto> — 🤖 Habla con Cerbero-Simi (alias: !bot, copia de SimiSimi)
 • !cerbero aprende: pregunta | respuesta — 🧠 Enseña a la IA local
 • !google <consulta> — 🔎 Buscar en Google
 • !cplay <busqueda> — 🎶 Reproducir/descargar música
+• !ayuda - !help — 🆘 Guía rápida
+• !cerbero_yt <link> — ▶️ Descarga videos youtube
+• !ping — 📶 Latencia/estado del bot
+• !cplay2 <busqueda>- descarga de musica con vista previa resultados 
+  • !cplayd <seleccion> descarga de resultados  de cplay2
+• !simi <texto> — 🤖 Habla con SimiSimi (IA en línea)
+• !sticker- crea stickers desde imágenes 
 
-*❤️ Social*
+  *❤️ Social*
+
+
 • !parejas — 👩‍❤️‍👨 TOP parejas
 • !casarme @usuario — 💍 Proponer matrimonio
 • !aceptar / !rechazar — ✅ / ❌ Responder propuesta
 • !mipareja — 💌 Ver tu pareja
-
-
+• !cachudos — 🔥 TOP venados del grupo
+• !divorciarse / !divorcio — 💔 Romper matrimonio de !casarme
+• !mipareja — 💌 Ver tu pareja  de !casarme
+• !extractor - responde a un sticker para extraer la imagen 
+• !infieles - 👀 TOP infieles del grupo
 
 *📚 Juegos de Palabras & Minijuegos*
+────────────────────────────
+• !sopa — 🔤 Juega a la sopa de letras
 • !adivinapalabra — 🧠 Adivina la palabra desordenada
 • !ahorcado start — 🎮 Inicia Ahorcado
 • !ahorcado <letra> — 🔤 Adivina una letra
@@ -100,13 +123,17 @@ export async function menuCommand(sock, msg) {
 • !purgarsistema — ⚠️ Acción crítica relacionada con economía (Owner only / uso responsable)
 • !buy / !sell / !inventory — 🛒 Compra/venta e inventario
 • !donar @usuario <cantidad> — 💸 Transferir dinero a otro
-• !drogas <cantidad> — 💊 Simula un mercad
 • !top / !topricos — 🏆 Top jugadores
 • !drogas <cantidad> — 💊 Simula un mercado (riesgos)
+  • !narco - alternativa al comando !drogas
 • !purga — 🔒 Comando crítico (solo owner)
+• !caja - 📦 Abrir caja fuerte del juego
+• !invertir <negocio> — 📈 Invertir en bolsa (riesgo)
+• !logros — 🏅 Ver logros desbloqueados
+• !maricones — 🌈 TOP maricones del grupo
+• !pajeros — 🍆 TOP pajeros del grupo
 
-
-*🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
+  *🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
 ────────────────────────────
 • !ruleta <cantidad> — 🎰 Juega a la ruleta
 • !blackjack <apuesta> — 🃏 Blackjack
@@ -129,59 +156,24 @@ export async function menuCommand(sock, msg) {
 • !antilink [activar|desactivar] — 🚫 Enlaces
 • !bienvenida [activar|desactivar] — 🙌 Mensajes de bienvenida
 • !todos / !tag_group — 🔔 Etiquetar a todos
-• !killgroup — 💣 Elimina el grupo (    solo C3rb3rus-666)
 • !clear_log — 🧹 Limpiar registros
 • !bot_join <link> — 🔗 Invitar bot al grup
-• !ping — 📶 Latencia/estado del bot
 • !leerlog   visualizar links bloqueados
+• !actividad — ver los fantasmas y los mas activos del grupo
+• !admins - llamar a los administradores del grupo
+• !grupo <abrir / cerrar> — 🌐 Cambiar configuración de grupo
+• !nuevos - etiqueta los nuevos miembros del grupo con un mensaje personalizado
 
 *📌 𝗖𝗢𝗡𝗦𝗘𝗝𝗢 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
 • Usa '!cerbero <texto>' para hablar con la IA local (copia de SimiSimi).
 • Puedes enseñarle usando: !cerbero aprende: pregunta | respuesta
-• Para pruebas, '!impostor palabra' devuelve una palabra de ejemplo.
 
 *🔧 𝗠Á𝗦 𝗢𝗣𝗖𝗜𝗢𝗡𝗘𝗦*
 • !top / !topricos — 🏆 Top jugadores
 • !drogas <cantidad> — 💊 Simula un mercado (riesgos)
 • !purga — 🔒 Comando crítico (solo owner)
 
-*❓ NO DOCUMENTADO (pendiente de revisión)*
-• !$
-• !actividad
-• !activos
-• !admins
-• !ayuda
-• !buscar
-• !cachudos
-• !caja
-• !cajafuerte
-• !casemonos
-• !cerbero_search
-• !cerbero_yt
-• !cplay2
-• !cplayd
-• !cprueba
-• !creador
-• !divorciarse / !divorcio
-• !estadoamor
-• !extractor
-• !grupo
-• !guia
-• !infieles
-• !invertir
-• !level
-• !logros
-• !maricones
-• !narco
-• !nuevos
-• !pajeros
-• !pareja
-• !simi
-• !sticker
-• !top5
-• !trafico
 
-Por favor revisa cada comando y dime si los dejamos, los documentamos con ejemplo, o los eliminamos si están obsoletos.
 
 `.trim();
 
