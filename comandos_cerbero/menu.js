@@ -36,10 +36,6 @@ export async function menuCommand(sock, msg) {
   }
 
   const menuText = `
-           𝘾𝙀𝙍𝘽𝙀𝙍𝙊-𝘽𝙊𝙏 
-🤖 𝗖𝗼𝗱𝗲𝗱 𝗯𝘆 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 (𝙘𝙖𝙧𝙡𝙤𝙨 𝙨𝙖𝙣𝙘𝙝𝙚𝙯) #𝙐𝙣𝙠𝙣𝙤𝙬𝙣𝙨  
-
-─────────────────────────────────────────── 
 
  🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.3 Build 65
  👨‍💻  Coded by: 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 
@@ -101,7 +97,6 @@ export async function menuCommand(sock, msg) {
 
 *📚 Juegos de Palabras & Minijuegos*
 ────────────────────────────
-• !sopa — 🔤 Juega a la sopa de letras
 • !adivinapalabra — 🧠 Adivina la palabra desordenada
 • !ahorcado start — 🎮 Inicia Ahorcado
 • !ahorcado <letra> — 🔤 Adivina una letra

@@ -60,6 +60,7 @@ All notable changes to this project will be documented in this file.
 - `!ping` ahora mide la latencia real (RTT) hacia WhatsApp enviando y eliminando un mensaje de prueba.
 - Actualizada la línea de versión en el menú `comandos_cerbero/menu.js` para reflejar **v4.2.3 Build 65**.
 - Mejorado `install.sh` para compatibilidad con Arch Linux / Manjaro (pacman): instala `python-pip`, `nodejs`, `npm` y usa `python -m pip` para instalar `yt-dlp`.
+- Eliminado el comando `!sopa` (Sopa de Letras) y archivos asociados por decisión del mantenedor.
 
 ### Security/Notes
 - Se añadió el evento global "Saqueo del Jefe Maestro" que puede confiscar un 90% de fondos de los jugadores cuando ocurre (probabilidad baja por invocación). Habilitar con precaución y mantener backups.
