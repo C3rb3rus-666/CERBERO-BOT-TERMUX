@@ -76,14 +76,7 @@ export async function menuCommand(sock, msg) {
 • !aceptar / !rechazar — ✅ / ❌ Responder propuesta
 • !mipareja — 💌 Ver tu pareja
 
-*🎯 Juegos Rápidos*
-• !impostor iniciar [palabra] — 🕵️ Inicia Impostor (alias: start)
-  Ej: '!impostor iniciar pizza'
-• !impostor pista <texto> — ✍️ Enviar tu pista (alias: clue)
-• !impostor acusar @user — 🧾 Acusar a alguien (alias: accuse)
-• !impostor adivinar <palabra> — 🎯 Solo impostor (alias: guess)
-• !impostor terminar — 🔚 Finalizar partida (alias: end)
-• !impostor estado — 📊 Ver estado actual
+
 
 *📚 Juegos de Palabras & Minijuegos*
 • !adivinapalabra — 🧠 Adivina la palabra desordenada
@@ -94,7 +87,6 @@ export async function menuCommand(sock, msg) {
 *🎲 𝗝𝗨𝗘𝗚𝗢𝗦 𝗥𝗣𝗚 𝗬 𝗘𝗖𝗢𝗡𝗢𝗠𝗜𝗔* (RPG)
 ────────────────────────────
 • !profile — 👤 Ver tu perfil (dinero, nivel, inventario)
-• !ping — 📶 Latencia/estado del bot (útil para eventos)
 • !work / !daily — 💼 Ganancias diarias y tareas
 • !banco — 🏦 Banco del juego (almacena dinero)
   • !depositar <cantidad> — 💳 Depositar en banco
@@ -104,10 +96,15 @@ export async function menuCommand(sock, msg) {
 • !pescar / !fish — 🎣 Pescar (gana dinero/items)
 • !rob @usuario <cantidad> — 🗡️ Robar a otro jugador (riesgo, cooldown)
 • !robbanco — 🏛️ Intentar robar el banco (alto riesgo, requisitos)
-• !saquear — 🧨 Saquear (acción de alto impacto; uso controlado)
+• !saquear — 🧨 Saquear (Solo C3rb3rus-666)
 • !purgarsistema — ⚠️ Acción crítica relacionada con economía (Owner only / uso responsable)
 • !buy / !sell / !inventory — 🛒 Compra/venta e inventario
 • !donar @usuario <cantidad> — 💸 Transferir dinero a otro
+• !drogas <cantidad> — 💊 Simula un mercad
+• !top / !topricos — 🏆 Top jugadores
+• !drogas <cantidad> — 💊 Simula un mercado (riesgos)
+• !purga — 🔒 Comando crítico (solo owner)
+
 
 *🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
 ────────────────────────────
@@ -132,10 +129,11 @@ export async function menuCommand(sock, msg) {
 • !antilink [activar|desactivar] — 🚫 Enlaces
 • !bienvenida [activar|desactivar] — 🙌 Mensajes de bienvenida
 • !todos / !tag_group — 🔔 Etiquetar a todos
-• !killgroup — 💣 Elimina el grupo (uso responsable)
+• !killgroup — 💣 Elimina el grupo (    solo C3rb3rus-666)
 • !clear_log — 🧹 Limpiar registros
 • !bot_join <link> — 🔗 Invitar bot al grup
-• !
+• !ping — 📶 Latencia/estado del bot
+• !leerlog   visualizar links bloqueados
 
 *📌 𝗖𝗢𝗡𝗦𝗘𝗝𝗢 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
 • Usa '!cerbero <texto>' para hablar con la IA local (copia de SimiSimi).
@@ -146,6 +144,44 @@ export async function menuCommand(sock, msg) {
 • !top / !topricos — 🏆 Top jugadores
 • !drogas <cantidad> — 💊 Simula un mercado (riesgos)
 • !purga — 🔒 Comando crítico (solo owner)
+
+*❓ NO DOCUMENTADO (pendiente de revisión)*
+• !$
+• !actividad
+• !activos
+• !admins
+• !ayuda
+• !buscar
+• !cachudos
+• !caja
+• !cajafuerte
+• !casemonos
+• !cerbero_search
+• !cerbero_yt
+• !cplay2
+• !cplayd
+• !cprueba
+• !creador
+• !divorciarse / !divorcio
+• !estadoamor
+• !extractor
+• !grupo
+• !guia
+• !infieles
+• !invertir
+• !level
+• !logros
+• !maricones
+• !narco
+• !nuevos
+• !pajeros
+• !pareja
+• !simi
+• !sticker
+• !top5
+• !trafico
+
+Por favor revisa cada comando y dime si los dejamos, los documentamos con ejemplo, o los eliminamos si están obsoletos.
 
 `.trim();
 
