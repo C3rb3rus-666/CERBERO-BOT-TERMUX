@@ -264,7 +264,6 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     
     case 'pareja':
     case 'mipareja':
-    case 'estadoamor':
       await humanDelay(sock, message, 2, 4);
       await checkRelationship(sock, message, args);
       break;
@@ -329,17 +328,13 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
           await handleCplaydSelection(sock, message, parseInt(args[0], 10));
           break;
         } catch (e) {
-          console.error('Error handling cplay2 numeric selection:', e);
+          console.error('Error handling cplay numeric selection:', e);
         }
       }
       await playMusicCommand(sock, message, args);
       break;
     case 'cplay2':
       // Compat: redirigir a nuevo comando
-      await humanDelay(sock, message, 3, 7);
-      await handleCpruebaCommand(sock, message, args);
-      break;
-    case 'cprueba':
       await humanDelay(sock, message, 3, 7);
       await handleCpruebaCommand(sock, message, args);
       break;
@@ -434,10 +429,12 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await executePythonOrShell(sock, message, shellCommand);
       break;
     
-    case 'buscar':
+  /*  case 'buscar':
       await humanDelay(sock, message, 3, 7);
       await buscarNumerosEnGrupo(sock, message, args);
-      break;
+      break; 
+      busqueda de numerros desactivada
+      */
     
     case 'google':
       await humanDelay(sock, message, 4, 10);

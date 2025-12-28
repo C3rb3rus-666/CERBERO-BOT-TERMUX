@@ -49,6 +49,10 @@ Correcciones recientes
 	 - `!nuevos` exige ahora un mensaje personalizado y borra las entradas usadas en `temp/recent_joins.json`.
 	 - Evento global "Saqueo del Jefe Maestro": probabilidad baja de confiscar 90% de fondos (configurable). Use con precaución.
 	 - Flag de `lealtad` añadida para pruebas (`comandos_cerbero/lealtad.js`) y utilidades relacionadas.
+	 - **Eliminado** el comando `!sopa` (Sopa de Letras) y archivos asociados por decisión del mantenedor.
+	 - **¡Cambio importante!** `!ping` ahora mide la latencia real (RTT) hacia WhatsApp enviando y eliminando un mensaje de prueba.
+
+Notas de uso
 
 - v4.2.1 (Build 63): Se corrigió pérdida de contadores bajo alta carga reimplementando la persistencia:
 	- `utils/messageCounter.js` usa ahora un almacén en memoria con flush periódico (1s) y escritura atómica (`.tmp` → rename).
