@@ -41,17 +41,34 @@ All notable changes to this project will be documented in this file.
 - Actualizada la versión a v4.2.2 Build 64.
 
 
-## [4.2.3] - 2025-12-27 (Build 65)
+## [4.2.4] - 2025-12-28 (Build 67)
 ### Added
+- Sistema de misiones grupales en `comandos_cerbero/gameFIle.js`: Misiones aleatorias asignadas en `!work` enfocadas en interacciones grupales (enviar mensajes, etiquetar miembros, reacciones, stickers, etc.), con verificación semi-automática en comandos.
+- Más logros desbloqueables: Primer Trabajo, Ahorrador, Millonario, Nivel 10, Misionero, etc., con recompensas en dinero y XP.
+- Campo `totalXP` y `completedMissions` en el JSON de usuarios para tracking avanzado.
+- Función `formatMoney()` para formateo consistente de valores en USD con separadores de miles y 2 decimales.
+- Eventos de crisis económica (3% probabilidad) que restan 20% del total si supera $50,000.
 
 ### Changed
+- Moneda del juego cambiada a USD con formateo mejorado (ej. "$1,000.00").
+- Reset completo de progreso: Todos los usuarios inician con $1,000, nivel 1, 0 XP, y stats limpios.
+- Penalizaciones agresivas para obstáculos: Impuestos aumentados a 10%, atracos a 5% (roban 15%), sin límite visible de dinero.
+- Sistema de XP extendido: Más XP en acciones, level up automático (XP >= nivel * 500), y recompensas por niveles.
+- Misiones ahora grupales y verificadas internamente en `gameFIle.js` durante comandos en grupo.
 
 ### Fixed
-- `utils/youtubeDownloader.js`: manejo defensivo y mensajes de error mejorados — se valida `findYtDlpCommand()` antes de usarlo, se capturan y muestran `stderr` de `yt-dlp`, y se devuelve un mensaje instructivo si el fallback falla (incluye comando sugerido para instalar `yt-dlp`).
+- Formateo de números en todos los mensajes para evitar valores disparados y mejorar legibilidad.
+- Balance del juego: Obstáculos previenen acumulación excesiva sin tope duro, promoviendo estrategia.
+
+### Notes
+- El juego es ahora más enganchador con foco en participación grupal y desafíos progresivos.
+- Datos guardados en `./comandos_cerbero/juegos/gameData.json` con nueva estructura (achievements, events, etc.).
+
+- `comandos_cerbero/music_cplay2.js`: añadidos logs y manejo defensivo durante descarga/conversión; ahora registra pasos clave (URL, rutas temporales, errores de ffmpeg).
 
 - `!nuevos` ahora requiere un mensaje personalizado y borra entradas usadas en `temp/recent_joins.json`.
 - Mensajes y UX de misiones pulidos.
-- Aumentada la versión a `4.2.3` y `build` a `65`.
+- Aumentada la versión a `4.2.3` y `build` a `66`.
 
 ### Fixed
 - Normalizado el formato de salida en `comandos_cerbero/ping.js` para evitar indentación extra y líneas desordenadas en el mensaje de estado (`!ping`).
