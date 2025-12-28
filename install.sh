@@ -93,17 +93,27 @@ elif command -v apt-get &> /dev/null; then
     echo -e "${BLUE}[*] Actualizando yt-dlp (pip3)${NC}"
     pip3 install --upgrade yt-dlp --break-system-packages
 elif command -v pacman &> /dev/null; then
-    echo -e "${GREEN}✓ Detectado: Arch Linux${NC}"
-    echo -e "${BLUE}[*] Ejecutando: sudo pacman -Sy --noconfirm (salida completa)${NC}"
-    sudo pacman -Sy --noconfirm \
+    echo -e "${GREEN}✓ Detectado: Arch Linux / Manjaro${NC}"
+    echo -e "${BLUE}[*] Ejecutando: sudo pacman -Syu --noconfirm --needed (salida completa)${NC}"
+    sudo pacman -Syu --noconfirm --needed \
         base-devel \
         python \
+        python-pip \
         ffmpeg \
         git \
         curl \
-        wget
-    echo -e "${BLUE}[*] Actualizando yt-dlp (pip)${NC}"
-    pip install --upgrade yt-dlp --break-system-packages
+        wget \
+        nodejs \
+        npm
+    echo -e "${BLUE}[*] Instalando/actualizando yt-dlp (usando python -m pip)${NC}"
+    # Usar python -m pip para evitar ambigüedades entre pip/pip3 y garantizar que se instala con el intérprete correcto.
+    if command -v sudo &> /dev/null; then
+        sudo python -m pip install --upgrade pip
+        sudo python -m pip install --upgrade yt-dlp
+    else
+        python -m pip install --upgrade pip --user
+        python -m pip install --upgrade yt-dlp --user
+    fi
 elif command -v yum &> /dev/null; then
     echo -e "${GREEN}✓ Detectado: RedHat/CentOS${NC}"
     echo -e "${BLUE}[*] Ejecutando: sudo yum groupinstall -y 'Development Tools' (salida completa)${NC}"
