@@ -57,6 +57,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - Normalizado el formato de salida en `comandos_cerbero/ping.js` para evitar indentación extra y líneas desordenadas en el mensaje de estado (`!ping`).
+- `!ping` ahora mide la latencia real (RTT) hacia WhatsApp enviando y eliminando un mensaje de prueba.
 - Actualizada la línea de versión en el menú `comandos_cerbero/menu.js` para reflejar **v4.2.3 Build 65**.
 
 ### Security/Notes

@@ -29,9 +29,25 @@ export const ping = async (sock, msg) => {
 
         await sock.sendPresenceUpdate('composing', chatId);
 
-        // 1. Latencia REAL
-        const tEnd = performance.now();
-        const latency = (tEnd - tStart).toFixed(3);
+        // 1. Latencia REAL: medir RTT hacia WhatsApp enviando un mensaje de prueba y borrándolo
+        let latency;
+        try {
+            const pingStart = performance.now();
+            // Enviamos un mensaje de prueba pequeño y medimos el tiempo hasta que la promesa se resuelve
+            const pingMsg = await sock.sendMessage(chatId, { text: '⏱️ Ping...' }, { quoted: msg });
+            const pingEnd = performance.now();
+            latency = Math.round(pingEnd - pingStart); // ms
+
+            // Intentamos borrar el mensaje de prueba para no ensuciar el chat
+            try {
+                await sock.sendMessage(chatId, { delete: pingMsg.key });
+            } catch (e) {
+                // Si no se puede borrar, ignoramos el error
+            }
+        } catch (e) {
+            // Si falla el envío, caemos a una medición local como fallback
+            latency = Math.round(performance.now() - tStart);
+        }
 
         // Detectar arquitectura
         const arch = os.arch();
