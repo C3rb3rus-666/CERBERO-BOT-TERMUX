@@ -43,14 +43,12 @@ All notable changes to this project will be documented in this file.
 
 ## [4.2.3] - 2025-12-27 (Build 65)
 ### Added
-- Sistema de misiones por jugador con recompensas en dinero y XP.
-- Nuevos tipos de misión: `buy_item`, `win_battle`, `share_message`, `level_up`, `send_gift`, `participate_event`, `daily_streak`.
-- Notificaciones mejoradas al asignar y completar misiones.
-- Integración de misiones en flujos: trabajo, depósito, donar, pesca y eventos.
-- `!cplay2`: búsqueda en YouTube con previews y selección de descarga.
-- Registro y flag de `lealtad` para pruebas en `comandos_cerbero/lealtad.js`.
 
 ### Changed
+
+### Fixed
+- `utils/youtubeDownloader.js`: manejo defensivo y mensajes de error mejorados — se valida `findYtDlpCommand()` antes de usarlo, se capturan y muestran `stderr` de `yt-dlp`, y se devuelve un mensaje instructivo si el fallback falla (incluye comando sugerido para instalar `yt-dlp`).
+
 - `!nuevos` ahora requiere un mensaje personalizado y borra entradas usadas en `temp/recent_joins.json`.
 - Mensajes y UX de misiones pulidos.
 - Aumentada la versión a `4.2.3` y `build` a `65`.

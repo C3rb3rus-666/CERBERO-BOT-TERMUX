@@ -89,6 +89,8 @@ export async function handleCplaydSelection(sock, message, selParam = null) {
         return;
     }
 
+    console.log('[music_cplay2] userId, sel, session:', userId, sel, { downloads: session.downloads, videos: session.videos.length });
+
     if (session.downloads >= 5) {
         await sock.sendMessage(chatId, { text: 'Has alcanzado el límite de 5 descargas simultáneas.' }, { quoted: message });
         return;
@@ -101,7 +103,9 @@ export async function handleCplaydSelection(sock, message, selParam = null) {
     try {
         await sock.sendMessage(chatId, { text: `Descargando: ${video.title}` }, { quoted: message });
 
+        console.log('[music_cplay2] descargar url:', video.url);
         const filePath = await downloadAudioFromYoutube(video.url, userId);
+        console.log('[music_cplay2] downloadAudioFromYoutube returned:', filePath);
 
         // Determinar extensión y nombres temporales
         const ext = path.extname(filePath).toLowerCase();
@@ -113,18 +117,22 @@ export async function handleCplaydSelection(sock, message, selParam = null) {
         // Si el archivo no está en mp3 y ffmpeg está disponible, convertir a mp3
         try {
             if (ext !== '.mp3') {
+                console.log('[music_cplay2] converting to mp3:', filePath, '->', mp3Path);
                 await exec(`ffmpeg -y -i "${filePath}" -vn -c:a libmp3lame -q:a 2 "${mp3Path}"`);
             }
         } catch (e) {
+            console.error('[music_cplay2] ffmpeg mp3 conversion failed:', e && (e.message || e));
             // si falla la conversión a mp3, seguir intentando con el archivo original
         }
 
         // Crear OGG (PTT) a partir del mp3 (preferible para notas de voz)
         try {
+            console.log('[music_cplay2] creating ogg (ptt):', mp3Path, '->', oggPath);
             await exec(`ffmpeg -y -i "${mp3Path}" -c:a libopus -b:a 128k -vn "${oggPath}"`);
         } catch (e) {
             // si falla, intentar convertir desde el original
-            try { await exec(`ffmpeg -y -i "${filePath}" -c:a libopus -b:a 128k -vn "${oggPath}"`); } catch (ee) {}
+            console.error('[music_cplay2] ffmpeg ogg creation failed from mp3, trying original file:', e && (e.message || e));
+            try { await exec(`ffmpeg -y -i "${filePath}" -c:a libopus -b:a 128k -vn "${oggPath}"`); } catch (ee) { console.error('[music_cplay2] ffmpeg ogg creation failed from original:', ee && (ee.message || ee)); }
         }
 
         const signedTitle = `[CERBERO-BOT] - ${video.title}`.slice(0,200);
@@ -161,7 +169,7 @@ export async function handleCplaydSelection(sock, message, selParam = null) {
         try { if (fs.existsSync(mp3Path) && mp3Path !== filePath) fs.unlinkSync(mp3Path); } catch (e) {}
         try { if (fs.existsSync(oggPath)) fs.unlinkSync(oggPath); } catch (e) {}
     } catch (e) {
-        console.error('Error en descarga cplayd:', e);
+        console.error('Error en descarga cplayd:', e && (e.message || e));
         await sock.sendMessage(chatId, { text: 'Error al descargar el audio.' }, { quoted: message });
     } finally {
         session.downloads--;
