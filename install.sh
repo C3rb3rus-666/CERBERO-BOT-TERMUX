@@ -90,8 +90,14 @@ elif command -v apt-get &> /dev/null; then
         git \
         curl \
         wget
-    echo -e "${BLUE}[*] Actualizando yt-dlp (pip3)${NC}"
-    pip3 install --upgrade yt-dlp --break-system-packages
+    echo -e "${BLUE}[*] Instalando/actualizando yt-dlp (usando python3 -m pip)${NC}"
+    if command -v sudo &> /dev/null; then
+        sudo python3 -m pip install --upgrade pip
+        sudo python3 -m pip install --upgrade yt-dlp
+    else
+        python3 -m pip install --upgrade pip --user
+        python3 -m pip install --upgrade yt-dlp --user
+    fi
 elif command -v pacman &> /dev/null; then
     echo -e "${GREEN}✓ Detectado: Arch Linux / Manjaro${NC}"
     echo -e "${BLUE}[*] Ejecutando: sudo pacman -Syu --noconfirm --needed (salida completa)${NC}"
@@ -105,14 +111,25 @@ elif command -v pacman &> /dev/null; then
         wget \
         nodejs \
         npm
-    echo -e "${BLUE}[*] Instalando/actualizando yt-dlp (usando python -m pip)${NC}"
-    # Usar python -m pip para evitar ambigüedades entre pip/pip3 y garantizar que se instala con el intérprete correcto.
-    if command -v sudo &> /dev/null; then
-        sudo python -m pip install --upgrade pip
-        sudo python -m pip install --upgrade yt-dlp
+    echo -e "${BLUE}[*] Instalando/actualizando yt-dlp (usando python3 -m pip si está disponible)${NC}"
+    # Preferir python3 -m pip; si no existe usar python -m pip
+    PY_CMD=""
+    if command -v python3 &> /dev/null; then
+        PY_CMD=python3
+    elif command -v python &> /dev/null; then
+        PY_CMD=python
+    fi
+
+    if [ -n "$PY_CMD" ]; then
+        if command -v sudo &> /dev/null; then
+            sudo $PY_CMD -m pip install --upgrade pip
+            sudo $PY_CMD -m pip install --upgrade yt-dlp
+        else
+            $PY_CMD -m pip install --upgrade pip --user
+            $PY_CMD -m pip install --upgrade yt-dlp --user
+        fi
     else
-        python -m pip install --upgrade pip --user
-        python -m pip install --upgrade yt-dlp --user
+        echo -e "${YELLOW}⚠️ No se encontró Python en PATH. Instala Python y ejecuta: python3 -m pip install --upgrade yt-dlp${NC}"
     fi
 elif command -v yum &> /dev/null; then
     echo -e "${GREEN}✓ Detectado: RedHat/CentOS${NC}"
@@ -121,12 +138,23 @@ elif command -v yum &> /dev/null; then
     echo -e "${BLUE}[*] Ejecutando: sudo yum install -y (salida completa)${NC}"
     sudo yum install -y \
         python3-devel \
+        python3-pip \
         ffmpeg \
         git \
         curl \
         wget
-    echo -e "${BLUE}[*] Actualizando yt-dlp (pip3)${NC}"
-    pip3 install --upgrade yt-dlp
+    echo -e "${BLUE}[*] Instalando/actualizando yt-dlp (usando python3 -m pip si está disponible)${NC}"
+    if command -v python3 &> /dev/null; then
+        if command -v sudo &> /dev/null; then
+            sudo python3 -m pip install --upgrade pip
+            sudo python3 -m pip install --upgrade yt-dlp
+        else
+            python3 -m pip install --upgrade pip --user
+            python3 -m pip install --upgrade yt-dlp --user
+        fi
+    else
+        echo -e "${YELLOW}⚠️ No se encontró Python 3 en PATH. Instala Python3 y ejecuta: python3 -m pip install --upgrade yt-dlp${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️ Gestor de paquetes no detectado.${NC}"
     echo "Por favor, instala manualmente:"
@@ -145,6 +173,35 @@ fi
 
 echo -e "${GREEN}✓ Dependencias del sistema instaladas${NC}"
 
+# ==========================================
+# ✅ Verificar que yt-dlp esté disponible
+# ==========================================
+if command -v yt-dlp &> /dev/null; then
+    echo -e "${GREEN}✓ yt-dlp: disponible en PATH${NC}"
+else
+    # Try to detect via python -m yt_dlp
+    if command -v python3 &> /dev/null || command -v python &> /dev/null; then
+        echo -e "${YELLOW}⚠️ yt-dlp no se encuentra en PATH, pero Python está instalado. Asegurando instalación con python -m pip...${NC}"
+        PY_CMD=""
+        if command -v python3 &> /dev/null; then
+            PY_CMD=python3
+        else
+            PY_CMD=python
+        fi
+        if command -v sudo &> /dev/null; then
+            sudo $PY_CMD -m pip install --upgrade yt-dlp
+        else
+            $PY_CMD -m pip install --upgrade yt-dlp --user
+        fi
+        if command -v yt-dlp &> /dev/null; then
+            echo -e "${GREEN}✓ yt-dlp instalado correctamente${NC}"
+        else
+            echo -e "${RED}❌ No se pudo instalar yt-dlp automáticamente. Instálalo manualmente: python3 -m pip install --upgrade yt-dlp${NC}"
+        fi
+    else
+        echo -e "${YELLOW}⚠️ yt-dlp no encontrado y Python no está disponible. Instala Python y yt-dlp manualmente.${NC}"
+    fi
+fi
 # ==========================================
 # 🔧 SETUP NVM & NODE.JS
 # ==========================================
