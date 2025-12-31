@@ -2,7 +2,7 @@
 
 Cerbero-bot es un bot de WhatsApp basado en Baileys, creado por C3rb3rus-666.
 
-Versión: v4.2.3 (Build 65)
+Versión: v4.2.6 (Build 73)
 
 Resumen rápido
 - Protección global contra envíos masivos y DMs no deseados (`safeSendMessage`) implementada.

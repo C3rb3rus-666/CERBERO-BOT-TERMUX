@@ -5,9 +5,21 @@ import { fileURLToPath } from 'url';
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const menuImagePath = path.join(__dirname, '..', 'comandos_cerbero', 'imagenes', 'bot.jpg');
+const imagesDir = path.join(__dirname, '..', 'comandos_cerbero', 'imagenes');
 const antilinkConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'antilink_config.json');
 const welcomeConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'grupo_ajustado.json');
+
+// Función para seleccionar una imagen aleatoria
+function getRandomImage(imagesDir) {
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+  const files = fs.readdirSync(imagesDir).filter(file => {
+    const ext = path.extname(file).toLowerCase();
+    return imageExtensions.includes(ext) && fs.statSync(path.join(imagesDir, file)).isFile();
+  });
+  if (files.length === 0) return null;
+  const randomFile = files[Math.floor(Math.random() * files.length)];
+  return path.join(imagesDir, randomFile);
+}
 
 export async function menuCommand(sock, msg) {
   const chatId = msg.key.remoteJid;
@@ -37,11 +49,14 @@ export async function menuCommand(sock, msg) {
 
   const menuText = `
 
- 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.3 Build 65
- 👨‍💻  Coded by: 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 
- 🔗  github.com/C3rb3rus-666   
- 📱  WhatsApp: +573233704652   
- 📷  Instagram: c3rb3rus_666   
+╔══════════════════════════════════════════╗
+║       🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐯𝟒.𝟐.�     ║
+║     Build 73 - Sistema Online           ║
+║  👨‍💻 Coded by: C3rb3rus-666             ║
+║  🔗 github.com/C3rb3rus-666             ║
+║  📱 WhatsApp: +573233704652             ║
+║  📷 Instagram: c3rb3rus_666             ║
+╚══════════════════════════════════════════╝
 
 ═══════════════════════════════════════════
 
@@ -52,13 +67,15 @@ export async function menuCommand(sock, msg) {
 • Anti-TRABA: ${estados.antiTraba}
 • Anti-Sticker: ${estados.antiSticker}
 • Anti-Gore: ${estados.antiGore}
-───────────────────────────────────────────
+─────────────────────────
 
-*✨ INFORMACION DEL CREADOR *
-───────────────────────────────────────────
+𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐂𝐈𝐎𝐍 𝐃𝐄𝐋 𝐂𝐑𝐄𝐀𝐃𝐎𝐑 
+
+────────────────────────────
 • !programador - !creador 👨‍💻 Info del creador
 
-*COMANDOS DEL CREADOR*
+𝐂𝐎𝐌𝐀𝐍𝐃𝐎𝐒 𝐃𝐄𝐋 𝐂𝐑𝐄𝐀𝐃𝐎𝐑
+
 ────────────────────────────
 • !saquear — 🧨 Saquear (Solo C3rb3rus-666- ECONOMY JUEGO)
 • !killgroup — 💣 Elimina el grupo (solo C3rb3rus-666)
@@ -82,9 +99,8 @@ export async function menuCommand(sock, msg) {
 • !simi <texto> — 🤖 Habla con SimiSimi (IA en línea)
 • !sticker- crea stickers desde imágenes 
 
-  *❤️ Social*
-
-
+𝐒𝐨𝐜𝐢𝐚𝐥 ❤️
+────────────────────────────
 • !parejas — 👩‍❤️‍👨 TOP parejas
 • !casarme @usuario — 💍 Proponer matrimonio
 • !aceptar / !rechazar — ✅ / ❌ Responder propuesta
@@ -173,11 +189,12 @@ export async function menuCommand(sock, msg) {
 `.trim();
 
   try {
-    if (!fs.existsSync(menuImagePath)) {
-      throw new Error('❌ No se encontró la imagen del menú (bot.jpg)');
+    const randomImagePath = getRandomImage(imagesDir);
+    if (!randomImagePath) {
+      throw new Error('❌ No se encontraron imágenes en la carpeta');
     }
 
-    const imageBuffer = fs.readFileSync(menuImagePath);
+    const imageBuffer = fs.readFileSync(randomImagePath);
     await sock.sendPresenceUpdate('composing', chatId);
     await sock.sendMessage(chatId, {
       image: imageBuffer,

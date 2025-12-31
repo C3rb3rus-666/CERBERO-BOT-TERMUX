@@ -7,7 +7,19 @@ import fs from 'fs';
 // 🛠️ CONFIGURACIÓN DE RUTAS
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const menuImagePath = path.join(__dirname, 'imagenes', 'bot.jpg');
+const imagesDir = path.join(__dirname, 'imagenes');
+
+// Función para seleccionar una imagen aleatoria
+function getRandomImage(imagesDir) {
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+  const files = fs.readdirSync(imagesDir).filter(file => {
+    const ext = path.extname(file).toLowerCase();
+    return imageExtensions.includes(ext) && fs.statSync(path.join(imagesDir, file)).isFile();
+  });
+  if (files.length === 0) return null;
+  const randomFile = files[Math.floor(Math.random() * files.length)];
+  return path.join(imagesDir, randomFile);
+}
 
 function formatUptime(seconds) {
     const d = Math.floor(seconds / (3600 * 24));
@@ -23,8 +35,9 @@ export const ping = async (sock, msg) => {
     const tStart = performance.now();
 
     try {
-        if (!fs.existsSync(menuImagePath)) {
-            throw new Error(`Imagen no encontrada en: ${menuImagePath}`);
+        const randomImagePath = getRandomImage(imagesDir);
+        if (!randomImagePath) {
+            throw new Error('Imagen no encontrada en la carpeta imágenes');
         }
 
         await sock.sendPresenceUpdate('composing', chatId);
@@ -99,15 +112,15 @@ export const ping = async (sock, msg) => {
                             };
                             osDisplay = `${os.platform().toUpperCase()} Kernel ${os.release()}`;
                             if (os.platform() === 'linux' && os.arch() === 'x64') {
-                                osDisplay = "CERBERO-OS Linux By C3rb3rus-666";
+                                osDisplay = `Linux Kernel ${os.release()}`;
                             }
                         }
 
                         // Construir mensaje sin indentación extra para evitar líneas desordenadas
                         const messageLines = [
-'╔═══[ *𝐒𝐘𝐒𝐓𝐄𝐌 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
+'╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
 '║',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.3 Build 65*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.6 Build 73*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
 '╠══ [ *📡 SENSORS & COOLING* ] ══',
@@ -146,8 +159,9 @@ export const ping = async (sock, msg) => {
 
                         message = messageLines;
 
+                        const imageBuffer = fs.readFileSync(randomImagePath);
                         await sock.sendMessage(chatId, {
-                            image: { url: menuImagePath },
+                            image: imageBuffer,
                             caption: message
                         }, { quoted: msg });
 
