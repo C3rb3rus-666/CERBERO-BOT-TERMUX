@@ -1,7 +1,55 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+## [4.2.6] - 2025-12-31 (Build 73)
+### Fixed
+- Solución completa para la generación de stickers en `comandos_cerbero/sticker.js`:
+  - Compatibilidad con `wa-sticker-formatter@^3.x` manejando exportaciones como objeto con `Sticker` y la API basada en `build()` + `get()`.
+  - Normalización del buffer resultante (soporte para buffers anidados, base64, y fallback a envío como documento si el envío directo falla).
+  - Mejora del pipeline de imágenes: `optimizeImage()` fuerza salida PNG transparente; `optimizeAnimatedMedia()` usa ffmpeg con `libwebp` y `pix_fmt=yuva420p` para preservar transparencia en GIFs/videos.
+  - Añadidos logs de depuración temporales y scripts de prueba (`scripts/test-wa-sticker.js`, `scripts/test-create-sticker.js`) para reproducir y verificar la salida.
 
+### Changed
+- Actualizada la build a 73 y versión a `4.2.6`.
+
+### Notes
+- Esto arregla errores del tipo `Sticker is not a constructor` y las franjas negras en stickers estáticos/animados causadas por rellenos o pérdida de canal alfa.
+
+## [4.2.5] - 2025-12-31 (Build 72)
+### Added
+- Integración de API de Gemini en `cerbero_simi.js`: Añadida probabilidad del 30% de usar respuestas generadas por Gemini en lugar de respuestas básicas de Simi, aprovechando el prompt de `cerbero_IA.js` para mantener el tono sarcástico y dominante.
+
+### Changed
+- Actualizada la build a 72 en `menu.js`, `ping.js`, y `programador.js`.
+- Versión actualizada a v4.2.5 en archivos relevantes.
+
+### Notes
+- Esto mejora la variedad y dinamismo en respuestas de chat casual, haciendo el bot más impredecible sin perder el estilo agresivo y humorístico.
+## [4.2.4] - 2025-12-30 (Build 71)
+### Added
+- Imágenes aleatorias en comandos principales: `!menu`, `!ping`, `!help`, `!programador`, `!menu2`, y bienvenidas automáticas ahora seleccionan y envían una imagen aleatoria de `comandos_cerbero/imagenes/` (soporta JPG, PNG, GIF, etc.) junto con el texto, en lugar de usar una imagen fija.
+- Imágenes aleatorias en comandos del videojuego: `!profile`, `!banco`, `!retiro`, `!depositar`, `!work`, `!daily`, y otros comandos relacionados ahora incluyen una imagen aleatoria para un "sello del bot" visual en cada respuesta.
+
+### Changed
+- Penalizaciones más agresivas en el videojuego: Impuestos aumentados de 10% a 20%, atracos de 15% a 25% (probabilidad de 5% a 10%), crisis económica de 20% a 30% (probabilidad de 3% a 5%) para evitar desbalance y acumulación excesiva de dinero.
+- Misiones grupales más fáciles de cumplir: Reducidos los targets (ej. enviar mensajes: 2-6 en lugar de 5-15, etiquetar: 1-4 en lugar de 3-10, etc.) para mejor verificación en tiempo real por el bot.
+- Presentación del menú mejorada: Cambiada a estilo "Cerbero-OS Terminal" con ASCII art, presumiendo que el bot fue creado en una distro exclusiva llamada Cerbero-OS, para mayor atractivo visual.
+- Simplificada la presentación: Quitadas frases pretenciosas como "Distro Exclusiva", "Protocolo: 666", "Elite Dev" para un tono más humilde y directo.
+- Actualizada la build a 71 en `menu.js`, `ping.js`, y `programador.js`.
+- Reducidas las recompensas máximas de trabajos en el videojuego para evitar acumulación excesiva de dinero (ej. "Hacker para Unknowns" max reducido de 99,899 a 5,000 USD).
+
+### Fixed
+- Bug crítico en `gameFIle.js`: El XP y otros datos no se guardaban correctamente debido a que `getUser()` accedía a `gameData[id]` en lugar de `gameData.users[id]`, causando que los usuarios se almacenaran en la raíz del objeto en lugar de en la propiedad `users`. Corregido para usar `gameData.users[id]`.
+- Corregidos todos los accesos a `gameData` en funciones como `aplicarIntereses()`, `gananciasPasivas()`, `maybeSaqueoMaestro()`, etc., para usar `gameData.users`.
+- Mejorada la función `corregirDatosInvalidos()` para validar y corregir `xp`, `level`, `safe` y otros campos numéricos, previniendo bugs con altas cifras o datos inválidos.
+- Asegurado que `loadGameData()` inicialice `gameData.users` si no existe.
+
+### Notes
+- Las imágenes se seleccionan aleatoriamente de la carpeta `comandos_cerbero/imagenes/`, filtrando por extensiones válidas. Si no hay imágenes, se envía solo texto como fallback.
+- Esto mejora la experiencia visual y consistencia en todas las interacciones del bot.
+- El sistema de guardado del videojuego ahora funciona correctamente, permitiendo que XP suba, niveles aumenten y datos persistan entre reinicios.
+- Las penalizaciones agresivas y misiones fáciles promueven participación activa sin permitir riquezas excesivas.
+- La presentación del menú ahora evoca una interfaz de terminal de "Cerbero-OS", haciendo el bot parecer más avanzado y exclusivo.
 ## [4.2.0] - 2025-12-27 (Build 62)
 ### Added
 - `safeSendMessage` wrapper in `index.js` to prevent mass-DMs, rate-limit and redirect replies.
@@ -68,17 +116,19 @@ All notable changes to this project will be documented in this file.
 
 - `!nuevos` ahora requiere un mensaje personalizado y borra entradas usadas en `temp/recent_joins.json`.
 - Mensajes y UX de misiones pulidos.
-- Aumentada la versión a `4.2.3` y `build` a `66`.
+- Aumentada la versión a `4.2.4` y `build` a `67`.
 
 ### Fixed
 - Normalizado el formato de salida en `comandos_cerbero/ping.js` para evitar indentación extra y líneas desordenadas en el mensaje de estado (`!ping`).
 - `!ping` ahora mide la latencia real (RTT) hacia WhatsApp enviando y eliminando un mensaje de prueba.
-- Actualizada la línea de versión en el menú `comandos_cerbero/menu.js` para reflejar **v4.2.3 Build 65**.
+- Actualizada la línea de versión en el menú `comandos_cerbero/menu.js` para reflejar **v4.2.4 Build 67**.
 - Mejorado `install.sh` para compatibilidad con Arch Linux / Manjaro (pacman): instala `python-pip`, `nodejs`, `npm` y usa `python -m pip` para instalar `yt-dlp`.
 - Eliminado el comando `!sopa` (Sopa de Letras) y archivos asociados por decisión del mantenedor.
 - `!cplayd` ahora usa `yt-dlp` como fallback si `ytdl-core` falla al extraer firmas (reduce errores: "Could not extract functions").
   - Nota: el fallback usa `python3 -m yt_dlp` o `python -m yt_dlp` si no existe binario `yt-dlp` en PATH; asegúrate de que `yt-dlp` esté instalado (ver `install.sh`).
   - Además, `cplay2` ahora usa la misma lógica de descarga/envío que `cplay` cuando el usuario selecciona una pista: descarga por URL, envía MP3 como audio y documento, y genera una nota de voz OGG (PTT).
+- Mejorado el manejo de yt-dlp en `youtubeDownloader.js`: ahora instala automáticamente `yt-dlp` usando pip si no se encuentra en PATH, evitando errores de "yt-dlp not found". Actualizado `package.json` para usar pip en el script de instalación de dependencias.
+- Mejorada la detección de yt-dlp en `findYtDlpCommand()`: ahora verifica rutas directas como `~/.local/bin/yt-dlp` y rutas comunes de Python3 si no están en PATH, solucionando problemas cuando la instalación por pip no actualiza el PATH inmediatamente.
 
 ### Security/Notes
 - Se añadió el evento global "Saqueo del Jefe Maestro" que puede confiscar un 90% de fondos de los jugadores cuando ocurre (probabilidad baja por invocación). Habilitar con precaución y mantener backups.
