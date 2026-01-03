@@ -27,6 +27,10 @@ import { toggleGroupPrivacy } from './group_config.js';
 import { top5Maricones } from './maricones.js';
 import { cerberoSimiBot } from "./cerbero_simi.js";
 import { youtubeCommand } from './youtube.js';
+import youtubeCb from './yt_cb.js';
+import tiktokCb from './tiktok_cb.js';
+import instagramCb from './instagram_cb.js';
+import { doxCommand } from './dox.js';
 import { tagAdmins } from './tag_admins.js';
 import { buscarMusica } from './yt_search.js';
 import { extractStickerImage } from './extractorwebp.js';
@@ -73,6 +77,18 @@ import {
   commandDrogas,
   commandPurgarSistema 
 } from './gameFIle.js';
+
+// Nuevos comandos RPG avanzado
+import { default as balanceCommand } from './rpg/balance.js';
+import { default as trabajarCommand } from './rpg/trabajar.js';
+import { default as aventuraCommand } from './rpg/aventura.js';
+import { default as minarCommand } from './rpg/minar.js';
+import { default as tiendaCommand } from './rpg/tienda.js';
+import { default as robarCommand } from './rpg/robar.js';
+import { default as transferirCommand } from './rpg/transferir.js';
+import { default as lideresCommand } from './rpg/lideres.js';
+import { default as perfilCommand } from './rpg/perfil.js';
+
 // Función auxiliar para delays realistas
 // humanDelay mejorado (reemplaza tu versión actual)
 async function humanDelay(sock, message, minSeconds = 2, maxSeconds = 6, opts = {}) {
@@ -162,6 +178,24 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await handleCplaydSelection(sock, message);
     } catch (e) {
       console.error('Error handling cplayd selection:', e);
+    }
+    return;
+  }
+
+  // Detectar si es una respuesta o mención al bot y procesar con IA local
+  const quotedInfo = message.message?.extendedTextMessage?.contextInfo;
+  const isReplyToBot = quotedInfo?.quotedMessage && quotedInfo?.participant === sock.user?.id;
+  const mentionedJids = quotedInfo?.mentionedJid || [];
+  const isMentioned = mentionedJids.includes(sock.user?.id);
+  const botNumber = sock.user?.id?.split('@')?.[0] || '';
+  const isMentionByText = text.includes(botNumber) || text.includes(`@${botNumber}`);
+
+  // Si es reply del bot, responder siempre; si es mención, solo si no es comando (no empieza con '!')
+  if (isReplyToBot || ((isMentioned || isMentionByText) && !text.startsWith('!'))) {
+    try {
+      await cerberoSimiBot(sock, message);
+    } catch (e) {
+      console.error('Error en IA local para respuesta:', e);
     }
     return;
   }
@@ -392,6 +426,42 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await humanDelay(sock, message, 3, 8);
       await youtubeCommand(sock, message, args);
       break;
+
+    case 'yt_cb':
+      await humanDelay(sock, message, 3, 8);
+      // si es número, reutilizar archivo de resultados (si existe)
+      if (/^[1-9]$/.test(args[0])) {
+        // construir un mensaje falso con solo el número como texto para que la función lo maneje
+        const fakeMsg = JSON.parse(JSON.stringify(message));
+        fakeMsg.message = { conversation: args[0] };
+        // delegar a yt_cb viendo búsqueda previa
+        await youtubeCb(sock, fakeMsg, [args[0]], { video: false });
+      } else {
+        await youtubeCb(sock, message, args, { video: false });
+      }
+      break;
+
+    case 'yt_cbv':
+      await humanDelay(sock, message, 3, 8);
+      if (/^[1-9]$/.test(args[0])) {
+        const fakeMsg = JSON.parse(JSON.stringify(message));
+        fakeMsg.message = { conversation: args[0] };
+        await youtubeCb(sock, fakeMsg, [args[0]], { video: true });
+      } else {
+        await youtubeCb(sock, message, args, { video: true });
+      }
+      break;
+
+    case 'tt_cb':
+    case 'tiktok_cb':
+      await humanDelay(sock, message, 3, 6);
+      await tiktokCb(sock, message, args);
+      break;
+
+    case 'ig_cb':
+      await humanDelay(sock, message, 3, 6);
+      await instagramCb(sock, message, args);
+      break;
     
     case 'admins':
       await humanDelay(sock, message, 1, 3);
@@ -487,6 +557,70 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await commandProfile(sock, message);
       break;
     
+    // Nuevos comandos RPG avanzado
+    case 'cartera':
+    case 'bolsillo':
+    case 'balance':
+    case 'bal':
+      await humanDelay(sock, message, 1, 3);
+      await balanceCommand(sock, message);
+      break;
+    
+    case 'trabajar':
+    case 'daily':
+    case 'claim':
+    case 'reclamar':
+      await humanDelay(sock, message, 2, 5);
+      await trabajarCommand(sock, message);
+      break;
+    
+    case 'aventura':
+    case 'adventure':
+      await humanDelay(sock, message, 3, 7);
+      await aventuraCommand(sock, message);
+      break;
+    
+    case 'minar':
+    case 'mine':
+    case 'excavar':
+      await humanDelay(sock, message, 2, 5);
+      await minarCommand(sock, message);
+      break;
+    
+    case 'tienda':
+    case 'shop':
+    case 'comprar':
+      await humanDelay(sock, message, 2, 4);
+      await tiendaCommand(sock, message, args);
+      break;
+    
+    case 'robar':
+    case 'rob':
+      await humanDelay(sock, message, 3, 7);
+      await robarCommand(sock, message);
+      break;
+    
+    case 'transferir':
+    case 'transfer':
+    case 'dar':
+      await humanDelay(sock, message, 2, 4);
+      await transferirCommand(sock, message, args);
+      break;
+    
+    case 'lideres':
+    case 'leaderboard':
+    case 'lb':
+    case 'ranking':
+      await humanDelay(sock, message, 2, 5);
+      await lideresCommand(sock, message, args);
+      break;
+    
+    case 'perfil':
+    case 'stats':
+      await humanDelay(sock, message, 2, 5);
+      await perfilCommand(sock, message);
+      break;
+
     case 'banco':
       await humanDelay(sock, message, 1, 3);
       await commandBanco(sock, message);
@@ -586,6 +720,11 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'lujuria':
       await humanDelay(sock, message, 2, 5);
       await commandPutas(sock, message);
+      break;
+
+    case 'dox':
+      await humanDelay(sock, message, 1, 3);
+      await doxCommand(sock, message, isAdmin, groupMetadata);
       break;
     
     case 'top':
