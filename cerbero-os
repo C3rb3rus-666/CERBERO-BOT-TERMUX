@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess
+import re
+
+# --- COLORES DEL TEMA (Hacker Style) ---
+R = '\033[1;31m'  # Rojo Brillante (Para el Logo)
+W = '\033[1;37m'  # Blanco Negrita (Para el Texto)
+G = '\033[0;90m'  # Gris Oscuro (Para etiquetas)
+NC = '\033[0m'    # Reset
+
+# --- OBTENER DATOS DEL SISTEMA ---
+USER_HOST = f"{R}carlos{W}@{R}C3rb3rus-666"
+LINEA_SEP = f"{G}------------------------"
+OS = f"{G}OS:      {W}CERBERO OS (BlackArch Core)"
+KERNEL = f"{G}Kernel:  {W}{os.uname().release}"
+UPTIME = f"{G}Uptime:  {W}{subprocess.run(['uptime', '-p'], capture_output=True, text=True).stdout.strip()}"
+PACKAGES = f"{G}Pkgs:    {W}{len(subprocess.run(['pacman', '-Q'], capture_output=True, text=True).stdout.strip().split('\n'))} (pacman)"
+SHELL = f"{G}Shell:   {W}{os.environ.get('SHELL', '/bin/bash')}"
+# CPU
+cpu_info = subprocess.run(['lscpu'], capture_output=True, text=True).stdout
+cpu_name = next((line.split(':')[1].strip() for line in cpu_info.split('\n') if 'Model name' in line), 'Unknown')
+CPU = f"{G}CPU:     {W}{cpu_name.split()[0]} {cpu_name.split()[1]} {cpu_name.split()[2]}"
+# RAM
+ram_info = subprocess.run(['free', '-h'], capture_output=True, text=True).stdout.split('\n')[1]
+ram_used, ram_total = ram_info.split()[2], ram_info.split()[1]
+RAM = f"{G}RAM:     {W}{ram_used}/{ram_total}"
+
+# --- LEER ARTE ASCII DESDE ARCHIVO ---
+with open('art.txt', 'r') as f:
+    art_lines_raw = [line.rstrip('\n') for line in f]
+
+art_lines = [f"{R}{line}" for line in art_lines_raw[:-1]] + [f"{R}{art_lines_raw[-1]}{NC}"]
+
+info_lines = [
+    USER_HOST,
+    LINEA_SEP,
+    OS,
+    KERNEL,
+    UPTIME,
+    PACKAGES,
+    SHELL,
+    CPU,
+    RAM,
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+]
+
+# --- IMPRIMIR ---
+for art_line, info_line in zip(art_lines, info_lines):
+    # Quitar colores para calcular longitud visible
+    visible = re.sub(r'\x1b\[[0-9;]*m', '', art_line)
+    padding = 50 - len(visible)
+    if padding > 0:
+        art_line += ' ' * padding
+    print(f"{art_line}{info_line}")
+
+print()

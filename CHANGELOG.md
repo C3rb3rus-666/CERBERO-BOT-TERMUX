@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.2.10] - 2026-01-03 (Build 78)
+### Added
+- Detección de respuestas y menciones al bot para la IA local (`cerbero_simi.js`): ahora responde cuando se le cita o menciona, con logs de depuración y fallback a Gemini para respuestas dinámicas.
+- Función `sendImageWithCaption` en `gameFIle.js` y uso consistente en todos los comandos RPG: el bot envía imágenes definidas (prioridad por prefijos `menu`/`ping`) para todas las respuestas del RPG.
+
+### Changed
+- `!todos`: cooldown ahora **2 minutos por usuario** y límite diario **6 usos por usuario**; eliminado el límite de tamaño de grupo. Mensajes informativos actualizados.
+- `.gitignore` actualizado para excluir PIDs, caches, datos runtime y carpetas externas (mejora de limpieza del repo).
+- Estandarización de handlers RPG a la firma `(sock, message)` y reemplazo de `m.reply` por `sock.sendMessage`/`sendImageWithCaption`.
+
+### Fixed
+- Correcciones en la detección y manejo de respuestas/menciones por parte de la IA local; añadidos logs para facilitar depuración.
+- Corregida declaración y uso de `participants` en `comandos_cerbero/todos.js` (evita `ReferenceError`).
+
+---
+
 ## [4.2.8] - 2026-01-02 (Build 76)
 ### Added
 - Expansión masiva de base de datos falsa en `!dox` (`comandos_cerbero/dox.js`): Más de 500 opciones variadas incluyendo 70+ ciudades, 50+ ISPs, 35+ OS, 40+ navegadores, 50+ dispositivos, 25+ resoluciones, 32+ zonas horarias, 26+ antivirus, 30+ CPUs/GPUs, 50+ bancos, 20+ plataformas sociales, 45+ trabajos, 30+ grados académicos, 30+ modelos de vehículos, 40+ relaciones familiares, y 46+ países para pasaportes.

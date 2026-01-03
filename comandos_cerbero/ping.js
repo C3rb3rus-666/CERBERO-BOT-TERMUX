@@ -155,7 +155,7 @@ export const ping = async (sock, msg) => {
 `║ └─ ${osDisplay}`,
 '║',
 '╚════════════════════════════╝',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.8 Build 76*`
+`║ 🤖 *[𝐂𝐄𝐑�𝐁𝐑𝐎-𝐁𝐎𝐓] v4.2.10 Build 78*`
 ].join('\n');
 
                         message = messageLines;
