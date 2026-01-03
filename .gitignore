@@ -16,3 +16,21 @@ device-list-*.json
 qr.txt
 logs/
 .vscode/
+
+# Runtime / temporary files
+*.pid
+.node_index_pid
+.node_monitor_pid
+.bot
+.group_infinity_ghost.sh
+
+# External or large folders not part of core project
+TheMystic-Bot-MD-master/
+cerbero-os/
+
+# Bot data that should not be tracked
+admin_messages_log.json
+error_log.json
+gameData.json
+comandos_cerbero/__pycache__/
+comandos_cerbero/conocimientos.json
