@@ -12,10 +12,12 @@ All notable changes to this project will be documented in this file.
 - `.gitignore` actualizado para excluir PIDs, caches, datos runtime y carpetas externas (mejora de limpieza del repo).
 - Estandarización de handlers RPG a la firma `(sock, message)` y reemplazo de `m.reply` por `sock.sendMessage`/`sendImageWithCaption`.
 - `!programador`: removida información del sistema en tiempo real; simplificada la presentación manteniendo información del desarrollador, tecnologías y proyectos.
+- `!programador`: añadidos enlaces detallados a GitHub, repos (cerbero-bot), Telegram e Instagram.
 
 ### Fixed
 - Correcciones en la detección y manejo de respuestas/menciones por parte de la IA local; añadidos logs para facilitar depuración.
 - Corregida declaración y uso de `participants` en `comandos_cerbero/todos.js` (evita `ReferenceError`).
+- Eliminados caracteres especiales y box-drawing en `comandos_cerbero/programador.js` para evitar errores de sintaxis/reportes en VS Code; presentación simplificada sin información de sistema en tiempo real.
 
 ---
 
