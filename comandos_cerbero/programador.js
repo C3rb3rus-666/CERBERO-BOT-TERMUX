@@ -22,7 +22,7 @@ function getRandomImage(imagesDir) {
 
 // Función para manejar el comando !programador
 export async function creador(sock, msg) {
-  const menuText = `CERBERO-BOT DEVELOPER\nv4.2.10 (Build 78)\n\nNombre: Carlos Sánchez (C3rb3rus-666)\nRol: Full-Stack Developer & Bot Creator\nExperiencia: 12+ años\nEspecialidad: Node.js, Python, WhatsApp Bots, C++, Java\n\nTecnologías: Node.js, Baileys, Python (IA local), Google Gemini, FFmpeg, Canvas, Axios, TensorFlow.js\n\nVersión: v4.2.10 (Build 78)\nEstado: Online\nComandos: 50+ disponibles\n\nContacto & Redes:\n- GitHub: https://github.com/C3rb3rus-666\n- Repo: https://github.com/C3rb3rus-666/cerbero-bot\n- Telegram: https://t.me/C3rb3rus_666\n- Instagram: https://instagram.com/c3rb3rus_666\n\nProyectos:\n- Cerbero-Bot (WhatsApp bot)\n- IA Local\n- Music Bot\n- RPG System\n`.trim();
+  const menuText = `CERBERO-BOT DEVELOPER\nv4.2.10 (Build 78)\n\nNombre: Carlos Sánchez (C3rb3rus-666)\nRol: Full-Stack Developer & Bot Creator\nExperiencia: 12 años\nEspecialidad: Node.js, Python, WhatsApp Bots, C++, Java\n\nTecnologías: Node.js, Baileys, Python (IA local), Google Gemini, FFmpeg, Canvas, Axios, TensorFlow.js\n\nVersión: v4.2.10 (Build 78)\nEstado: Online\nComandos: 50+ disponibles\n\nContacto & Redes:\n- GitHub: https://github.com/C3rb3rus-666\n- Repo: https://github.com/C3rb3rus-666/cerbero-bot\n- Telegram: https://t.me/C3rb3rus_666\n- Instagram: https://instagram.com/c3rb3rus_666\n- WhatsApp: https://wa.me/573233704652 ( +57 323 370 4652 )\n\nProyectos:\n- Cerbero-Bot (WhatsApp bot)\n- IA Local\n- Music Bot\n- RPG System\n`.trim();
 
   const randomImagePath = getRandomImage(imagesDir);
   if (!randomImagePath) {
