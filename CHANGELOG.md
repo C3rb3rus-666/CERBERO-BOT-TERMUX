@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - `!todos`: cooldown ahora **2 minutos por usuario** y límite diario **6 usos por usuario**; eliminado el límite de tamaño de grupo. Mensajes informativos actualizados.
 - `.gitignore` actualizado para excluir PIDs, caches, datos runtime y carpetas externas (mejora de limpieza del repo).
 - Estandarización de handlers RPG a la firma `(sock, message)` y reemplazo de `m.reply` por `sock.sendMessage`/`sendImageWithCaption`.
+- `!programador`: ahora prioriza imágenes con prefijos `menu` o `ping` si existen en `comandos_cerbero/imagenes`.
 - `!programador`: removida información del sistema en tiempo real; simplificada la presentación manteniendo información del desarrollador, tecnologías y proyectos.
 - `!programador`: añadidos enlaces detallados a GitHub, repos (cerbero-bot), Telegram e Instagram.
 

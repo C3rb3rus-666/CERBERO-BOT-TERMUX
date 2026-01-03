@@ -8,16 +8,26 @@ const __dirname = path.dirname(__filename);
 // Configuración de rutas
 const imagesDir = path.join(__dirname, 'imagenes');
 
-// Función para seleccionar una imagen aleatoria
-function getRandomImage(imagesDir) {
+// Función para seleccionar una imagen aleatoria (prioriza prefijos 'menu' y 'ping')
+function getRandomImage(imagesDir, preferredPrefixes = ['menu','ping']) {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
   const files = fs.readdirSync(imagesDir).filter(file => {
     const ext = path.extname(file).toLowerCase();
     return imageExtensions.includes(ext) && fs.statSync(path.join(imagesDir, file)).isFile();
   });
   if (files.length === 0) return null;
-  const randomFile = files[Math.floor(Math.random() * files.length)];
-  return path.join(imagesDir, randomFile);
+
+  // Buscar imágenes que comiencen con prefijos preferidos (case-insensitive)
+  const preferred = files.filter(f => {
+    const name = path.basename(f).toLowerCase();
+    return preferredPrefixes.some(pref => name.startsWith(pref.toLowerCase()));
+  });
+
+  const chosenFile = (preferred.length > 0)
+    ? preferred[Math.floor(Math.random() * preferred.length)]
+    : files[Math.floor(Math.random() * files.length)];
+
+  return path.join(imagesDir, chosenFile);
 }
 
 // Función para manejar el comando !programador
