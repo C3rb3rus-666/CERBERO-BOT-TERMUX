@@ -1,6 +1,35 @@
 # Changelog
 
 All notable changes to this project will be documented in this file.
+
+## [4.2.8] - 2026-01-02 (Build 76)
+### Added
+- Expansión masiva de base de datos falsa en `!dox` (`comandos_cerbero/dox.js`): Más de 500 opciones variadas incluyendo 70+ ciudades, 50+ ISPs, 35+ OS, 40+ navegadores, 50+ dispositivos, 25+ resoluciones, 32+ zonas horarias, 26+ antivirus, 30+ CPUs/GPUs, 50+ bancos, 20+ plataformas sociales, 45+ trabajos, 30+ grados académicos, 30+ modelos de vehículos, 40+ relaciones familiares, y 46+ países para pasaportes.
+
+### Changed
+- `!todos`: cooldown de **2 minutos por usuario** (antes 30 min por grupo), límite diario **6 usos por usuario**, y eliminado el límite de tamaño de grupo.
+- IA local: detección de respuestas y menciones al bot; las respuestas ahora se enrutan a `cerbero_simi.js` para respuestas contextuales y aprendizaje local.
+- RPG: estandarizados handlers a la firma `(sock, message)` y reemplazadas llamadas de `m.reply` por `await sock.sendMessage(..., { quoted: message })` para mayor compatibilidad con el dispatcher.
+- `!dox` (`comandos_cerbero/dox.js`): Añadidos más datos técnicos organizados en secciones (Network, Device, Security, Contact), incluyendo MAC, resolución de pantalla, zona horaria, VPN, firewall, antivirus, CPU, GPU, RAM, almacenamiento y score de leaks. **Ampliado con nuevas secciones**: Financial Info (cuenta bancaria, saldo), Social Media, Professional Info (trabajo, educación), Vehicle Info, Health Info, Family Info, Identification (pasaporte), y detalles adicionales como GPS, código postal y velocidad de conexión. **Expansión masiva de base de datos**: Más de 50 ciudades, 50 ISPs, 35 OS, 40 navegadores, 50 dispositivos, 25 resoluciones, 32 zonas horarias, 26 antivirus, 30 CPUs, 30 GPUs, 50 bancos, 20 plataformas sociales, 45 trabajos, 25 compañías, 30 grados académicos, 25 universidades, 30 marcas de vehículos, 40 relaciones familiares, y 46 países para pasaportes.
+
+### Fixed
+- Corregida declaración y uso de `participants` en `comandos_cerbero/todos.js` (evita `ReferenceError` cuando `groupMetadata` no está disponible).
+- Corregida declaración duplicada de `participants` que causaba un error de carga en `comandos_cerbero/todos.js`.
+- `!leerlog` (`comandos_cerbero/read_log.js`) ahora es **exclusivo** para C3rb3rus-666 (verificación por JID/pushName).
+
+### Notes
+- El sistema anti-abuso guarda datos en memoria (se pierden al reiniciar). Si se desea persistencia entre reinicios, se puede añadir almacenamiento en JSON o base de datos.
+
+## [4.2.7] - 2025-12-31 (Build 74)
+### Added
+- Respuestas por voz en `cerbero_simi.js`: El bot ahora combina respuestas de texto con audio TTS en español (voz masculina), usando google-tts-api para generar archivos temporales que se convierten a OGG con ffmpeg, se envían como mensajes de voz y se eliminan automáticamente para evitar acumulación. Cambiada la librería TTS de gtts a google-tts-api para mejor compatibilidad y voz masculina. Añadida aleatoriedad automática: cada respuesta decide aleatoriamente (50% de probabilidad) si incluir voz o solo texto.
+- Nuevos handlers de descarga: `!yt_cb` (YouTube audio), `!yt_cbv` (YouTube video), `!tt_cb`/`!tiktok_cb` (TikTok), `!ig_cb` (Instagram). Basados en la implementación de TheMystic-Bot-MD pero adaptados al estilo y seguridad de Cerbero-BOT. Added dependencies: `cheerio` for TikTok scraping.
+
+### Fixed
+- Comando ban: Mejorada la visualización en mensajes, ahora muestra menciones (@usuario) en lugar de números para quien solicita el ban y a quién se banea, facilitando la identificación.
+- Monitor de eventos: Mejorado el registro de quién quita admin en eventos de 'demote', agregando más campos posibles para capturar el actor (incluyendo 'from' y 'sender'), y añadido logging para depuración. Cambiado el mensaje por defecto a "un administrador (autor desconocido)" cuando no se puede identificar el actor.
+- Monitor de eventos: Corregido error cuando `sock.store` no existe (evita excepciones al resolver nombres), añadidos fallbacks para obtener nombres desde `update` o el JID, y agregado monitoreo para eventos `promote` (nuevo admin).
+
 ## [4.2.6] - 2025-12-31 (Build 73)
 ### Fixed
 - Solución completa para la generación de stickers en `comandos_cerbero/sticker.js`:
