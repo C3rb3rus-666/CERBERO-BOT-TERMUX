@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const handler = async (sock, message) => {
   const args = message.text.split(' ').slice(1);
@@ -52,10 +52,8 @@ ${getText(sortedMoney, 'money', '💰', 'Dinero')}
 ${getText(sortedLimit, 'limit', '💎', 'Diamantes')}
 `.trim();
 
-  await sock.sendMessage(message.key.remoteJid, {
-    text: body,
-    mentions: body.match(/@\d+/g)?.map(m => m + '@s.whatsapp.net') || []
-  });
+  const mentions = body.match(/@\d+/g)?.map(m => m.replace('@','') + '@s.whatsapp.net') || [];
+  await sendImageWithCaption(sock, message, body, { mentions });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

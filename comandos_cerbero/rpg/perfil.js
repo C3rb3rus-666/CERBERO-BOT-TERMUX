@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const handler = async (sock, message) => {
   let who;
@@ -43,7 +43,7 @@ const handler = async (sock, message) => {
 💡 *Sigue ganando EXP para subir de nivel!*
 `;
 
-  await sock.sendMessage(message.key.remoteJid, { text: texto });
+  await sendImageWithCaption(sock, message, texto);
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

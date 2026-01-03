@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const cooldown = 7200000; // 2 horas
 
@@ -12,26 +12,18 @@ const handler = async (sock, message) => {
 
   if (new Date - user.lastrob < cooldown) {
     const remaining = msToTime(cooldown - (new Date - user.lastrob));
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `⏰ *Ya robaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa .trabajar*`
-    });
+    return await sendImageWithCaption(sock, message, `⏰ *Ya robaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa .trabajar*`);
   }
 
   let who;
   if (message.isGroup) {
     who = message.mentionedJid[0] || (message.quoted ? message.quoted.sender : false);
   } else {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Este comando solo funciona en grupos*`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Este comando solo funciona en grupos*`);
   }
 
-  if (!who) return await sock.sendMessage(message.key.remoteJid, {
-    text: `❌ *Menciona a alguien para robarle*\n💡 *Ejemplo:* .robar @usuario`
-  });
-  if (!(who in global.db.data.users)) return await sock.sendMessage(message.key.remoteJid, {
-    text: `❌ *Usuario no encontrado en la base de datos*`
-  });
+  if (!who) return await sendImageWithCaption(sock, message, `❌ *Menciona a alguien para robarle*\n💡 *Ejemplo:* .robar @usuario`);
+  if (!(who in global.db.data.users)) return await sendImageWithCaption(sock, message, `❌ *Usuario no encontrado en la base de datos*`);
 
   const victim = global.db.data.users[who];
 
@@ -42,12 +34,11 @@ const handler = async (sock, message) => {
     user.exp = 0;
     user.level = 1;
 
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `
-▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+    const caption = `
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 ▓ ░▒▒▓▓▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▓▓▒▒░ ▓
 ▓ ░▒▓ [💀] 𝐈𝐍𝐓𝐄𝐍𝐓𝐎 𝐃𝐄 𝐇𝐀𝐂𝐊𝐄𝐎 𝐀𝐋 𝐉𝐄𝐅𝐄 [💀] ▓▒░ ▓
-▓ ▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒ ▓
+▓ ▒▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▒ ▓
 
 ▄︻デ══━💢 *¡CONTRAMEDIDA ACTIVADA!* 💢━══デ︻▄
 
@@ -63,9 +54,8 @@ const handler = async (sock, message) => {
 
 *"No desafíes al que controla la matriz."*  
 **- C3rb3rus-666**
-`,
-      mentions: [message.sender]
-    });
+`;
+    return await sendImageWithCaption(sock, message, caption, { mentions: [message.sender] });
   }
 
   // 👁️ Si el CREADOR usa el comando: da recompensa al objetivo
@@ -73,8 +63,7 @@ const handler = async (sock, message) => {
     const recompensa = 1000000; // 1 millón
     victim.money += recompensa;
 
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `
+    const caption = `
 🎁 *ENCUENTRO CON EL JEFE MAESTRO* 🎁
 
 @${who.split('@')[0]} ha sido bendecido por el Arquitecto del Sistema...
@@ -86,15 +75,11 @@ const handler = async (sock, message) => {
 ╚════════════════════════════╝
 
 *"El sistema te observa... y te recompensa."*
-`,
-      mentions: [who]
-    });
+`;
+    return await sendImageWithCaption(sock, message, caption, { mentions: [who] });
   }
 
-  if (victim.money < 100) return await sock.sendMessage(message.key.remoteJid, {
-    text: `😔 *@${who.split('@')[0]}* no tiene suficiente dinero para robar`,
-    mentions: [who]
-  });
+  if (victim.money < 100) return await sendImageWithCaption(sock, message, `😔 *@${who.split('@')[0]}* no tiene suficiente dinero para robar`, { mentions: [who] });
 
   // Probabilidad de éxito: 60%
   const exito = Math.random() < 0.6;
@@ -107,8 +92,7 @@ const handler = async (sock, message) => {
     victim.money -= cantidad;
     user.money += cantidad;
 
-    await sock.sendMessage(message.key.remoteJid, {
-      text: `
+    const caption = `
 ╔═══《 *ROBO EXITOSO* 》═══╗
 ║ 👤 *Víctima:* @${who.split('@')[0]}
 ║ 💰 *Robaste:* ${cantidad} monedas
@@ -116,16 +100,14 @@ const handler = async (sock, message) => {
 ╚══════════════════════════════╝
 
 🔥 *¡Buen trabajo ladrón!*
-`,
-      mentions: [who]
-    });
+`;
+    await sendImageWithCaption(sock, message, caption, { mentions: [who] });
   } else {
     // Robo fallido - pierdes dinero
     const perdida = Math.floor(cantidad * 0.5);
     user.money = Math.max(0, user.money - perdida);
 
-    await sock.sendMessage(message.key.remoteJid, {
-      text: `
+    const caption = `
 ╔═══《 *ROBO FALLIDO* 》═══╗
 ║ 👤 *Víctima:* @${who.split('@')[0]}
 ║ 💸 *Perdiste:* ${perdida} monedas
@@ -133,9 +115,8 @@ const handler = async (sock, message) => {
 ╚══════════════════════════════╝
 
 😔 *Mejor suerte la próxima vez...*
-`,
-      mentions: [who]
-    });
+`;
+    await sendImageWithCaption(sock, message, caption, { mentions: [who] });
   }
 
   // Verificar penalización global del Jefe Maestro

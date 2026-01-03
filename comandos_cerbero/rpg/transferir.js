@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const items = ['money', 'limit'];
 
@@ -7,15 +7,14 @@ const handler = async (sock, message) => {
   const user = global.db.data.users[message.sender];
 
   if (!args[0] || !args[1]) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `
+    const caption = `
 ╔═══《 *TRANSFERENCIA* 》═══╗
 ║ 💰 *Tipos:* money, limit
 ║ 📝 *Uso:* .transferir <tipo> <cantidad> @usuario
 ║ 💡 *Ejemplo:* .transferir money 500 @usuario
 ╚══════════════════════════════╝
-`
-    });
+`;
+    return await sendImageWithCaption(sock, message, caption);
   }
 
   const tipo = args[0].toLowerCase();
@@ -23,33 +22,23 @@ const handler = async (sock, message) => {
   let who = message.mentionedJid[0];
 
   if (!items.includes(tipo)) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Tipo inválido.* Tipos disponibles: ${items.join(', ')}`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Tipo inválido.* Tipos disponibles: ${items.join(', ')}`);
   }
 
   if (isNaN(cantidad) || cantidad <= 0) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Cantidad inválida.*`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Cantidad inválida.*`);
   }
 
   if (!who) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Menciona al usuario destinatario.*`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Menciona al usuario destinatario.*`);
   }
 
   if (!(who in global.db.data.users)) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Usuario no encontrado.*`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Usuario no encontrado.*`);
   }
 
   if (user[tipo] < cantidad) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *No tienes suficiente ${tipo === 'money' ? '💰 dinero' : '💎 diamantes'}*`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *No tienes suficiente ${tipo === 'money' ? '💰 dinero' : '💎 diamantes'}*`);
   }
 
   const destinatario = global.db.data.users[who];
@@ -58,8 +47,7 @@ const handler = async (sock, message) => {
   user[tipo] -= cantidad;
   destinatario[tipo] += cantidad;
 
-  await sock.sendMessage(message.key.remoteJid, {
-    text: `
+  const caption = `
 ╔═══《 *TRANSFERENCIA EXITOSA* 》═══╗
 ║ 👤 *De:* @${message.sender.split('@')[0]}
 ║ 👤 *Para:* @${who.split('@')[0]}
@@ -68,9 +56,8 @@ const handler = async (sock, message) => {
 ╚══════════════════════════════╝
 
 🔥 *¡Transferencia completada!*
-`,
-    mentions: [message.sender, who]
-  });
+`;
+  await sendImageWithCaption(sock, message, caption, { mentions: [message.sender, who] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

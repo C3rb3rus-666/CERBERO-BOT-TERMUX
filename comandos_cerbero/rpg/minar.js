@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const cooldown = 600000; // 10 minutos
 
@@ -10,9 +10,7 @@ const handler = async (sock, message) => {
 
   if (new Date - user.lastmine < cooldown) {
     const remaining = msToTime(cooldown - (new Date - user.lastmine));
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `⛏️ *Ya minaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa !trabajar*`
-    }, { quoted: message });
+    return await sendImageWithCaption(sock, message, `⛏️ *Ya minaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa !trabajar*`);
   }
 
   const exp = pickRandom([50, 100, 150, 200, 250]);
@@ -22,8 +20,7 @@ const handler = async (sock, message) => {
   user.limit += limit;
   user.lastmine = new Date * 1;
 
-  await sock.sendMessage(message.key.remoteJid, {
-    text: `
+  const caption = `
 ╔═══《 *MINERÍA* 》═══╗
 ║ ⛏️ *Minerales extraídos*
 ║ 💎 *Diamantes:* ${limit}
@@ -31,8 +28,8 @@ const handler = async (sock, message) => {
 ╚══════════════════════════════╝
 
 🔥 *¡Buena excavación! Vuelve en 10 minutos*
-`
-  }, { quoted: message });
+`;
+  await sendImageWithCaption(sock, message, caption);
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

@@ -1,3 +1,5 @@
+import { sendImageWithCaption } from '../gameFIle.js';
+
 const handler = async (sock, message) => {
   let who;
   if (message.key.remoteJid.endsWith('@g.us')) who = message.mentionedJid[0] ? message.mentionedJid[0] : message.sender;
@@ -11,8 +13,7 @@ const handler = async (sock, message) => {
   if (typeof global.db.data.users[who].exp !== 'number') global.db.data.users[who].exp = 0;
   if (typeof global.db.data.users[who].level !== 'number') global.db.data.users[who].level = 1;
 
-  await sock.sendMessage(message.key.remoteJid, {
-    text: `
+  const caption = `
 ╔═══《 *CARTERA DE CERBERO* 》═══╗
 ║ 👤 *Usuario:* ${name}
 ║ 💎 *Diamantes:* ${global.db.data.users[who].limit}
@@ -28,8 +29,8 @@ const handler = async (sock, message) => {
 ❏ *!tienda* - Compra items útiles
 ❏ *!robar* - Intenta robar a otros (riesgoso)
 ❏ *!lideres* - Ver ranking global
-`
-  }, { quoted: message });
+`;
+  await sendImageWithCaption(sock, message, caption);
 };
 
 handler.help = ['cartera', 'bolsillo'];

@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
 
 const precios = {
   diamante: { precio: 350, tipo: 'exp', emoji: '💎' },
@@ -11,8 +11,7 @@ const handler = async (sock, message) => {
   const user = global.db.data.users[message.sender];
 
   if (!args[0]) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `
+    const caption = `
 ╔═══《 *TIENDA DE CERBERO* 》═══╗
 ║ 💎 *Diamante* - 350 EXP
 ║ 💰 *Dinero* - 500 Diamantes  
@@ -21,8 +20,8 @@ const handler = async (sock, message) => {
 
 🔥 *Uso:* .tienda <item> <cantidad>
 💡 *Ejemplo:* .tienda diamante 5
-`
-    });
+`;
+    return await sendImageWithCaption(sock, message, caption);
   }
 
   const item = args[0].toLowerCase();
@@ -30,26 +29,21 @@ const handler = async (sock, message) => {
   cantidad = Math.max(1, cantidad);
 
   if (!precios[item]) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *Item no encontrado.* Items disponibles: ${Object.keys(precios).join(', ')}`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *Item no encontrado.* Items disponibles: ${Object.keys(precios).join(', ')}`);
   }
 
   const precioItem = precios[item];
   const costoTotal = precioItem.precio * cantidad;
 
   if (user[precioItem.tipo] < costoTotal) {
-    return await sock.sendMessage(message.key.remoteJid, {
-      text: `❌ *No tienes suficiente ${precioItem.emoji}*\n💡 *Necesitas:* ${costoTotal} ${precioItem.emoji}`
-    });
+    return await sendImageWithCaption(sock, message, `❌ *No tienes suficiente ${precioItem.emoji}*\n💡 *Necesitas:* ${costoTotal} ${precioItem.emoji}`);
   }
 
   // Aplicar compra
   user[precioItem.tipo] -= costoTotal;
   user[item] += cantidad;
 
-  await sock.sendMessage(message.key.remoteJid, {
-    text: `
+  const caption = `
 ╔═══《 *COMPRA EXITOSA* 》═══╗
 ║ 🛒 *Item:* ${item} ${precioItem.emoji}
 ║ 📦 *Cantidad:* ${cantidad}
@@ -58,8 +52,8 @@ const handler = async (sock, message) => {
 ╚══════════════════════════════╝
 
 🔥 *¡Compra realizada con éxito!*
-`
-  });
+`;
+  await sendImageWithCaption(sock, message, caption);
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);
