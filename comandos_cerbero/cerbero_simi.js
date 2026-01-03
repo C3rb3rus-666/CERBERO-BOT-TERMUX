@@ -79,6 +79,8 @@ export const cerberoSimiBot = async (sock, msg) => {
   const userJid = msg.key.participant || msg.key.remoteJid;
   const userMessage = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
+  console.log(`[cerberoSimi] Invoked by ${userJid} in ${chatId}. message: ${userMessage ? userMessage.slice(0,64) : '<no-text>'}`);
+
   if (!userMessage) {
     await sock.sendMessage(chatId, { text: `${BOT_HEADER} Por favor, envía un mensaje de texto.` });
     return;

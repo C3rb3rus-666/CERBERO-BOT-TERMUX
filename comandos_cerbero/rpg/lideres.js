@@ -53,7 +53,7 @@ ${getText(sortedLimit, 'limit', '💎', 'Diamantes')}
 `.trim();
 
   const mentions = body.match(/@\d+/g)?.map(m => m.replace('@','') + '@s.whatsapp.net') || [];
-  await sendImageWithCaption(sock, message, body, { mentions });
+  await sendImageWithCaption(sock, message, body, { mentions, prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

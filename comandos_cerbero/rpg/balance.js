@@ -30,7 +30,7 @@ const handler = async (sock, message) => {
 ❏ *!robar* - Intenta robar a otros (riesgoso)
 ❏ *!lideres* - Ver ranking global
 `;
-  await sendImageWithCaption(sock, message, caption);
+  await sendImageWithCaption(sock, message, caption, { prefer: ['menu','ping'] });
 };
 
 handler.help = ['cartera', 'bolsillo'];

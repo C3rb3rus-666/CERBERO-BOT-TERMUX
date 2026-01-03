@@ -57,7 +57,7 @@ const handler = async (sock, message) => {
 
 🔥 *¡Transferencia completada!*
 `;
-  await sendImageWithCaption(sock, message, caption, { mentions: [message.sender, who] });
+  await sendImageWithCaption(sock, message, caption, { mentions: [message.sender, who], prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

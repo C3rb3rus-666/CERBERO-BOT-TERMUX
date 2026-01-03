@@ -190,6 +190,10 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
   const botNumber = sock.user?.id?.split('@')?.[0] || '';
   const isMentionByText = text.includes(botNumber) || text.includes(`@${botNumber}`);
 
+  // Logging para depuración: detectar respuestas/menciones al bot
+  if (isReplyToBot) console.log(`[IA] Reply-to-bot detected in chat ${message.key.remoteJid} from ${message.key.participant || message.sender}`);
+  if (isMentioned || isMentionByText) console.log(`[IA] Mention detected in chat ${message.key.remoteJid} from ${message.key.participant || message.sender}`);
+
   // Si es reply del bot, responder siempre; si es mención, solo si no es comando (no empieza con '!')
   if (isReplyToBot || ((isMentioned || isMentionByText) && !text.startsWith('!'))) {
     try {

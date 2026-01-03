@@ -21,7 +21,7 @@ const handler = async (sock, message) => {
 🔥 *Uso:* .tienda <item> <cantidad>
 💡 *Ejemplo:* .tienda diamante 5
 `;
-    return await sendImageWithCaption(sock, message, caption);
+    return await sendImageWithCaption(sock, message, caption, { prefer: ['menu','ping'] });
   }
 
   const item = args[0].toLowerCase();
@@ -29,14 +29,14 @@ const handler = async (sock, message) => {
   cantidad = Math.max(1, cantidad);
 
   if (!precios[item]) {
-    return await sendImageWithCaption(sock, message, `❌ *Item no encontrado.* Items disponibles: ${Object.keys(precios).join(', ')}`);
+    return await sendImageWithCaption(sock, message, `❌ *Item no encontrado.* Items disponibles: ${Object.keys(precios).join(', ')}`, { prefer: ['menu','ping'] });
   }
 
   const precioItem = precios[item];
   const costoTotal = precioItem.precio * cantidad;
 
   if (user[precioItem.tipo] < costoTotal) {
-    return await sendImageWithCaption(sock, message, `❌ *No tienes suficiente ${precioItem.emoji}*\n💡 *Necesitas:* ${costoTotal} ${precioItem.emoji}`);
+    return await sendImageWithCaption(sock, message, `❌ *No tienes suficiente ${precioItem.emoji}*\n💡 *Necesitas:* ${costoTotal} ${precioItem.emoji}`, { prefer: ['menu','ping'] });
   }
 
   // Aplicar compra
@@ -53,7 +53,7 @@ const handler = async (sock, message) => {
 
 🔥 *¡Compra realizada con éxito!*
 `;
-  await sendImageWithCaption(sock, message, caption);
+  await sendImageWithCaption(sock, message, caption, { prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

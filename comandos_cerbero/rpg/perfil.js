@@ -43,7 +43,7 @@ const handler = async (sock, message) => {
 💡 *Sigue ganando EXP para subir de nivel!*
 `;
 
-  await sendImageWithCaption(sock, message, texto);
+  await sendImageWithCaption(sock, message, texto, { prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

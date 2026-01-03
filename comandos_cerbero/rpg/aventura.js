@@ -10,7 +10,7 @@ const handler = async (sock, message) => {
 
   if (new Date - user.lastadventure < cooldown) {
     const remaining = msToTime(cooldown - (new Date - user.lastadventure));
-    return await sendImageWithCaption(sock, message, `❌ *Estás en una aventura, espera ${remaining}*\n\n💡 *Mientras tanto puedes usar !minar*`);
+    return await sendImageWithCaption(sock, message, `❌ *Estás en una aventura, espera ${remaining}*\n\n💡 *Mientras tanto puedes usar !minar*`, { prefer: ['menu','ping'] });
   }
 
   // Lugares de aventura
@@ -58,7 +58,7 @@ const handler = async (sock, message) => {
 
 😔 *Regresaste herido pero con algo de experiencia*`;
 
-  await sendImageWithCaption(sock, message, texto);
+  await sendImageWithCaption(sock, message, texto, { prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

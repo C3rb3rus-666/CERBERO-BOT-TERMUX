@@ -12,18 +12,18 @@ const handler = async (sock, message) => {
 
   if (new Date - user.lastrob < cooldown) {
     const remaining = msToTime(cooldown - (new Date - user.lastrob));
-    return await sendImageWithCaption(sock, message, `⏰ *Ya robaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa .trabajar*`);
+    return await sendImageWithCaption(sock, message, `⏰ *Ya robaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa .trabajar*`, { prefer: ['menu','ping'] });
   }
 
   let who;
   if (message.isGroup) {
     who = message.mentionedJid[0] || (message.quoted ? message.quoted.sender : false);
   } else {
-    return await sendImageWithCaption(sock, message, `❌ *Este comando solo funciona en grupos*`);
+    return await sendImageWithCaption(sock, message, `❌ *Este comando solo funciona en grupos*`, { prefer: ['menu','ping'] });
   }
 
-  if (!who) return await sendImageWithCaption(sock, message, `❌ *Menciona a alguien para robarle*\n💡 *Ejemplo:* .robar @usuario`);
-  if (!(who in global.db.data.users)) return await sendImageWithCaption(sock, message, `❌ *Usuario no encontrado en la base de datos*`);
+  if (!who) return await sendImageWithCaption(sock, message, `❌ *Menciona a alguien para robarle*\n💡 *Ejemplo:* .robar @usuario`, { prefer: ['menu','ping'] });
+  if (!(who in global.db.data.users)) return await sendImageWithCaption(sock, message, `❌ *Usuario no encontrado en la base de datos*`, { prefer: ['menu','ping'] });
 
   const victim = global.db.data.users[who];
 
@@ -101,7 +101,7 @@ const handler = async (sock, message) => {
 
 🔥 *¡Buen trabajo ladrón!*
 `;
-    await sendImageWithCaption(sock, message, caption, { mentions: [who] });
+    await sendImageWithCaption(sock, message, caption, { mentions: [who], prefer: ['menu','ping'] });
   } else {
     // Robo fallido - pierdes dinero
     const perdida = Math.floor(cantidad * 0.5);
@@ -116,7 +116,7 @@ const handler = async (sock, message) => {
 
 😔 *Mejor suerte la próxima vez...*
 `;
-    await sendImageWithCaption(sock, message, caption, { mentions: [who] });
+    await sendImageWithCaption(sock, message, caption, { mentions: [who], prefer: ['menu','ping'] });
   }
 
   // Verificar penalización global del Jefe Maestro

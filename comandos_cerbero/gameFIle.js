@@ -22,10 +22,34 @@ function getRandomImage(imagesDir) {
 
 // Enviar imagen aleatoria con caption; si no hay imagen, enviar solo texto
 export async function sendImageWithCaption(sock, message, caption, opts = {}) {
-  // opts: { mentions: [...], detectLinks: bool }
+  // opts: { mentions: [...], detectLinks: bool, prefer: ['menu','ping','rpg','<command>'] }
   try {
-    const imagePath = getRandomImage(imagesDir);
     const sendOptions = { quoted: message, ...opts };
+
+    // Priorizar archivos por prefijos si se solicita
+    const preferList = Array.isArray(opts.prefer) ? opts.prefer : [];
+    if (preferList.length > 0) {
+      const files = fs.readdirSync(imagesDir).filter(f => {
+        const ext = path.extname(f).toLowerCase();
+        const okExt = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
+        return okExt.includes(ext) && fs.statSync(path.join(imagesDir, f)).isFile();
+      });
+      for (const pref of preferList) {
+        const matched = files.filter(f => f.toLowerCase().startsWith(pref.toLowerCase()));
+        if (matched.length > 0) {
+          const chosen = matched[Math.floor(Math.random() * matched.length)];
+          const buffer = fs.readFileSync(path.join(imagesDir, chosen));
+          const messagePayload = { image: buffer, caption };
+          if (opts.detectLinks) messagePayload.detectLinks = true;
+          if (opts.mentions) messagePayload.mentions = opts.mentions;
+          await sock.sendMessage(message.key.remoteJid, messagePayload, sendOptions);
+          return;
+        }
+      }
+    }
+
+    // Fallback a imagen aleatoria
+    const imagePath = getRandomImage(imagesDir);
     if (!imagePath) {
       await sock.sendMessage(message.key.remoteJid, { text: caption, mentions: opts.mentions || [] }, sendOptions);
       return;

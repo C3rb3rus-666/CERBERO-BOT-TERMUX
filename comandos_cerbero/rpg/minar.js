@@ -10,7 +10,7 @@ const handler = async (sock, message) => {
 
   if (new Date - user.lastmine < cooldown) {
     const remaining = msToTime(cooldown - (new Date - user.lastmine));
-    return await sendImageWithCaption(sock, message, `⛏️ *Ya minaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa !trabajar*`);
+    return await sendImageWithCaption(sock, message, `⛏️ *Ya minaste recientemente, espera ${remaining}*\n\n💡 *Mientras tanto usa !trabajar*`, { prefer: ['menu','ping'] });
   }
 
   const exp = pickRandom([50, 100, 150, 200, 250]);
@@ -29,7 +29,7 @@ const handler = async (sock, message) => {
 
 🔥 *¡Buena excavación! Vuelve en 10 minutos*
 `;
-  await sendImageWithCaption(sock, message, caption);
+  await sendImageWithCaption(sock, message, caption, { prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);

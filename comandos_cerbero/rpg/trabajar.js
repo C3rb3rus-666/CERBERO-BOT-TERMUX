@@ -10,7 +10,7 @@ const handler = async (sock, message) => {
   const time = user.lastclaim + 7200000; // 2 horas
   if (new Date - user.lastclaim < 7200000) {
     const remaining = msToTime(time - new Date());
-    return await sendImageWithCaption(sock, message, `❌ *Ya trabajaste hoy, vuelve en ${remaining}*\n\n💡 *Consejo:* Usa !aventura para ganar más rápido`);
+    return await sendImageWithCaption(sock, message, `❌ *Ya trabajaste hoy, vuelve en ${remaining}*\n\n💡 *Consejo:* Usa !aventura para ganar más rápido`, { prefer: ['menu','ping'] });
   }
 
   // Recompensas
@@ -40,7 +40,7 @@ const handler = async (sock, message) => {
 • !robar - Alto riesgo, alta recompensa
 `;
 
-  await sendImageWithCaption(sock, message, texto);
+  await sendImageWithCaption(sock, message, texto, { prefer: ['menu','ping'] });
 
   // Verificar penalización global del Jefe Maestro
   await maybeSaqueoMaestro(sock, message);
