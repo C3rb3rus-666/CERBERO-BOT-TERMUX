@@ -2,16 +2,10 @@
 
 Cerbero-bot es un bot de WhatsApp basado en Baileys, creado por C3rb3rus-666.
 
-Versión: v4.2.6 (Build 73)
+Versión: v4.2.8 (Build 75)
 
 Resumen rápido
-- Protección global contra envíos masivos y DMs no deseados (`safeSendMessage`) implementada.
-- Juego `impostor` eliminado por comportamiento inseguro.
-- Contadores persistentes por participante (`utils/messageCounter.js`) con baseline por ingreso a grupos.
-- Comando `!actividad` que lista usuarios activos e inactivos (menciones correctas y sin mostrar LID).
-- Scheduler mensual que hace backup y resetea contadores el día 30 (`utils/resetScheduler.js`).
-- Configuración `config/always_tag.json` para listar usuarios que siempre deben ser etiquetados (como `!todos`).
-
+ Comando `!dox`: minijuego que genera datos ficticios (IP, ISP, ubicación, email) y etiqueta al objetivo. Es completamente falso y solo para diversión.
 Instalación
 
 ```bash

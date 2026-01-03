@@ -120,7 +120,7 @@ export const ping = async (sock, msg) => {
                         const messageLines = [
 '╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
 '║',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.6 Build 73*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.7 Build 74*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
 '╠══ [ *📡 SENSORS & COOLING* ] ══',
@@ -154,7 +154,8 @@ export const ping = async (sock, msg) => {
 '║ 🖥️ *Operating System:*',
 `║ └─ ${osDisplay}`,
 '║',
-'╚════════════════════════════╝'
+'╚════════════════════════════╝',
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.2.8 Build 76*`
 ].join('\n');
 
                         message = messageLines;

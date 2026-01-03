@@ -22,7 +22,7 @@ export async function creador(sock, msg) {
 const menuText = `
 ╔══════════════════════════════════════════╗
 ║        🤖 CERBERO-BOT DEVELOPER         ║
-║     v4.2.6 Build 73                     ║
+║     v4.2.8 Build 76                     ║
 ║  👨‍💻 Coded by: C3rb3rus-666             ║
 ║  🔗 github.com/C3rb3rus-666             ║
 ║  📱 WhatsApp: +573233704652             ║

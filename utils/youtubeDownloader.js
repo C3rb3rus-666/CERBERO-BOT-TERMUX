@@ -7,26 +7,59 @@ import { tmpdir } from 'os';
 import { spawn } from 'child_process';
 
 function findYtDlpCommand() {
-    // Prefer system binary 'yt-dlp', then 'yt_dlp', else fallback to 'python3 -m yt_dlp' or 'python -m yt_dlp'
+    // Prefer system binary 'yt-dlp', then 'yt_dlp', then user install, else fallback to 'python3 -m yt_dlp' or 'python -m yt_dlp'
     const has = (cmd) => {
         try { return require('child_process').execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0; } catch(e){ return false; }
     }
 
     if (has('yt-dlp')) return { cmd: 'yt-dlp', args: [] };
     if (has('yt_dlp')) return { cmd: 'yt_dlp', args: [] };
+    // Check for binary in common user install location
+    const userYtDlp = path.join(process.env.HOME || '', '.local', 'bin', 'yt-dlp');
+    if (fs.existsSync(userYtDlp)) return { cmd: userYtDlp, args: [] };
     // prefer python3 or python as module runner for yt_dlp
     if (has('python3')) return { cmd: 'python3', args: ['-m', 'yt_dlp'] };
     if (has('python')) return { cmd: 'python', args: ['-m', 'yt_dlp'] };
+    // Check for python3 in common locations if not in PATH
+    const commonPython3Paths = ['/usr/bin/python3', '/usr/local/bin/python3', '/bin/python3'];
+    for (const p of commonPython3Paths) {
+        if (fs.existsSync(p)) return { cmd: p, args: ['-m', 'yt_dlp'] };
+    }
 
     // No suitable command found — return null to let caller handle gracefully
     return null;
 }
 
+async function installYtDlp() {
+    console.log('[youtubeDownloader] intentando instalar yt-dlp automáticamente...');
+    return new Promise((resolve, reject) => {
+        const installCmd = spawn('python3', ['-m', 'pip', 'install', '--upgrade', 'yt-dlp'], { stdio: 'inherit' });
+        installCmd.on('close', (code) => {
+            if (code === 0) {
+                console.log('[youtubeDownloader] yt-dlp instalado exitosamente.');
+                resolve();
+            } else {
+                reject(new Error('Fallo al instalar yt-dlp. Instálalo manualmente con: python3 -m pip install --upgrade yt-dlp'));
+            }
+        });
+        installCmd.on('error', reject);
+    });
+}
+
 async function runYtDlp(url, outPrefix) {
-    const found = findYtDlpCommand();
+    let found = findYtDlpCommand();
     console.log('[youtubeDownloader] findYtDlpCommand ->', found);
     if (!found || !found.cmd) {
-        return Promise.reject(new Error('yt-dlp no encontrado: instala yt-dlp (pip install -U yt-dlp) o añade el binario a PATH. Ejecuta ./install.sh para asistencia.'));
+        console.log('[youtubeDownloader] yt-dlp no encontrado, intentando instalar...');
+        try {
+            await installYtDlp();
+            found = findYtDlpCommand();
+            if (!found || !found.cmd) {
+                return Promise.reject(new Error('yt-dlp no encontrado incluso después de instalación. Instálalo manualmente con: python3 -m pip install --upgrade yt-dlp'));
+            }
+        } catch (installErr) {
+            return Promise.reject(new Error(`Fallo en instalación automática: ${installErr.message}. Instala yt-dlp manualmente.`));
+        }
     }
     const { cmd, args: baseArgs } = found;
     const args = (baseArgs || []).concat([

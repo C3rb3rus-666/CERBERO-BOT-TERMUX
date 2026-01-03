@@ -50,8 +50,8 @@ export async function menuCommand(sock, msg) {
   const menuText = `
 
 ╔══════════════════════════════════════════╗
-║       🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐯𝟒.𝟐.�     ║
-║     Build 73 - Sistema Online           ║
+║       🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  v4.2.8        ║
+║     Build 76 - Sistema Online           ║
 ║  👨‍💻 Coded by: C3rb3rus-666             ║
 ║  🔗 github.com/C3rb3rus-666             ║
 ║  📱 WhatsApp: +573233704652             ║
@@ -98,6 +98,7 @@ export async function menuCommand(sock, msg) {
   • !cplayd <seleccion> descarga de resultados  de cplay2
 • !simi <texto> — 🤖 Habla con SimiSimi (IA en línea)
 • !sticker- crea stickers desde imágenes 
+• !dox — 🎯 Minijuego: doxxing falso (genera datos inventados y etiqueta al objetivo)
 
 𝐒𝐨𝐜𝐢𝐚𝐥 ❤️
 ────────────────────────────
@@ -143,6 +144,18 @@ export async function menuCommand(sock, msg) {
 • !logros — 🏅 Ver logros desbloqueados
 • !maricones — 🌈 TOP maricones del grupo
 • !pajeros — 🍆 TOP pajeros del grupo
+
+*🎲 𝗡𝗨𝗘𝗩𝗢 𝗥𝗣𝗚 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
+────────────────────────────
+• !cartera — 👛 Ver tu dinero, diamantes y EXP
+• !trabajar — 💼 Trabajo diario (cada 2 horas)
+• !aventura — ⚔️ Aventuras aleatorias (15 min cooldown)
+• !minar — ⛏️ Minería de diamantes (10 min cooldown)
+• !tienda <item> <cant> — 🛒 Comprar diamantes/dinero/EXP
+• !robar @usuario — 🗡️ Robar dinero (alto riesgo, 2h cooldown)
+• !transferir <tipo> <cant> @user — 💸 Transferir recursos
+• !lideres — 🏆 Ranking global de jugadores
+• !perfil — 👤 Ver perfil detallado
 
   *🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
 ────────────────────────────
