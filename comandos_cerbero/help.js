@@ -76,7 +76,24 @@ _Coded by C3rb3rus-666_
     try {
       await sock.sendMessage(chatId, { text: helpText, mentions: [msg.key.participant || chatId] }, { quoted: msg });
       console.log('[help] quick text sent');
-      return; // respuesta inmediata enviada, no continuamos con envíos pesados
+
+      // Envío en segundo plano de imagen aleatoria (comportamiento similar a !menu)
+      (async () => {
+        try {
+          const followImage = getRandomImage(imagesDir);
+          if (!followImage) return;
+          const imgBuf = fs.readFileSync(followImage);
+          await sock.sendMessage(chatId, {
+            image: imgBuf,
+            caption: helpText
+          }, { quoted: msg }).catch(e => { throw e; });
+          console.log('[help] follow-up image sent');
+        } catch (errFollow) {
+          console.warn('[help] follow-up image failed:', errFollow.message || errFollow);
+        }
+      })();
+
+      return; // respuesta inmediata enviada, ya programado el follow-up
     } catch (errQuick) {
       console.warn('[help] quick text send failed, will attempt robust flow:', errQuick.message || errQuick);
       // Continuamos con flujo robusto: intentos con imagen y externalAdReply
