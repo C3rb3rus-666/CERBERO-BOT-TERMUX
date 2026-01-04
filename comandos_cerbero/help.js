@@ -69,41 +69,88 @@ _Coded by C3rb3rus-666_
 `.trim();
 
   try {
-    // Simulamos escritura para realismo
-    await sock.sendPresenceUpdate('composing', chatId);
+    // Log de invocación para depuración
+    console.log(`[help] invoked by ${msg.key.participant || chatId} in ${chatId} at ${new Date().toISOString()}`);
+
+    // Envío rápido de texto para garantizar respuesta inmediata
+    try {
+      await sock.sendMessage(chatId, { text: helpText, mentions: [msg.key.participant || chatId] }, { quoted: msg });
+      console.log('[help] quick text sent');
+      return; // respuesta inmediata enviada, no continuamos con envíos pesados
+    } catch (errQuick) {
+      console.warn('[help] quick text send failed, will attempt robust flow:', errQuick.message || errQuick);
+      // Continuamos con flujo robusto: intentos con imagen y externalAdReply
+    }
+
+    // Simulamos escritura para realismo (solo si quick send falló)
+    try {
+      await sock.sendPresenceUpdate('composing', chatId);
+    } catch (presErr) {
+      console.warn('[help] sendPresenceUpdate failed:', presErr.message || presErr);
+    }
 
     const randomImagePath = getRandomImage(imagesDir);
     if (randomImagePath) {
       const imageBuffer = fs.readFileSync(randomImagePath);
-      
-      await sock.sendMessage(chatId, {
-        image: imageBuffer,
-        caption: helpText,
-        contextInfo: {
-          mentionedJid: [msg.key.participant || chatId],
-          forwardingScore: 999,
-          isForwarded: true,
-          externalAdReply: {
-            title: "🆘 AYUDA - CERBERO BOT",
-            body: "Guía de supervivencia básica",
-            thumbnail: imageBuffer,
-            mediaType: 1,
-            renderLargerThumbnail: true
+
+      // Intento principal: enviar con externalAdReply (thumbnail)
+      try {
+        await sock.sendMessage(chatId, {
+          image: imageBuffer,
+          caption: helpText,
+          contextInfo: {
+            mentionedJid: [msg.key.participant || chatId],
+            forwardingScore: 999,
+            isForwarded: true,
+            externalAdReply: {
+              title: "🆘 AYUDA - CERBERO BOT",
+              body: "Guía de supervivencia básica",
+              thumbnail: imageBuffer,
+              mediaType: 1,
+              renderLargerThumbnail: true
+            }
           }
+        }, { quoted: msg });
+        console.log('[help] image+externalAdReply sent');
+      } catch (errSend) {
+        console.warn('!help: send with externalAdReply failed, retrying without externalAdReply', errSend.message || errSend);
+        // Segundo intento: enviar sólo imagen y caption (sin contextInfo)
+        try {
+          await sock.sendMessage(chatId, {
+            image: imageBuffer,
+            caption: helpText
+          }, { quoted: msg });
+          console.log('[help] image+caption sent');
+        } catch (errSend2) {
+          console.warn('!help: send image+caption failed, falling back to text', errSend2.message || errSend2);
+          // Último recurso: enviar sólo texto con menciones
+          await sock.sendMessage(chatId, { 
+            text: helpText,
+            mentions: [msg.key.participant || chatId]
+          }, { quoted: msg });
+          console.log('[help] fallback text sent after image failures');
         }
-      }, { quoted: msg });
+      }
+
     } else {
       // Fallback por si no encuentra la imagen
       await sock.sendMessage(chatId, { 
         text: helpText,
         mentions: [msg.key.participant || chatId]
       }, { quoted: msg });
+      console.log('[help] text fallback sent (no image found)');
     }
 
   } catch (error) {
     console.error('Error en !help:', error);
-    await sock.sendMessage(chatId, {
-      text: `❌ Error al mostrar la ayuda: ${error.message}`
-    }, { quoted: msg });
+    // Si ocurre cualquier error, intenta enviar un mensaje de texto con el error manualmente
+    try {
+      await sock.sendMessage(chatId, {
+        text: `❌ Error al mostrar la ayuda: ${error.message}`
+      }, { quoted: msg });
+      console.log('[help] sent error fallback message');
+    } catch (errFinal) {
+      console.error('Error sending fallback error message for !help:', errFinal);
+    }
   }
 }
