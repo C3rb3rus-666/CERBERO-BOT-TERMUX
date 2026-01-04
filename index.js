@@ -294,6 +294,20 @@ async function connectToWhatsApp() {
         let groupName = 'DIRECT_UPLINK';
 
         const senderJid = msg.key.participant || msg.key.remoteJid;
+
+        // Bloquear y reportar mensajes privados
+        if (!isGroup && !msg.key.fromMe) {
+            try {
+                await sock.sendMessage(chatId, { text: 'Lo siento, no acepto mensajes privados. Serás bloqueado y reportado por seguridad.' });
+                await sock.blockContact(senderJid);
+                await sock.reportContact(senderJid, 'spam');
+                console.log(paint.warn(`[BLOCK] Usuario ${senderJid} bloqueado y reportado por mensaje privado.`));
+            } catch (error) {
+                console.error(paint.warn(`[ERROR] No se pudo bloquear/reportar a ${senderJid}:`), error.message);
+            }
+            return;
+        }
+
         if (isGroup) {
           try {
             groupMetadata = await sock.groupMetadata(chatId);
