@@ -1,3 +1,4 @@
+import { pipeline } from '@xenova/transformers';
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 
 let classifier = null;
