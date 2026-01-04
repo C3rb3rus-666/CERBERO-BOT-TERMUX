@@ -18,6 +18,7 @@ import { simsimiBot } from "./comandos_cerbero/simi.js";
 import { cerberoSimiBot } from './comandos_cerbero/cerbero_simi.js';
 import { onGroupUpdate } from './comandos_cerbero/monitor_evento.js' 
 import { antiSpamMedia } from './comandos_cerbero/anti_spamimg.js';
+import { detectNSFW } from './comandos_cerbero/nsfw_detector.js';
 import * as autobanVideo from './comandos_cerbero/autobanvideo.js';
 import { verificarLealtad } from './comandos_cerbero/lealtad.js';
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';
@@ -448,6 +449,7 @@ async function connectToWhatsApp() {
           const isImage = !!msg.message?.imageMessage || (msg.message?.documentMessage && msg.message.documentMessage.mimetype?.startsWith('image/'));
           if (isImage) {
             await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
+            await detectNSFW(sock, msg, isAdmin, groupMetadata);
             await blockQr(sock, msg, isAdmin, groupMetadata);
           }
           if (msg.message?.stickerMessage) await handleStickerSpam(sock, msg);

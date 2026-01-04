@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## [4.2.10] - 2026-01-03 (Build 78)
 ### Added
+- **Detector NSFW**: Nuevo módulo `nsfw_detector.js` usando NSFWJS para clasificar imágenes entrantes y bloquear contenido pornográfico automáticamente (elimina mensaje, expulsa usuario y notifica en grupo).
 - **Seguridad Privada**: Implementada lógica para bloquear y reportar automáticamente a cualquier usuario que envíe mensajes privados al bot, con mensaje de advertencia previo.
 - Detección de respuestas y menciones al bot para la IA local (`cerbero_simi.js`): ahora responde cuando se le cita o menciona, con logs de depuración y fallback a Gemini para respuestas dinámicas.
 - Función `sendImageWithCaption` en `gameFIle.js` y uso consistente en todos los comandos RPG: el bot envía imágenes definidas (prioridad por prefijos `menu`/`ping`) para todas las respuestas del RPG.
