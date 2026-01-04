@@ -56,11 +56,6 @@ export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
   const groupId = msg.key.remoteJid;
   const userId = msg.key.participant || msg.key.remoteJid;
 
-  if (isAdmin) {
-    console.log('[NSFW] User is admin, skipping');
-    return; // No aplicar a admins
-  }
-
   console.log(`[NSFW] Función detectNSFW llamada para mensaje en ${groupId}`);
 
   const isImage =
@@ -106,15 +101,22 @@ export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
       // Eliminar el mensaje
       await sock.sendMessage(groupId, { delete: msg.key });
 
-      // Advertir y expulsar
-      await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
+      // Advertir y expulsar (solo si no es admin)
+      if (!isAdmin) {
+        await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
 
-      await sock.sendMessage(groupId, {
-        text: `🚫 [NSFW DETECTOR] Contenido inapropiado detectado. Usuario @${userId.split('@')[0]} expulsado.`,
-        mentions: [userId],
-      });
+        await sock.sendMessage(groupId, {
+          text: `🚫 [NSFW DETECTOR] Contenido inapropiado detectado. Usuario @${userId.split('@')[0]} expulsado.`,
+          mentions: [userId],
+        });
 
-      console.log(`[NSFW] Imagen NSFW (${topLabel}) eliminada y usuario ${userId} expulsado.`);
+        console.log(`[NSFW] Imagen NSFW (${topLabel}) eliminada y usuario ${userId} expulsado.`);
+      } else {
+        await sock.sendMessage(groupId, {
+          text: `🚫 [NSFW DETECTOR] Contenido inapropiado detectado, pero el usuario es admin. No se expulsa.`,
+        });
+        console.log(`[NSFW] Imagen NSFW (${topLabel}) detectada, pero usuario es admin.`);
+      }
     } else {
       console.log(`[NSFW] Imagen segura (${topLabel}: ${(topScore * 100).toFixed(1)}%).`);
     }
