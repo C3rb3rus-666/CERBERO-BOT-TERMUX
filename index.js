@@ -1,6 +1,6 @@
 import pino from 'pino';
 import chalk from 'chalk';
-import { makeWASocket, useMultiFileAuthState, DisconnectReason, delay } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, delay, downloadMediaMessage } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import readline from 'readline'; 
 import fs from 'fs'; 

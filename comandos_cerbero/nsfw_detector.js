@@ -1,4 +1,4 @@
-import { pipeline } from '@xenova/transformers';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
 
 let classifier = null;
 
@@ -74,7 +74,7 @@ export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
     console.log(`[NSFW] Analizando imagen de ${userId}...`);
 
     // Descargar la imagen
-    const buffer = await sock.downloadMediaMessage(msg);
+    const buffer = await downloadMediaMessage(msg, 'buffer', {}, sock);
     if (!buffer) {
       console.log('[NSFW] No se pudo descargar la imagen.');
       return;
