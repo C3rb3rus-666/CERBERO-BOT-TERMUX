@@ -8,15 +8,22 @@ const __dirname = path.dirname(__filename);
 const imagesDir = path.join(__dirname, '..', 'comandos_cerbero', 'imagenes');
 
 // Función para seleccionar una imagen aleatoria
-function getRandomImage(imagesDir) {
+function getRandomImage(imagesDir, preferredPrefixes = ['menu','ping']) {
   const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
   const files = fs.readdirSync(imagesDir).filter(file => {
     const ext = path.extname(file).toLowerCase();
     return imageExtensions.includes(ext) && fs.statSync(path.join(imagesDir, file)).isFile();
   });
   if (files.length === 0) return null;
-  const randomFile = files[Math.floor(Math.random() * files.length)];
-  return path.join(imagesDir, randomFile);
+
+  // Buscar archivos con prefijos preferidos
+  const preferred = files.filter(f => {
+    const name = path.basename(f).toLowerCase();
+    return preferredPrefixes.some(pref => name.startsWith(pref.toLowerCase()));
+  });
+
+  const chosen = (preferred.length > 0) ? preferred[Math.floor(Math.random() * preferred.length)] : files[Math.floor(Math.random() * files.length)];
+  return path.join(imagesDir, chosen);
 }
 
 export async function helpCommand(sock, msg) {
@@ -80,16 +87,32 @@ _Coded by C3rb3rus-666_
       // Envío en segundo plano de imagen aleatoria (comportamiento similar a !menu)
       (async () => {
         try {
-          const followImage = getRandomImage(imagesDir);
-          if (!followImage) return;
+          // pequeño delay para que la respuesta rápida llegue primero
+          await new Promise(r => setTimeout(r, 1000));
+
+          const followImage = getRandomImage(imagesDir, ['menu','ping']);
+          if (!followImage) { console.log('[help] no follow-up image found'); return; }
+
+          const stats = fs.statSync(followImage);
+          console.log(`[help] selected follow-up image: ${followImage} (${stats.size} bytes)`);
+
           const imgBuf = fs.readFileSync(followImage);
-          await sock.sendMessage(chatId, {
-            image: imgBuf,
-            caption: helpText
-          }, { quoted: msg }).catch(e => { throw e; });
-          console.log('[help] follow-up image sent');
+
+          try {
+            await sock.sendMessage(chatId, { image: imgBuf, caption: helpText }, { quoted: msg });
+            console.log('[help] follow-up image sent (buffer)');
+          } catch (errBuffer) {
+            console.warn('[help] send buffer failed, trying send by path:', errBuffer.message || errBuffer);
+            try {
+              await sock.sendMessage(chatId, { image: { url: followImage }, caption: helpText }, { quoted: msg });
+              console.log('[help] follow-up image sent (path)');
+            } catch (errPath) {
+              console.warn('[help] follow-up image failed both buffer and path:', errPath.message || errPath);
+            }
+          }
+
         } catch (errFollow) {
-          console.warn('[help] follow-up image failed:', errFollow.message || errFollow);
+          console.warn('[help] follow-up image failed (outer):', errFollow.message || errFollow);
         }
       })();
 
