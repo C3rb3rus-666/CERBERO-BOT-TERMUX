@@ -88,6 +88,16 @@ export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
       }
     }
 
+    // Obtener la predicción principal
+    const topPrediction = predictions[0];
+    const topClass = topPrediction.className;
+    const topProb = topPrediction.probability;
+
+    // Enviar aviso de clasificación (para pruebas)
+    await sock.sendMessage(groupId, {
+      text: `🔍 [NSFW DETECTOR] Imagen clasificada como: ${topClass} (${(topProb * 100).toFixed(1)}%)`,
+    });
+
     if (isNSFW) {
       // Eliminar el mensaje
       await sock.sendMessage(groupId, { delete: msg.key });
@@ -96,13 +106,13 @@ export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
       await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
 
       await sock.sendMessage(groupId, {
-        text: `🚫 [NSFW DETECTOR] Imagen clasificada como ${maxClass} (${(maxProb * 100).toFixed(1)}%) eliminada.\n👤 Usuario @${userId.split('@')[0]} expulsado por contenido inapropiado.`,
+        text: `🚫 [NSFW DETECTOR] Contenido inapropiado detectado. Usuario @${userId.split('@')[0]} expulsado.`,
         mentions: [userId],
       });
 
       console.log(`[NSFW] Imagen NSFW (${maxClass}) eliminada y usuario ${userId} expulsado.`);
     } else {
-      console.log(`[NSFW] Imagen segura (${predictions[0].className}: ${(predictions[0].probability * 100).toFixed(1)}%).`);
+      console.log(`[NSFW] Imagen segura (${topClass}: ${(topProb * 100).toFixed(1)}%).`);
     }
   } catch (error) {
     console.error('[NSFW] Error en detectNSFW:', error);
