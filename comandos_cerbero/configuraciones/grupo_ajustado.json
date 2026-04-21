@@ -6,18 +6,24 @@
     "welcome": true
   },
   "120363405121285442@g.us": {
-    "welcome": true
+    "welcome": false
   },
   "120363423675648224@g.us": {
-    "welcome": true
+    "welcome": false
   },
   "120363421893408314@g.us": {
-    "welcome": true
+    "welcome": false
   },
   "120363401828935049@g.us": {
     "welcome": true
   },
   "120363406720900111@g.us": {
     "welcome": false
+  },
+  "120363406808300305@g.us": {
+    "welcome": true
+  },
+  "120363408350162414@g.us": {
+    "welcome": true
   }
 }

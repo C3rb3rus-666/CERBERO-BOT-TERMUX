@@ -6,7 +6,9 @@
  */
 export const top5pajeros = async (sock, msg, groupMetadata) => {
     const chatId = msg.key.remoteJid;
-    const creatorId = '573233704652@s.whatsapp.net'; // El JID del creador al que no etiquetaremos.
+    // IDs del creador (número real + LID)
+    const creatorIds = ['573233704652', '64279084535828'];
+    const isCreator = (jid) => creatorIds.includes((jid || '').split('@')[0].split(':')[0]);
 
     // Frases posibles para los participantes del Top 5
     const frases = [
@@ -53,7 +55,7 @@ export const top5pajeros = async (sock, msg, groupMetadata) => {
         const participants = groupMetadata.participants.map(participant => participant.id);
 
         // Filtrar a los participantes que no son el creador.
-        const filteredParticipants = participants.filter(participant => participant !== creatorId);
+        const filteredParticipants = participants.filter(participant => !isCreator(participant));
 
         // Verificar que haya al menos 5 participantes para etiquetar.
         if (filteredParticipants.length < 5) {

@@ -55,6 +55,7 @@ El sistema se basa en dinero virtual.
 
 *🖼️ 𝗜𝗠Á𝗚𝗘𝗡𝗘𝗦 & 𝗔𝗨𝗫𝗜𝗟𝗜𝗢*
 • \`!extractor\` — Extrae la imagen de un sticker citado y la envía como imagen.
+• \`!arte\` / \`!art\` — 🎨 Comparte una de las imágenes que decoran los menús del bot.
 
 ────────────────────────────
 🛡️ 𝐏𝐀𝐑𝐀 𝐋𝐎𝐒 𝐆𝐔𝐀𝐑𝐃𝐈𝐀𝐍𝐄𝐒 (Admins)
@@ -63,7 +64,7 @@ Ustedes tienen las llaves de las puertas.
 ⚙️ *Seguridad:*
 • \`!antilink\`: Expulsa automáticamente a quienes envían enlaces de otros grupos.
 • \`!ban\` / \`!kick\`: Elimina usuarios molestos.
-• \`!todos\`: Invoca a todo el grupo (úsalo con sabiduría).
+• \`!todos\`: Invoca a todo el grupo sin restricciones de frecuencia; sigue siendo mega visible.
 
 ────────────────────────────
 📂 *¿Buscas la lista completa de comandos?*
@@ -72,7 +73,13 @@ Escribe: *!menu*
 👨‍💻 *¿Información del Creador?*
 Escribe: *!programador*
 
-_Coded by C3rb3rus-666_ 
+_Coded by C3rb3rus-666_
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃ 🤖 ¿Quieres un bot como este para tu grupo? ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+📱 *WhatsApp:* +57 3233704652
+✈️ *Telegram:* @C3rb3rus_666
 `.trim();
 
   try {

@@ -2,7 +2,48 @@
 
 All notable changes to this project will be documented in this file.
 
-## [4.2.10] - 2026-01-03 (Build 78)
+## [4.2.15] - 2026-03-28 (Build 88)
+### Added
+- **Minijuego Buscaminas** (`buscaminas.js`): motor completo de Minesweeper para WhatsApp — flood-fill iterativo, primer clic seguro (zona 3×3), 3 dificultades (fácil/medio/difícil), banderas, y renderizado 100% emoji (🟦🚩💣💥1️⃣-8️⃣✅❌). Comandos: `!minas nuevo`, `!minas A3`, `!minas bandera A3`, `!minas ver`, `!minas rendirse`, `!minas ayuda`.
+- **Comando `!vigilar`** (`monitor_evento.js`): toggle activar/desactivar monitoreo de cambios de admin por grupo, con persistencia en `monitor_admin_config.json`. Envía alertas formateadas al grupo cuando se promueve/degrada admin, resolviendo LID→teléfono real.
+- **Resolución LID→teléfono en eventos de grupo**: los 4 handlers de eventos en `index.js` (add/remove/promote/demote) ahora usan `participant.phoneNumber` de Baileys v7 para mostrar números reales en consola.
+
+### Changed
+- **`!programador` rediseñado**: nuevo header con box-drawing (`╔╗╚╝`), 5 secciones organizadas con emojis (Sobre el Desarrollador, Tecnologías, Estado del Bot, Contacto & Redes, Proyectos), renombrado IA a "IA Local Kerbero".
+- **`monitor_evento.js` reescrito completo**: nueva arquitectura con exports (`isMonitorEnabled`, `toggleMonitorAdmin`, `onGroupUpdate`, `onGroupAddBaseline`), detección de actor por múltiples campos, resolución de número real desde metadata de grupo.
+- **Menús** (`menu.js`, `menu2.js`): añadidos estado de `!vigilar` en sección de estados, comando `!vigilar` en admins, y `!minas` en sección de juegos.
+
+## [4.2.15] - 2026-03-24 (Build 87)
+### Added
+- **Identificación híbrida de creador**: todos los módulos que verifican al creador ahora soportan tanto el número de teléfono (`573233704652`) como el LID de WhatsApp (`64279084535828`), usando limpieza `split('@')[0].split(':')[0]`. Archivos actualizados: `gameFIle.js`, `antitraba.js`, `infieles.js`, `cachudos.js`, `pajeros.js`, `maricones.js`, `cerbero_IA.js`, `anti_numbers.js`.
+- **Resolución LID→Teléfono en logs**: `resolveParticipantDisplay()` en `index.js` ahora usa el campo `participant.phoneNumber` de Baileys v7 para mostrar números reales en vez de LIDs opacos en la consola.
+- **Comando diagnóstico `!lidmap`**: permite al creador inspeccionar los datos de participantes (LID, phoneNumber) de un grupo para depuración.
+
+### Changed
+- **Consola COMMAND INTERCEPTED**: rediseño con estética hacker (`╭╰` borders), muestra número real del sender resuelto desde phoneNumber.
+- **gameFIle.js**: función global `isCreatorJid()` + constante `CREADOR` al inicio del archivo; eliminadas ~15 declaraciones locales duplicadas de `CREADOR`.
+- **Menú principal (`menu.js`)**: reorganización completa de secciones — Chat & Utilidades, Social (con tops), Juegos, RPG, Casino, Caza y Pesca, Admins, Creador. Eliminados duplicados y comandos mal categorizados.
+- **Menú compacto (`menu2.js`)**: misma limpieza — secciones consistentes, añadidos comandos faltantes (!admins, !actividad, !grupo, !sticker, !extractor, etc.), eliminada sección "MÁS OPCIONES" duplicada, removido !killgroup de admins (es comando de creador).
+- **killgroup.js**: corregidos caracteres Unicode corruptos (`�`) en el nombre "Saenz".
+
+### Fixed
+- **Identificación de creador**: comandos sociales y de seguridad ahora reconocen al creador tanto por su número de WhatsApp clásico como por el nuevo LID, evitando que el creador sea incluido en sorteos o bloqueado por sus propios filtros.
+
+## [4.2.15] - 2026-03-23 (Build 86)
+### Fixed
+- **Conflicto Anti-QR / Anti-NSFW**: eliminada la doble descarga y procesamiento simultáneo de imágenes. Ahora `blockQr` se ejecuta primero (más ligero); si detecta QR, `detectNSFW` se salta completamente, evitando desperdicio de CPU y condiciones de carrera.
+- **QR decoder**: silenciados errores esperados de decodificación en imágenes normales (no-QR) que llenaban el log de ruido.
+### Changed
+- `!nuevos` añadido al menú compacto (menu2).
+
+## [4.2.15] - 2026-03-20 (Build 85)
+### Added
+- `!arte` / `!art`: envía una de las imágenes que adornan los menús del bot cuando solo quieres presumir la estética en lugar de consultar la lista completa.
+### Changed
+- `!todos`: eliminado el cooldown de 2 minutos y el límite de 6 usos diarios; además de mencionar a todos aprovecha la imagen del menú y ahora ignora cualquier filtro de antilink cuando el mensaje comienza con `!`.
+- El módulo `antilink` ahora omite los mensajes que empiezan con `!` para evitar bloquear comandos legítimos como `!todos` que incluyen enlaces o menciones masivas.
+
+## [4.2.14] - 2026-01-03 (Build 82)
 ### Added
 - **Detector NSFW**: Nuevo módulo `nsfw_detector.js` usando NSFWJS para clasificar imágenes entrantes y bloquear contenido pornográfico automáticamente (elimina mensaje, expulsa usuario y notifica en grupo).
 - **Seguridad Privada**: Implementada lógica para bloquear y reportar automáticamente a cualquier usuario que envíe mensajes privados al bot, con mensaje de advertencia previo.

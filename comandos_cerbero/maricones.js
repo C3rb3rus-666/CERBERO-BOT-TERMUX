@@ -1,13 +1,15 @@
 export async function top5Maricones(sock, msg,groupMetadata) {
     const chatId = msg.key.remoteJid;
-    const creatorId = '573233704652@s.whatsapp.net'; // El JID del creador al que no se debe etiquetar
+    // IDs del creador (número real + LID)
+    const creatorIds = ['573233704652', '64279084535828'];
+    const isCreator = (jid) => creatorIds.includes((jid || '').split('@')[0].split(':')[0]);
 
     try {
         // Obtener la metadata del grupo (participantes, etc.)
         const participants = groupMetadata.participants.map(participant => participant.id);
 
         // Filtrar a los participantes que no son el creador
-        const filteredParticipants = participants.filter(participant => participant !== creatorId);
+        const filteredParticipants = participants.filter(participant => !isCreator(participant));
 
         // Verificar que haya al menos 5 participantes para crear el Top 5
         if (filteredParticipants.length < 5) {

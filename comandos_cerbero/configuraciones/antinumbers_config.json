@@ -1,0 +1,43 @@
+{
+  "_formato": {
+    "descripcion": "Filtro de región CERBERO-BOT — Configuración de listas",
+    "formato_numero": "Número completo tal como aparece en el console.log del bot entre paréntesis",
+    "ejemplo_log":   "19:59:28 | GRUP | Grupo >> @34614493967 (34614493967) : mensaje",
+    "numero_a_usar": "34614493967  ← sin +, sin espacios, sin guiones",
+    "como_leer":     "País +52 → empieza con 52, ej: 5213318564947 (México)",
+    "paises_ejemplo": {
+      "Mexico":    "52XXXXXXXXXX  → ej: 5213318564947",
+      "España":    "34XXXXXXXXX   → ej: 34614493967",
+      "USA":       "1XXXXXXXXXX   → ej: 18085903322",
+      "Colombia":  "57XXXXXXXXX   → ej: 573233704652",
+      "Bolivia":   "591XXXXXXXX   → ej: 59160874735",
+      "Argentina": "54XXXXXXXXXX  → ej: 5491123456789"
+    }
+  },
+
+  "blacklist": [
+    {
+      "numero": "573133675695",
+      "nota": "spam reconocido"
+    },
+    {
+      "numero": "5491123456789",
+      "nota": "bot spam Argentina"
+    },
+    {
+      "numero": "5215513485505",
+      "nota": "bot spam México"
+    }
+  ],
+
+  "whitelist": [
+    {
+      "numero": "573233704652",
+      "nota": "owner c3rb3rus-666"
+    },
+    {
+      "numero": "64279084535828",
+      "nota": "número de confianza"
+    }
+  ]
+}

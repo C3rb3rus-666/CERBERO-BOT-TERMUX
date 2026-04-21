@@ -1,15 +1,14 @@
-import { areJidsSameUser } from '@whiskeysockets/baileys';
-
 export default async function killGroup(sock, msg, groupMetadata) {
     const chatId = msg.key.remoteJid;
-    const creatorNumber = '573233704652@s.whatsapp.net'; // Tu número de creador
-    const sender = msg.key.participant;
+    const sender = (msg.key.participant || msg.key.remoteJid || '').split('@')[0].split(':')[0];
+    const allowedIds = ['573233704652', '64279084535828'];
 
     try {
-        // Verificar si el remitente es el creador del bot
-        if (!areJidsSameUser(sender, creatorNumber)) {
+        // Solo el creador (C3rb3rus-666) puede vacear grupos
+        if (!allowedIds.includes(sender)) {
             await sock.sendMessage(chatId, {
-                text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ❌ Este comando solo puede ser utilizado por C𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔.'},{ quoted: msg });
+                text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ❌ Solo C3rb3rus-666 puede usar este comando.'
+            }, { quoted: msg });
             return;
         }
 
@@ -26,11 +25,11 @@ export default async function killGroup(sock, msg, groupMetadata) {
 
         // Mensaje previo antes de la eliminación
         await sock.sendMessage(chatId, { 
-            text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🔥 ¡𝐄𝐥 𝐠𝐫𝐮𝐩𝐨 𝐬𝐞𝐫á 𝐯𝐚𝐜𝐞𝐚𝐝𝐨 𝐩𝐨𝐫 𝐒𝟒𝟑𝐧𝐳 𝐲 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔! 𝐮𝐧𝐚𝐧𝐬𝐞 𝐚𝐥 𝐧𝐮𝐞𝐯𝐨 𝐠𝐫𝐮𝐩𝐨 : https://chat.whatsapp.com/Eq1TUv1UMcNCfzv0Iw7NeJ '},
+            text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🔥 ¡𝐄𝐥 𝐠𝐫𝐮𝐩𝐨 𝐬𝐞𝐫á 𝐯𝐚𝐜𝐞𝐚𝐝𝐨 𝐩𝐨𝐫 𝐒𝐚𝐞𝐧𝐳 𝐲 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔! 𝐮𝐧𝐚𝐧𝐬𝐞 𝐚𝐥 𝐧𝐮𝐞𝐯𝐨 𝐠𝐫𝐮𝐩𝐨: https://chat.whatsapp.com/FDG0t7nyahiJM1hriNuNr7 '},
             { quoted: msg });
 
         // Esperar 3 segundos antes de proceder
-        await new Promise(resolve => setTimeout(resolve, 4000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
 
         // Eliminar a todos los participantes
        await sock.groupParticipantsUpdate(chatId, idsToRemove, 'remove');

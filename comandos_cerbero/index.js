@@ -5,6 +5,7 @@ import { banUser } from './ban.js';
 import { sendToAll } from './todos.js';
 import { tagGroupSilently } from './todos_2.js';
 import { menuCommand } from './menu.js';
+import { artCommand } from './art.js';
 import { creador } from './programador.js';
 import { handleParejasCommand } from './parejas.js';
 import { 
@@ -40,10 +41,16 @@ import { clearOldLinkLogs } from './clearl_log.js';
 import { executePythonOrShell } from './interprete.js';
 import { buscarNumerosEnGrupo } from './busqueda.js';
 import { buscarGoogle } from './google.js';
+import { handleHackTheBox } from './hackthebox.js';
+import { handlePinterest } from './pinterest.js';
 import { commandTopPlayers } from './top_player.js';
 import { activeStats } from './active_stats.js';
 import { maybeSaqueoMaestro } from './gameFIle.js';
 import { nuevosCommand } from './nuevos_fixed.js';
+import { lidMapCommand } from './lidmap.js';
+import { toggleMonitorAdmin } from './monitor_evento.js';
+import { toggleAdminAutonomo } from './admin_autonomo.js';
+import { handleBuscaminas } from './buscaminas.js';
 // juego RPG y Economía
 import {
   commandDaily,
@@ -184,25 +191,32 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
 
   // Detectar si es una respuesta o mención al bot y procesar con IA local
   const quotedInfo = message.message?.extendedTextMessage?.contextInfo;
-  const isReplyToBot = quotedInfo?.quotedMessage && quotedInfo?.participant === sock.user?.id;
+  const quotedText =
+    quotedInfo?.quotedMessage?.conversation ||
+    quotedInfo?.quotedMessage?.extendedTextMessage?.text ||
+    '';
+  const referencedBotMessage =
+    quotedInfo?.participant === sock.user?.id ||
+    quotedText.includes('CERBERO-BOT');
+  const isReplyToBot = Boolean(quotedInfo?.quotedMessage && referencedBotMessage);
   const mentionedJids = quotedInfo?.mentionedJid || [];
   const isMentioned = mentionedJids.includes(sock.user?.id);
   const botNumber = sock.user?.id?.split('@')?.[0] || '';
   const isMentionByText = text.includes(botNumber) || text.includes(`@${botNumber}`);
 
-  // Logging para depuración: detectar respuestas/menciones al bot
-  if (isReplyToBot) console.log(`[IA] Reply-to-bot detected in chat ${message.key.remoteJid} from ${message.key.participant || message.sender}`);
-  if (isMentioned || isMentionByText) console.log(`[IA] Mention detected in chat ${message.key.remoteJid} from ${message.key.participant || message.sender}`);
-
-  // Si es reply del bot, responder siempre; si es mención, solo si no es comando (no empieza con '!')
-  if (isReplyToBot || ((isMentioned || isMentionByText) && !text.startsWith('!'))) {
-    try {
-      await cerberoSimiBot(sock, message);
-    } catch (e) {
-      console.error('Error en IA local para respuesta:', e);
-    }
-    return;
-  }
+  // ─────────────────────────────────────────────────────────────────────
+  // 💡 NOTA: Las respuestas a menciones/replies se manejan en index.js
+  //    principal vía cerbero_ia. Este bloque estaba duplicando respuestas.
+  //    Si necesitas reactivar cerberoSimiBot aquí, descomenta el bloque.
+  // ─────────────────────────────────────────────────────────────────────
+  // if (isReplyToBot || ((isMentioned || isMentionByText) && !text.startsWith('!'))) {
+  //   try {
+  //     await cerberoSimiBot(sock, message);
+  //   } catch (e) {
+  //     console.error('Error en IA local para respuesta:', e);
+  //   }
+  //   return;
+  // }
 
   if (!text.startsWith('!')) return;
 
@@ -223,6 +237,11 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'antilink':
       await humanDelay(sock, message, 1, 3);
       await toggleAntilink(sock, message, isAdmin, args);
+      break;
+
+    case 'vigilar':
+      await humanDelay(sock, message, 1, 3);
+      await toggleMonitorAdmin(sock, message, isAdmin);
       break;
     
     case 'leerlog':
@@ -254,6 +273,12 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'menu':
       await humanDelay(sock, message, 2, 5);
       await menuCommand(sock, message);
+      break;
+
+    case 'arte':
+    case 'art':
+      await humanDelay(sock, message, 1, 3);
+      await artCommand(sock, message);
       break;
     case 'creador':
     case 'programador':
@@ -390,6 +415,11 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await humanDelay(sock, message, 1, 3);
       await toggleGroupPrivacy(sock, message, isAdmin, groupMetadata);
       break;
+
+    case 'autonomo':
+      await humanDelay(sock, message, 1, 2);
+      await toggleAdminAutonomo(sock, message, isAdmin);
+      break;
     
     case 'maricones':
       await humanDelay(sock, message, 2, 5);
@@ -491,6 +521,10 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await humanDelay(sock, message, 2, 4);
       await killGroup(sock, message, groupMetadata);  
       break;
+
+    case 'lidmap':
+      await lidMapCommand(sock, message, groupMetadata);
+      break;
     
     case 'clear_log':
       await humanDelay(sock, message, 2, 5);
@@ -513,6 +547,18 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'google':
       await humanDelay(sock, message, 4, 10);
       await buscarGoogle(sock, message, args);
+      break;
+
+    case 'pin':
+    case 'pinterest':
+      await humanDelay(sock, message, 3, 8);
+      await handlePinterest(sock, message);
+      break;
+
+    case 'htb':
+    case 'hackthebox':
+      await humanDelay(sock, message, 2, 5);
+      await handleHackTheBox(sock, message);
       break;
       
     // Comandos de RPG y Economía
@@ -717,6 +763,12 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'adivinapalabra':
       await humanDelay(sock, message, 2, 5);
       await commandAdivinaPalabra(sock, message, args);
+      break;
+
+    case 'minas':
+    case 'buscaminas':
+      await humanDelay(sock, message, 1, 3);
+      await handleBuscaminas(sock, message);
       break;
     
     case 'putas':

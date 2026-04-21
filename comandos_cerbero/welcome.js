@@ -141,6 +141,7 @@ export async function welcomeHandler(sock, update) {
 ˙ ︴⊱
 
 🤖 _Coded by 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔_
+_¿Quieres un bot como este? 📱 +573233704652 · ✈️ @C3rb3rus_666_
 `.trim();
 
     // 4. Enviar Mensaje + Imagen

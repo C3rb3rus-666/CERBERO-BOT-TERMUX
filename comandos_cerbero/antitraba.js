@@ -1,7 +1,11 @@
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
 
-// Número de teléfono del creador del bot
-const BOT_CREATOR_PHONE = '573233704652@s.whatsapp.net';
+// IDs del creador del bot (número real + LID de dispositivo)
+const CREATOR_IDS = ['573233704652', '64279084535828'];
+function isCreator(jid) {
+  const clean = (jid || '').split('@')[0].split(':')[0];
+  return CREATOR_IDS.includes(clean);
+}
 
 
 /**
@@ -28,7 +32,7 @@ export async function deleteLongMessage(sock, msg) {
         messageContent.includes('©Toxico') ||
         messageContent.includes('Ops crash inesperado 😓')
     ) {
-        if (participant !== BOT_CREATOR_PHONE) {
+        if (!isCreator(participant)) {
             // Expulsa al participante infractor del grupo
             await sock.groupParticipantsUpdate(chatId, [participant], 'remove');
         } else {

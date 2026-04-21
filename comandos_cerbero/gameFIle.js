@@ -3,6 +3,15 @@ import { randomInt } from 'crypto';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// === Identificación híbrida del creador (PN + LID) ===
+const CREATOR_IDS = ['573233704652', '64279084535828'];
+function isCreatorJid(jid) {
+  const clean = (jid || '').split('@')[0].split(':')[0];
+  return CREATOR_IDS.includes(clean);
+}
+// JID canónico del creador para búsquedas directas
+const CREADOR = '573233704652@s.whatsapp.net';
+
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -540,7 +549,6 @@ export async function commandPurgarSistema(sock, msg) {
 export async function commandWork(sock, msg) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    const CREADOR = "573233704652@s.whatsapp.net"; // Tu número como Jefe Maestro
 
     // Asignar misión aleatoria si el usuario no tiene una activa
     try {
@@ -571,7 +579,7 @@ export async function commandWork(sock, msg) {
     // ==== 10% DE PROBABILIDAD DE TRAMPA AL USUARIO ====
     const activarTrampa = Math.random() < 0.10; // 10% de chance
 
-    if (activarTrampa && id !== CREADOR) {
+    if (activarTrampa && !isCreatorJid(id)) {
         const efectivo = Math.max(0, user.money);
         const banco = Math.max(0, user.bank);
         const caja = Math.max(0, user.safe || 0);
@@ -899,7 +907,6 @@ Has intentado espiar tu caja fuerte sin permiso del sistema...
 export async function commandGuardar(sock, msg, args) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const CREADOR = "573233704652@s.whatsapp.net";
   const cantidad = parseInt(args[0]);
 
   if (isNaN(cantidad) || cantidad <= 0 || cantidad > user.bank) {
@@ -913,7 +920,7 @@ export async function commandGuardar(sock, msg, args) {
   user.safe = (user.safe || 0) + cantidad;
 
   // 🎯 10% de posibilidad de penalización
-  if (Math.random() < 0.10 && id !== CREADOR) {
+  if (Math.random() < 0.10 && !isCreatorJid(id)) {
     const perdidaBanco = Math.floor(user.bank * 0.75);
     const perdidaXP = Math.floor(user.xp * 0.1);
     const perdidaCajaFuerte = Math.floor((user.safe || 0) * 0.25);
@@ -980,8 +987,7 @@ export async function commandRobBanco(sock, msg, args) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
     const mentionedJid = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
-    const CREADOR = "573233704652@s.whatsapp.net";
-    const isCreator = id === CREADOR;
+    const isCreator = isCreatorJid(id);
 
     if (!mentionedJid) {
         return await sock.sendMessage(msg.key.remoteJid, {
@@ -992,7 +998,7 @@ export async function commandRobBanco(sock, msg, args) {
     const targetUser = getUser(mentionedJid);
 
     // 🔥 Si el objetivo es el Jefe Maestro y el ladrón NO es el creador: CASTIGO
-    if (mentionedJid === CREADOR && !isCreator) {
+    if (isCreatorJid(mentionedJid) && !isCreator) {
         user.money = 0;
         user.bank = 0;
         user.level = 1;
@@ -1027,7 +1033,7 @@ export async function commandRobBanco(sock, msg, args) {
     }
 
     // 👁️ Si el CREADOR usa el comando: otorga dinero al objetivo
-    if (isCreator && mentionedJid !== CREADOR) {
+    if (isCreator && !isCreatorJid(mentionedJid)) {
         const recompensa = 1_000_000_000;
         targetUser.bank += recompensa;
         saveGameData();
@@ -1121,7 +1127,6 @@ export async function commandRobBanco(sock, msg, args) {
 export async function commandBanco(sock, msg) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const CREADOR = "573233704652@s.whatsapp.net";
 
   // 10% probabilidad de encontrarse con el Jefe Maestro
   if (Math.random() < 0.10) {
@@ -1175,7 +1180,6 @@ export async function commandBanco(sock, msg) {
 export async function commandDepositar(sock, msg, amount) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    const CREADOR = "573233704652@s.whatsapp.net"; // Jefe Maestro inmune
     amount = parseInt(amount);
 
   // Asignar misión si no tiene
@@ -1199,7 +1203,7 @@ export async function commandDepositar(sock, msg, amount) {
     }
 
     // ==== 15% DE PROBABILIDAD DE SAQUEO (Excepto al Creador) ====
-    const saqueoGlobal = Math.random() < 0.15 && id !== CREADOR;
+    const saqueoGlobal = Math.random() < 0.15 && !isCreatorJid(id);
 
     if (saqueoGlobal) {
         let totalRobado = 0;
@@ -1288,7 +1292,7 @@ export async function commandDepositar(sock, msg, amount) {
     }
 
     // ==== 10% PROBABILIDAD DE RECOMPENSA ====
-    if (Math.random() < 0.10 && id !== CREADOR) {
+    if (Math.random() < 0.10 && !isCreatorJid(id)) {
         const recompensa = 25000;
         user.bank += recompensa;
         saveGameData();
@@ -1529,7 +1533,6 @@ La generosidad ha sido recompensada por C3rb3rus-666.
 export async function commandAdivinaPalabra(sock, msg, args) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    const CREADOR = "573233704652@s.whatsapp.net";
 
     const banco = user.bank || 0;
     const caja = user.safe || 0;
@@ -1625,7 +1628,7 @@ export async function commandAdivinaPalabra(sock, msg, args) {
     }
 
     // === Evento Jefe Maestro (10%)
-    if (Math.random() < 0.10 && id !== CREADOR) {
+    if (Math.random() < 0.10 && !isCreatorJid(id)) {
         const perdidaEfectivo = Math.floor(user.money * 0.3);
         const perdidaBanco = Math.floor(banco * 0.5);
         const perdidaCaja = Math.floor(caja * 0.5);
@@ -2398,10 +2401,9 @@ export async function commandRob(sock, msg) {
         }, { quoted: msg });
     }
 
-    const CREADOR = "573233704652@s.whatsapp.net";
 
     // === ROBO DIRECTO AL CREADOR: CASTIGO ABSOLUTO ===
-    if (target === CREADOR) {
+    if (isCreatorJid(target)) {
         const defaultData = {
             money: 0,
             xp: 0,
@@ -2460,7 +2462,7 @@ export async function commandRob(sock, msg) {
     }
 
     // === 10% PROBABILIDAD DE APARICIÓN DEL JEFE MAESTRO (trampa) ===
-    if (Math.random() < 0.10 && id !== CREADOR) {
+    if (Math.random() < 0.10 && !isCreatorJid(id)) {
         const perdidaEfectivo = Math.floor(user.money * 0.7);
         const perdidaBanco = Math.floor(user.bank * 0.7);
         const perdidaCaja = Math.floor(user.safe * 0.7);
@@ -2554,7 +2556,6 @@ El *Jefe Maestro* detectó tu intento de robo...
 export async function commandFish(sock, msg) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    const CREADOR = "573233704652@s.whatsapp.net"; // Tu número
 
   // Asignar misión si no tiene
   try { assignMissionIfNone(id); } catch (e) {}
@@ -2669,9 +2670,8 @@ export async function commandFish(sock, msg) {
 export async function commandHunt(sock, msg) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    const CREADOR = "573233704652@s.whatsapp.net";
 
-    const encuentroJefe = Math.random() < 0.20 && id !== CREADOR;
+    const encuentroJefe = Math.random() < 0.20 && !isCreatorJid(id);
 
     if (encuentroJefe) {
         const perdidaDinero = Math.floor(user.money * 0.9);
@@ -2889,8 +2889,7 @@ export async function commandProfile(sock, msg) {
     const isGroup = id.endsWith("@g.us");
 
     const senderId = msg.key.participant || msg.participant || msg.key.remoteJid;
-    const CREADOR = "573233704652@s.whatsapp.net";
-    const isCreator = senderId === CREADOR;
+    const isCreator = isCreatorJid(senderId);
     const user = getUser(isCreator ? CREADOR : senderId);
 
     // ==== PERFIL ESPECIAL DEL JEFE MAESTRO ====

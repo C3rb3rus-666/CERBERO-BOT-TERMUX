@@ -8,6 +8,7 @@ const __dirname = path.dirname(__filename);
 const imagesDir = path.join(__dirname, '..', 'comandos_cerbero', 'imagenes');
 const antilinkConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'antilink_config.json');
 const welcomeConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'grupo_ajustado.json');
+const monitorConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'monitor_admin_config.json');
 
 // Función para seleccionar una imagen aleatoria
 function getRandomImage(imagesDir) {
@@ -28,6 +29,7 @@ export async function menuCommand(sock, msg) {
   let estados = {
     antilink: '🔴 Desconocido',
     bienvenida: '🔴 Desconocido',
+    vigilar: '🔴 Desactivado',
     qrKill: '🟢 Activado (Global)',
     antiTraba: '🟢 Activado (Global)',
     antiSticker: '🟢 Activado (Global)',
@@ -43,108 +45,69 @@ export async function menuCommand(sock, msg) {
     const welcomeConfig = JSON.parse(fs.readFileSync(welcomeConfigPath, 'utf8'));
     estados.bienvenida = welcomeConfig[chatId]?.welcome ? '🟢 Activado' : '🔴 Desactivado';
 
+    // Estado del monitor de admins
+    const monitorConfig = JSON.parse(fs.readFileSync(monitorConfigPath, 'utf8'));
+    estados.vigilar = monitorConfig.enabled_groups[chatId] ? '🟢 Activado' : '🔴 Desactivado';
+
   } catch (error) {
     console.error('Error leyendo configuraciones:', error);
   }
 
   const menuText = `
-            𝘾𝙀𝙍𝘽𝙀𝙍𝙊-𝘽𝙊𝙏 
-🤖 𝗖𝗼𝗱𝗲𝗱 𝗯𝘆 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 (𝙘𝙖𝙧𝙡𝙤𝙨 𝙨𝙖𝙣𝙘𝙝𝙚𝙯) #𝙐𝙣𝙠𝙣𝙤𝙬𝙣𝙨  
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓  ⛧ 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 ⛧      ▓
+▓  _v4.2.15 · Build 88_   ▓
+▓  _Coded by C3rb3rus-666_ ▓
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-─────────────────────────────────────────── 
+┏━━ ⚙️ *SISTEMA* ━━━━━━━━━━┓
+  ▪ Antilink — ${estados.antilink}
+  ▪ Bienvenida — ${estados.bienvenida}
+  ▪ Vigilar — ${estados.vigilar}
+  ▪ QR-KILL — ${estados.qrKill}
+  ▪ Anti-TRABA — ${estados.antiTraba}
+┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
- 🤖  [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.1.1 Build 50
- 👨‍💻  Coded by: 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 
- 🔗  github.com/C3rb3rus-666   
- 📱  WhatsApp: +573233704652   
- 📷  Instagram: c3rb3rus_666   
+⛧ !programador — Info Owner
+⛧ !help — Guía rápida
 
-═══════════════════════════════════════════
+┏━━ 💀 *COMANDOS* ━━━━━━━━┓
 
-*📊 𝗘𝗦𝗧𝗔𝗗𝗢𝗦 𝗔𝗖𝗧𝗨𝗔𝗟𝗘𝗦*
-• Antilink: ${estados.antilink} (!antilink)
-• Bienvenida: ${estados.bienvenida} (!bienvenida)
-• QR-KILL: ${estados.qrKill}
-• Anti-TRABA: ${estados.antiTraba}
-• Anti-Sticker: ${estados.antiSticker}
-• Anti-Gore: ${estados.antiGore}
-───────────────────────────────────────────
+⚔️ *IA & BÚSQUEDA*
+  ▸ !cerbero <texto>
+  ▸ !cerbero aprende: P | R
+  ▸ !google · !pin · !cplay
+  ▸ !sticker · !extractor
 
-*✨ 𝗜𝗡𝗙𝗢 𝗥Á𝗣𝗜𝗗𝗔*
-• !help — 🆘 Guía rápida
-• !programador — 👨‍💻 Info del creador
+💔 *SOCIAL*
+  ▸ !parejas · !casarme @user
+  ▸ !cachudos · !infieles
+  ▸ !maricones · !pajeros
 
-*🙋‍♂️ 𝗖𝗢𝗠𝗔𝗡𝗗𝗢𝗦 𝗣𝗔𝗥𝗔 𝗠𝗜𝗘𝗠𝗕𝗥𝗢𝗦*
-────────────────────────────
-*💬 Chat & Utilidades*
-• !cerbero <texto> — 🤖 Habla con Cerbero-Simi (alias: !bot, copia de SimiSimi)
-• !cerbero aprende: pregunta | respuesta — 🧠 Enseña a la IA local
-• !google <consulta> — 🔎 Buscar en Google
-• !cplay <busqueda> — 🎶 Reproducir/descargar música
+🎮 *JUEGOS*
+  ▸ !impostor · !adivinapalabra
+  ▸ !ahorcado · !minas nuevo
 
-*❤️ Social*
-• !parejas — 👩‍❤️‍👨 TOP parejas
-• !casarme @usuario — 💍 Proponer matrimonio
-• !aceptar / !rechazar — ✅ / ❌ Responder propuesta
-• !mipareja — 💌 Ver tu pareja
+┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-*🎯 Juegos Rápidos*
-• !impostor iniciar [palabra] — 🕵️ Inicia Impostor (alias: start)
-  Ej: '!impostor iniciar pizza'
-• !impostor pista <texto> — ✍️ Enviar tu pista (alias: clue)
-• !impostor acusar @user — 🧾 Acusar a alguien (alias: accuse)
-• !impostor adivinar <palabra> — 🎯 Solo impostor (alias: guess)
-• !impostor terminar — 🔚 Finalizar partida (alias: end)
-• !impostor estado — 📊 Ver estado actual
+┏━━ 💰 *ECONOMÍA* ━━━━━━━━┓
+  ▸ !work · !daily · !banco
+  ▸ !top · !drogas · !robar
+  ▸ !ruleta · !blackjack
+  ▸ !hunt · !fish
+  ▸ !putas · !lujuria 🔞
+┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-*📚 Juegos de Palabras & Minijuegos*
-• !adivinapalabra — 🧠 Adivina la palabra desordenada
-• !ahorcado start — 🎮 Inicia Ahorcado
-• !ahorcado <letra> — 🔤 Adivina una letra
-• !impostor ayuda — ❓ Muestra ayuda del juego
+┏━━ 🛡️ *ADMIN* ━━━━━━━━━━━┓
+  ⚡ !ban · !kick · !promote
+  ⚡ !antilink · !bienvenida
+  ⚡ !vigilar · !todos · !admins
+  ⚡ !grupo · !clear_log
+┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-*🎲 𝗝𝗨𝗘𝗚𝗢𝗦 𝗥𝗣𝗚 𝗬 𝗘𝗖𝗢𝗡𝗢𝗠𝗜𝗔*
-────────────────────────────
-• !work / !daily — 💼 Ganancias diarias y tareas
-• !banco / !depositar / !retirar — 💳 Gestión de dinero
-• !donar @usuario <cantidad> — 💸 Transferir
-
-*🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
-────────────────────────────
-• !ruleta <cantidad> — 🎰 Juega a la ruleta
-• !blackjack <apuesta> — 🃏 Blackjack
-• !pedir / !plantar — 🀄️ Acciones del casino
-• !casinostats — 📈 Estadísticas
-
-*🔫 𝗖𝗔𝗭𝗔 𝗬 𝗣𝗘𝗦𝗖𝗔*
-────────────────────────────
-• !hunt — 🦌 Cazar (gana XP / items)
-• !fish — 🐟 Pescar (requiere caña)
-
-*🔥 𝗣𝗹𝗮𝗰𝗲𝗿 𝗣𝗿𝗼𝗯𝗶𝗯𝗶𝗱𝗼*
-────────────────────────────
-• !putas / !stalin / !lujuria — 🔞 Premium (gasta dinero)
-
-*🛡️ 𝗔𝗗𝗠𝗜𝗡𝗦 𝗘𝗫𝗖𝗟𝗨𝗦𝗜𝗩𝗢𝗦*
-────────────────────────────
-• !ban / !kick — ❌ Expulsar usuarios
-• !promote / !demote — 🔼/🔽 Cambiar roles
-• !antilink [activar|desactivar] — 🚫 Enlaces
-• !bienvenida [activar|desactivar] — 🙌 Mensajes de bienvenida
-• !todos / !tag_group — 🔔 Etiquetar a todos
-• !killgroup — 💣 Elimina el grupo (uso responsable)
-• !clear_log — 🧹 Limpiar registros
-
-*📌 𝗖𝗢𝗡𝗦𝗘𝗝𝗢 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
-• Usa '!cerbero <texto>' para hablar con la IA local (copia de SimiSimi).
-• Puedes enseñarle usando: !cerbero aprende: pregunta | respuesta
-• Para pruebas, '!impostor palabra' devuelve una palabra de ejemplo.
-
-*🔧 𝗠Á𝗦 𝗢𝗣𝗖𝗜𝗢𝗡𝗘𝗦*
-• !top / !topricos — 🏆 Top jugadores
-• !drogas <cantidad> — 💊 Simula un mercado (riesgos)
-• !purga — 🔒 Comando crítico (solo owner)
-
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+     ⛧ C3rb3rus-666 ⛧
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 `.trim();
 
   try {

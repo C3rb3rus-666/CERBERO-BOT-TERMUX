@@ -1,198 +1,260 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const configPath = path.join(__dirname, 'configuraciones', 'monitor_admin_config.json');
+
+// ─── Persistencia de configuración ─────────────────────────────
+function loadConfig() {
+  try {
+    return JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  } catch {
+    return { enabled_groups: {} };
+  }
+}
+
+function saveConfig(config) {
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+}
+
+/**
+ * Verifica si el monitoreo de admins está activo para un grupo.
+ */
+export function isMonitorEnabled(groupId) {
+  const config = loadConfig();
+  return !!config.enabled_groups[groupId];
+}
+
+/**
+ * Comando !vigilar [activar|desactivar]
+ * Toggle del monitor de cambios de admin por grupo. Solo admins.
+ */
+export async function toggleMonitorAdmin(sock, msg, isAdmin) {
+  const chatId = msg.key.remoteJid;
+
+  if (!isAdmin) {
+    await sock.sendMessage(chatId, {
+      text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🚫 Solo los administradores pueden usar este comando.'
+    }, { quoted: msg });
+    return;
+  }
+
+  const text = msg.message?.conversation || msg.message?.extendedTextMessage?.text || '';
+  const args = text.trim().split(/\s+/);
+  const action = args[1]?.toLowerCase();
+
+  if (!action || !['activar', 'desactivar'].includes(action)) {
+    const config = loadConfig();
+    const current = config.enabled_groups[chatId] ? '🟢 Activado' : '🔴 Desactivado';
+    await sock.sendMessage(chatId, {
+      text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Vigilancia de Admins*\n\n` +
+            `Estado actual: ${current}\n\n` +
+            `• \`!vigilar activar\` — Activa monitoreo\n` +
+            `• \`!vigilar desactivar\` — Desactiva monitoreo\n\n` +
+            `Cuando está activo, el bot notifica al grupo si alguien es promovido o degradado como admin.`
+    }, { quoted: msg });
+    return;
+  }
+
+  const config = loadConfig();
+  const currentStatus = !!config.enabled_groups[chatId];
+
+  if ((action === 'activar' && currentStatus) || (action === 'desactivar' && !currentStatus)) {
+    await sock.sendMessage(chatId, {
+      text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ⚠️ La vigilancia de admins ya está ${currentStatus ? 'activada' : 'desactivada'} en este grupo.`
+    }, { quoted: msg });
+    return;
+  }
+
+  config.enabled_groups[chatId] = action === 'activar';
+  saveConfig(config);
+
+  const emoji = action === 'activar' ? '🟢' : '🔴';
+  await sock.sendMessage(chatId, {
+    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ${emoji} Vigilancia de admins *${action === 'activar' ? 'ACTIVADA' : 'DESACTIVADA'}* en este grupo.`
+  }, { quoted: msg });
+}
+
+// ─── Helpers de resolución ──────────────────────────────────────
+
+/**
+ * Resuelve un JID (puede ser LID) a su número de teléfono real
+ * usando groupMetadata.participants y el campo phoneNumber.
+ */
+function resolveRealNumber(jid, groupMetadata) {
+  if (!jid) return null;
+  const clean = (jid || '').split('@')[0].split(':')[0];
+
+  if (groupMetadata && Array.isArray(groupMetadata.participants)) {
+    for (const p of groupMetadata.participants) {
+      const pId = (p.id || '').split('@')[0].split(':')[0];
+      const pPhone = p.phoneNumber ? p.phoneNumber.toString().split('@')[0] : null;
+
+      if (pId === clean) return pPhone || pId;
+      if (pPhone === clean) return pPhone;
+    }
+  }
+  return clean;
+}
+
+/**
+ * Resuelve nombre de contacto con fallback robusto.
+ */
+function resolveName(jid, sock, groupMetadata) {
+  if (!jid) return 'Desconocido';
+  const realNum = resolveRealNumber(jid, groupMetadata);
+  const fallback = realNum || jid.split('@')[0];
+
+  if (groupMetadata && Array.isArray(groupMetadata.participants)) {
+    const clean = (jid || '').split('@')[0].split(':')[0];
+    for (const p of groupMetadata.participants) {
+      const pId = (p.id || '').split('@')[0].split(':')[0];
+      const pPhone = p.phoneNumber ? p.phoneNumber.toString().split('@')[0] : null;
+
+      if (pId === clean || pPhone === clean) {
+        const name = p.notify || p.notifyName || p.name || p.pushname;
+        if (name) return name;
+      }
+    }
+  }
+
+  try {
+    if (sock?.store?.contacts) {
+      const c = sock.store.contacts[jid];
+      if (c) return c.notify || c.name || fallback;
+    }
+    if (sock?.contacts) {
+      const c = sock.contacts[jid];
+      if (c) return c.notify || c.name || fallback;
+    }
+  } catch { /* silenciar */ }
+
+  return fallback;
+}
+
+/**
+ * Intenta extraer el actor (quién ejecutó la acción) del update de Baileys.
+ */
+function findActor(update, participants) {
+  const candidates = [];
+
+  const tryAdd = (val) => {
+    if (!val) return;
+    if (typeof val === 'string') {
+      candidates.push(val);
+    } else if (typeof val === 'object') {
+      if (val.id) candidates.push(val.id);
+      if (val.jid) candidates.push(val.jid);
+      if (val.phoneNumber) candidates.push(val.phoneNumber.toString());
+    }
+  };
+
+  ['actor', 'author', 'participant', 'by', 'initiator', 'from', 'sender', 'admin', 'performer']
+    .forEach(f => tryAdd(update?.[f]));
+
+  if (Array.isArray(participants)) {
+    for (const p of participants) {
+      if (typeof p === 'object') {
+        ['actor', 'performedBy', 'performed_by', 'by', 'removedBy', 'addedBy', 'performer', 'author']
+          .forEach(f => tryAdd(p?.[f]));
+      }
+    }
+  }
+
+  const valid = candidates.filter(Boolean).map(c =>
+    c.includes('@') ? c : `${c}@s.whatsapp.net`
+  );
+
+  return valid.length ? valid[0] : null;
+}
+
+// ─── Handler principal de eventos de grupo ───────────────────────
+
 export async function onGroupUpdate(sock, update) {
   try {
-    const { id, participants, action } = update; // Datos del evento
+    const { id: chatId, participants, action } = update;
 
-    // Helper para normalizar posibles representaciones de JID en el payload
-    function normalizeJidField(field) {
-      if (!field) return null;
-      if (typeof field === 'string') {
-        if (field.endsWith('@lid')) return `${field.split('@')[0]}@s.whatsapp.net`;
-        return field;
-      }
-      if (typeof field === 'object') {
-        if (field.id && typeof field.id === 'string') {
-          if (field.id.endsWith('@lid')) return `${field.id.split('@')[0]}@s.whatsapp.net`;
-          return field.id;
-        }
-        if (field.jid && typeof field.jid === 'string') return field.jid;
-        if (field.phoneNumber && typeof field.phoneNumber === 'string') return field.phoneNumber;
-      }
-      return null;
+    // Solo procesar si el monitoreo está activo para este grupo
+    if (!isMonitorEnabled(chatId)) return;
+
+    // Solo nos interesan promote y demote
+    if (action !== 'demote' && action !== 'promote') return;
+
+    // Obtener metadata para resolución LID→teléfono
+    let groupMetadata;
+    try {
+      groupMetadata = await sock.groupMetadata(chatId);
+    } catch {
+      groupMetadata = null;
     }
+
+    const targetRaw = Array.isArray(participants) && participants.length ? participants[0] : null;
+    const targetJid = typeof targetRaw === 'string' ? targetRaw :
+                      (targetRaw?.id || targetRaw?.jid || targetRaw?.phoneNumber || null);
+
+    const actorJid = findActor(update, participants);
+
+    // Resolver a números reales (no LIDs)
+    const targetNum = resolveRealNumber(targetJid, groupMetadata);
+    const actorNum = actorJid ? resolveRealNumber(actorJid, groupMetadata) : null;
+
+    const targetName = resolveName(targetJid, sock, groupMetadata);
+    const actorName = actorJid ? resolveName(actorJid, sock, groupMetadata) : null;
+
+    // Preparar menciones (JIDs originales para que WhatsApp los resuelva)
+    const mentions = [];
+    if (targetJid) mentions.push(targetJid);
+    if (actorJid && actorJid !== targetJid) mentions.push(actorJid);
+
+    let text;
 
     if (action === 'demote') {
-      // Helper que extrae JID de distintos formatos de participante o campos del payload
-      function extractJid(val) {
-        if (!val) return null;
-        if (typeof val === 'string') return val.includes('@') ? val : `${val}@s.whatsapp.net`;
-        if (typeof val === 'object') {
-          return val.id || val.jid || val.participant || val.user || val.phoneNumber || null;
-        }
-        return null;
-      }
-
-      const removedAdminRaw = Array.isArray(participants) && participants.length ? participants[0] : null;
-      const removedAdmin = extractJid(removedAdminRaw);
-
-      // Helper para extraer un actor de forma robusta probando muchos campos y normalizando JIDs
-      function findActor(u, parts) {
-        const tried = [];
-        const pushCandidate = (v) => {
-          if (!v) return;
-          let n = normalizeJidField(v);
-          if (!n && typeof v === 'string' && !v.includes('@')) n = `${v}@s.whatsapp.net`;
-          if (n) tried.push(n);
-        };
-
-        // Campos directos del update
-        ['actor','author','participant','by','initiator','from','sender','authorId','actorId','admin','performer'].forEach(f => pushCandidate(u?.[f]));
-
-        // Revisar cada participante por campos usados por distintos payloads
-        if (Array.isArray(parts)) {
-          for (const p of parts) {
-            ['actor','performedBy','performed_by','by','removedBy','addedBy','performer','author','participant','id','jid','user','phoneNumber'].forEach(f => pushCandidate(p?.[f]));
-          }
-        }
-
-        // El fallback heurístico: si hay >1 participantes, el último a veces es el actor
-        if (!tried.length && Array.isArray(parts) && parts.length > 1) {
-          const last = parts[parts.length - 1];
-          const cand = normalizeJidField(last) || normalizeJidField(last?.id) || normalizeJidField(last?.participant) || (typeof last === 'string' && last);
-          if (cand) tried.push(cand);
-        }
-
-        // Filtrar nulos y devolver el primer candidato válido normalizado
-        const valid = tried.map(t => {
-          if (!t) return null;
-          return t.includes('@') ? t : `${t}@s.whatsapp.net`;
-        }).filter(Boolean);
-
-        if (valid.length) return { actor: valid[0], tried };
-        return { actor: null, tried };
-      }
-
-      // Usar la función para obtener actor y candidatos (log para depuración)
-      const actorResult = findActor(update, participants);
-      let actor = actorResult.actor;
-      console.log('Demote event details (improved):', { action, participants, removedAdminRaw, removedAdmin, actorCandidates: actorResult.tried, actor, update });
-
-      // Resolver nombres con tolerancia y fallbacks
-      const resolveName = (jid) => {
-        if (!jid) return null;
-        const fallback = jid.split('@')[0];
-        try {
-          if (update && update.authorPn && (extractJid(update.author) === jid || update.author === jid)) return update.authorPn;
-          if (sock && sock.store && sock.store.contacts) {
-            const contacts = sock.store.contacts;
-            const c = contacts[jid] ?? (typeof contacts.get === 'function' ? contacts.get(jid) : undefined);
-            if (c) return c.notify || c.name || fallback;
-          }
-          if (sock && sock.contacts) {
-            const c = sock.contacts[jid] ?? (typeof sock.contacts.get === 'function' ? sock.contacts.get(jid) : undefined);
-            if (c) return c.notify || c.name || fallback;
-          }
-          return fallback;
-        } catch (e) {
-          console.error('Error resolviendo nombre para', jid, e);
-          return fallback;
-        }
-      };
-
-      const actorName = actor ? resolveName(actor) : null;
-      const removedName = removedAdmin ? resolveName(removedAdmin) : 'un administrador';
-
-      // Preparar menciones garantizando JIDs válidos
-      const mentions = [];
-      if (actor) mentions.push(actor);
-      if (removedAdmin && removedAdmin !== actor) mentions.push(removedAdmin);
-
-      // Formato más explícito y con JIDs para facilitar debugging
-      let text;
-      if (actor && removedAdmin) {
-        if (actor === removedAdmin) {
-          text = `⚠️ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** El administrador ${removedName} (${removedAdmin}) ha perdido sus privilegios (acción auto-ejecutada).`;
-        } else {
-          text = `⚠️ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** ${actorName || actor} (${actor}) ha removido como administrador a ${removedName} (${removedAdmin}).`;
-        }
-      } else if (removedAdmin) {
-        text = `⚠️ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** El usuario ${removedName} (${removedAdmin}) ha sido removido como administrador (autor desconocido).`;
+      if (actorJid && targetJid && actorJid !== targetJid) {
+        text = `⚠️ [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Cambio de Admin Detectado*\n\n` +
+               `👤 *${actorName}* (${actorNum}) ha *removido como admin* a:\n` +
+               `🎯 *${targetName}* (${targetNum})`;
+      } else if (actorJid && actorJid === targetJid) {
+        text = `⚠️ [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Cambio de Admin Detectado*\n\n` +
+               `👤 *${targetName}* (${targetNum}) ha perdido sus privilegios de admin (acción propia).`;
       } else {
-        text = `⚠️ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** Un administrador ha sido removido (detalles incompletos).`;
+        text = `⚠️ [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Cambio de Admin Detectado*\n\n` +
+               `🎯 *${targetName}* (${targetNum}) ha sido *removido como admin*.`;
       }
-
-      await sock.sendMessage(id, { text, mentions });
-    }
-
-    if (action === 'promote') {
-      function extractJid(val) {
-        if (!val) return null;
-        if (typeof val === 'string') return val.includes('@') ? val : `${val}@s.whatsapp.net`;
-        if (typeof val === 'object') {
-          return val.id || val.jid || val.participant || val.user || val.phoneNumber || null;
-        }
-        return null;
-      }
-
-      const promotedAdminRaw = Array.isArray(participants) && participants.length ? participants[0] : null;
-      const promotedAdmin = extractJid(promotedAdminRaw);
-
-      const actorResult = findActor(update, participants);
-      let actor = actorResult.actor;
-      console.log('Promote event details (improved):', { action, participants, promotedAdminRaw, promotedAdmin, actorCandidates: actorResult.tried, actor, update });
-
-      const resolveName = (jid) => {
-        if (!jid) return null;
-        const fallback = jid.split('@')[0];
-        try {
-          if (update && update.authorPn && (extractJid(update.author) === jid || update.author === jid)) return update.authorPn;
-          if (sock && sock.store && sock.store.contacts) {
-            const contacts = sock.store.contacts;
-            const c = contacts[jid] ?? (typeof contacts.get === 'function' ? contacts.get(jid) : undefined);
-            if (c) return c.notify || c.name || fallback;
-          }
-          if (sock && sock.contacts) {
-            const c = sock.contacts[jid] ?? (typeof sock.contacts.get === 'function' ? sock.contacts.get(jid) : undefined);
-            if (c) return c.notify || c.name || fallback;
-          }
-          return fallback;
-        } catch (e) {
-          console.error('Error resolviendo nombre para', jid, e);
-          return fallback;
-        }
-      };
-
-      const actorName = actor ? resolveName(actor) : null;
-      const promotedName = promotedAdmin ? resolveName(promotedAdmin) : 'un usuario';
-
-      const mentions = [];
-      if (actor) mentions.push(actor);
-      if (promotedAdmin && promotedAdmin !== actor) mentions.push(promotedAdmin);
-
-      let text;
-      if (actor && promotedAdmin) {
-        text = `✅ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** ${actorName || actor} (${actor}) ha promovido a ${promotedName} (${promotedAdmin}) a administrador.`;
-      } else if (promotedAdmin) {
-        text = `✅ **[𝐂𝐄𝐑𝐄𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** El usuario ${promotedName} (${promotedAdmin}) ha sido promovido a administrador (autor desconocido).`;
+    } else {
+      if (actorJid && targetJid) {
+        text = `✅ [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Nuevo Admin Detectado*\n\n` +
+               `👤 *${actorName}* (${actorNum}) ha *promovido a admin* a:\n` +
+               `🎯 *${targetName}* (${targetNum})`;
       } else {
-        text = `✅ **[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓]** Se ha promovido a un usuario a administrador (detalles incompletos).`;
+        text = `✅ [𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🛡️ *Nuevo Admin Detectado*\n\n` +
+               `🎯 *${targetName}* (${targetNum}) ha sido *promovido a admin*.`;
       }
-
-      await sock.sendMessage(id, { text, mentions });
     }
 
-    // Cuando hay participantes añadidos al grupo, establecer baseline para contar desde su ingreso
-    if (action === 'add' || action === 'promote' || action === 'invite') {
-      try {
-        const added = Array.isArray(participants) ? participants : [];
-        for (const raw of added) {
-          const jid = normalizeJidField(raw);
-          if (!jid) continue;
-          try { await import('../utils/messageCounter.js').then(m => m.setBaseline(id, jid)); } catch (e) { /* no bloquear */ }
-        }
-      } catch (e) {}
-    }
+    await sock.sendMessage(chatId, { text, mentions });
+
   } catch (e) {
-    console.error('Error en onGroupUpdate:', e);
+    console.error('[MONITOR-ADMIN] Error en onGroupUpdate:', e);
   }
+}
+
+// Cuando hay participantes añadidos, establecer baseline para contadores
+export async function onGroupAddBaseline(sock, update) {
+  try {
+    const { id, participants, action } = update;
+    if (action !== 'add' && action !== 'invite') return;
+
+    const added = Array.isArray(participants) ? participants : [];
+    for (const raw of added) {
+      const jid = typeof raw === 'string' ? raw : (raw?.id || raw?.jid || raw?.phoneNumber || null);
+      if (!jid) continue;
+      try {
+        const { setBaseline } = await import('../utils/messageCounter.js');
+        await setBaseline(id, jid);
+      } catch { /* no bloquear */ }
+    }
+  } catch { /* silenciar */ }
 }
   

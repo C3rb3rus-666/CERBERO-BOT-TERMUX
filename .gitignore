@@ -34,3 +34,7 @@ error_log.json
 gameData.json
 comandos_cerbero/__pycache__/
 comandos_cerbero/conocimientos.json
+confesiones_data.json
+models_cache/
+comandos_cerbero/sessions/
+comandos_cerbero/temp/

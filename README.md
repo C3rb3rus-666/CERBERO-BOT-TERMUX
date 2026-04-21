@@ -2,10 +2,11 @@
 
 Cerbero-bot es un bot de WhatsApp basado en Baileys, creado por C3rb3rus-666.
 
-Versión: v4.2.10 (Build 78)
+ Versión: v4.2.15 (Build 88)
 
 Resumen rápido
  Comando `!dox`: minijuego que genera datos ficticios (IP, ISP, ubicación, email) y etiqueta al objetivo. Es completamente falso y solo para diversión.
+ Comando `!arte` / `!art`: envía una de las imágenes que decoran los menús del bot para compartir la estética cerberiana.
 Instalación
 
 ```bash
@@ -32,10 +33,20 @@ Archivos importantes
 - `temp/message_counts.json` — archivo persistente con contadores.
 
 Correcciones recientes
-- v4.2.1 (Build 63): Se corrigió pérdida de contadores bajo alta carga reimplementando la persistencia:
-
+- v4.2.15 (Build 88):
+	- Nuevo minijuego Buscaminas (!minas) con renderizado emoji, flood-fill y primer clic seguro.
+	- Comando !vigilar para monitoreo de cambios de admin con resolución LID→teléfono.
+	- Rediseño estético de !programador con box-drawing y secciones.
+	- Resolución LID→teléfono real en TODOS los eventos de grupo (add/remove/promote/demote).
+- v4.2.15 (Build 87):
+	- Identificación híbrida de creador (teléfono + LID) en todos los módulos del bot.
+	- Resolución automática LID→teléfono real en logs de consola.
+	- Rediseño del log COMMAND INTERCEPTED con estética hacker.
+	- Menús (!menu y !menu2) reorganizados y limpiados: secciones consistentes, sin duplicados.
+	- Corregidos caracteres Unicode corruptos en killgroup.js.
+- v4.2.15 (Build 86):
 - v4.2.2 (Build 64): Mejora del comando `!nuevos` — ahora borra las entradas usadas de `temp/recent_joins.json` tras etiquetar a los recién llegados.
- - v4.2.3 (Build 65): Nuevas características y mejoras importantes:
+- v4.2.3 (Build 65): Nuevas características y mejoras importantes:
 	 - Sistema de misiones por jugador (misiones aleatorias diarias, recompensas en dinero y XP).
 	 - Nuevos tipos de misión: compra, victoria en batalla, compartir mensaje, subir de nivel, enviar regalo, participar en eventos y rachas diarias.
 	 - Notificaciones mejoradas al asignar y completar misiones (menciones, resumen de recompensas y saldo).
@@ -47,15 +58,8 @@ Correcciones recientes
 	 - **¡Cambio importante!** `!ping` ahora mide la latencia real (RTT) hacia WhatsApp enviando y eliminando un mensaje de prueba.
 
 Notas de uso
-
-- v4.2.1 (Build 63): Se corrigió pérdida de contadores bajo alta carga reimplementando la persistencia:
-	- `utils/messageCounter.js` usa ahora un almacén en memoria con flush periódico (1s) y escritura atómica (`.tmp` → rename).
-	- Esto reduce I/O por mensaje y evita condiciones de carrera que provocaban conteos inconsistentes.
-	- Se añadió flush forzado en `beforeExit` y funciones `clearAll`/`getAllChats` para administración.
-
-Notas de uso
 - Añade JIDs a `config/always_tag.json` (ej: ["573001234567@s.whatsapp.net"]) para que el bot los incluya en menciones estilo `!todos`.
-- Para probar el reseteo sin esperar al día 30, puedo añadir un comando `!forcereset` bajo petición.
+- `!todos` ya no tiene cooldown ni límite diario y ahora comparte las mismas imágenes del menú cuando puede enviar medios; además, los mensajes que comienzan con `!` quedan fuera del filtro de antilink para evitar bloqueos involuntarios.
 - Para probar el reseteo sin esperar al día 30, puedo añadir un comando `!forcereset` bajo petición.
 
 Notas importantes

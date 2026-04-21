@@ -32,7 +32,54 @@ function getRandomImage(imagesDir, preferredPrefixes = ['menu','ping']) {
 
 // Función para manejar el comando !programador
 export async function creador(sock, msg) {
-  const menuText = `CERBERO-BOT DEVELOPER\nv4.2.10 (Build 78)\n\nNombre: Carlos Sánchez (C3rb3rus-666)\nRol: Full-Stack Developer & Bot Creator\nExperiencia: 12 años\nEspecialidad: Node.js, Python, WhatsApp Bots, C++, Java\n\nTecnologías: Node.js, Baileys, Python (IA local), Google Gemini, FFmpeg, Canvas, Axios, TensorFlow.js\n\nVersión: v4.2.10 (Build 78)\nEstado: Online\nComandos: 50+ disponibles\n\nContacto & Redes:\n- GitHub: https://github.com/C3rb3rus-666\n- Repo: https://github.com/C3rb3rus-666/cerbero-bot\n- Telegram: https://t.me/C3rb3rus_666\n- Instagram: https://instagram.com/c3rb3rus_666\n- WhatsApp: https://wa.me/573233704652 ( +57 323 370 4652 )\n\nProyectos:\n- Cerbero-Bot (WhatsApp bot)\n- IA Local\n- Music Bot\n- RPG System\n`.trim();
+  const menuText = `
+╔══════════════════════════════════════════╗
+║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑        ║
+║    v4.2.15 (Build 88) — Online          ║
+╚══════════════════════════════════════════╝
+
+*🧑‍💻 𝗦𝗢𝗕𝗥𝗘 𝗘𝗟 𝗗𝗘𝗦𝗔𝗥𝗥𝗢𝗟𝗟𝗔𝗗𝗢𝗥*
+─────────────────────────
+• 👤 *Nombre:* Carlos Sánchez
+• 🏷️ *Alias:* C3rb3rus-666
+• 💼 *Rol:* Full-Stack Developer & Bot Creator
+• 📅 *Experiencia:* 12 años
+• 🎯 *Especialidad:* Node.js · Python · C++ · Java
+
+*⚙️ 𝗧𝗘𝗖𝗡𝗢𝗟𝗢𝗚𝗜𝗔𝗦*
+─────────────────────────
+• 🟢 Node.js + Baileys v7
+• 🐍 Python (IA local)
+• 🤖 TensorFlow.js (NSFW/NLP)
+• 🎬 FFmpeg · Canvas · Axios
+
+*📊 𝗘𝗦𝗧𝗔𝗗𝗢 𝗗𝗘𝗟 𝗕𝗢𝗧*
+─────────────────────────
+• 🔋 *Estado:* Online
+• 📦 *Versión:* v4.2.15 (Build 88)
+• 🧩 *Comandos:* 50+ disponibles
+
+*🔗 𝗖𝗢𝗡𝗧𝗔𝗖𝗧𝗢 & 𝗥𝗘𝗗𝗘𝗦*
+─────────────────────────
+• 🐙 github.com/C3rb3rus-666
+• 📂 github.com/C3rb3rus-666/cerbero-bot
+• ✈️ t.me/C3rb3rus_666
+• 📷 instagram.com/c3rb3rus_666
+• 📱 WhatsApp +57 3233704652
+─────────────────────────
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🤖 ¿QUIERES UN BOT COMO ESTE? ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  Bots personalizados para grupos
+  de WhatsApp con IA, juegos,
+  moderación y mucho más.
+
+  📱 +57 3233704652 (WhatsApp)
+  📷 @c3rb3rus_666 (Instagram)
+  ✈️ @C3rb3rus_666 (Telegram)
+─────────────────────────
+`.trim();
 
   const randomImagePath = getRandomImage(imagesDir);
   if (!randomImagePath) {
@@ -45,10 +92,10 @@ export async function creador(sock, msg) {
     image: imageBuffer,
     caption: menuText,
     buttons: [
-      { buttonId: '!menu', buttonText: { displayText: 'Ver Menú' }, type: 1 },
-      { buttonId: '!ping', buttonText: { displayText: 'Ping' }, type: 1 },
-      { buttonId: '!help', buttonText: { displayText: 'Ayuda' }, type: 1 }
+      { buttonId: '!menu', buttonText: { displayText: '📋 Menú' }, type: 1 },
+      { buttonId: '!ping', buttonText: { displayText: '📶 Ping' }, type: 1 },
+      { buttonId: '!help', buttonText: { displayText: '❓ Ayuda' }, type: 1 }
     ],
-    footer: 'Desarrollado por C3rb3rus-666 | v4.2.10'
+    footer: '⚡ Desarrollado por C3rb3rus-666 | v4.2.15 Build 88'
   }, { quoted: msg });
 }

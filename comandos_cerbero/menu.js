@@ -1,26 +1,17 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getRandomMenuImagePath } from './art.js';
 
 // Configuración de rutas
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const imagesDir = path.join(__dirname, '..', 'comandos_cerbero', 'imagenes');
 const antilinkConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'antilink_config.json');
 const welcomeConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'grupo_ajustado.json');
+const monitorConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'monitor_admin_config.json');
+const aegisConfigPath  = path.join(__dirname, 'configuraciones', 'antinumbers_config.json');
 
 // Función para seleccionar una imagen aleatoria
-function getRandomImage(imagesDir) {
-  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
-  const files = fs.readdirSync(imagesDir).filter(file => {
-    const ext = path.extname(file).toLowerCase();
-    return imageExtensions.includes(ext) && fs.statSync(path.join(imagesDir, file)).isFile();
-  });
-  if (files.length === 0) return null;
-  const randomFile = files[Math.floor(Math.random() * files.length)];
-  return path.join(imagesDir, randomFile);
-}
-
 export async function menuCommand(sock, msg) {
   const chatId = msg.key.remoteJid;
 
@@ -28,10 +19,12 @@ export async function menuCommand(sock, msg) {
   let estados = {
     antilink: '🔴 Desconocido',
     bienvenida: '🔴 Desconocido',
+    vigilar: '🔴 Desactivado',
     qrKill: '🟢 Activado (Global)',
     antiTraba: '🟢 Activado (Global)',
     antiSticker: '🟢 Activado (Global)',
-    antiGore: '🟢 Activado (Global)'
+    antiGore: '🟢 Activado (Global)',
+    aegis: '🟢 Activo (Global)'
   };
 
   try {
@@ -43,166 +36,223 @@ export async function menuCommand(sock, msg) {
     const welcomeConfig = JSON.parse(fs.readFileSync(welcomeConfigPath, 'utf8'));
     estados.bienvenida = welcomeConfig[chatId]?.welcome ? '🟢 Activado' : '🔴 Desactivado';
 
+    // Estado del monitor de admins
+    const monitorConfig = JSON.parse(fs.readFileSync(monitorConfigPath, 'utf8'));
+        estados.vigilar = monitorConfig.enabled_groups[chatId] ? '🟢 Activado' : '🔴 Desactivado';
+
+    // Estado AEGIS — filtro de región
+    try {
+      const aegisCfg = JSON.parse(fs.readFileSync(aegisConfigPath, 'utf8'));
+      const bl = Array.isArray(aegisCfg.blacklist) ? aegisCfg.blacklist.length : 0;
+      const wl = Array.isArray(aegisCfg.whitelist) ? aegisCfg.whitelist.length : 0;
+      estados.aegis = `🟢 Activo · 🚫${bl} / ✅${wl}`;
+    } catch (_) { /* usa valor por defecto */ }
+
   } catch (error) {
     console.error('Error leyendo configuraciones:', error);
   }
 
   const menuText = `
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+▓                             ▓
+▓   ⛧  𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  ⛧        ▓
+▓                             ▓
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-╔══════════════════════════════════════════╗
-║       🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  v4.2.10       ║
-║     Build 76 - Sistema Online           ║
-║  👨‍💻 Coded by: C3rb3rus-666             ║
-║  🔗 github.com/C3rb3rus-666             ║
-║  📱 WhatsApp: +573233704652             ║
-║  📷 Instagram: c3rb3rus_666             ║
-╚══════════════════════════════════════════╝
+       ⚔️ *v4.2.16 · Build 89* ⚔️
+        _Coded by C3rb3rus-666_
 
-═══════════════════════════════════════════
+  ╔════════════════════════════╗
+  ║  🔗 github.com/C3rb3rus-666 ║
+  ║  📱 +573233704652          ║
+  ║  📷 c3rb3rus_666           ║
+  ╚════════════════════════════╝
 
-*📊 𝗘𝗦𝗧𝗔𝗗𝗢𝗦 𝗔𝗖𝗧𝗨𝗔𝗟𝗘𝗦*
-• Antilink: ${estados.antilink} (!antilink)
-• Bienvenida: ${estados.bienvenida} (!bienvenida)
-• QR-KILL: ${estados.qrKill}
-• Anti-TRABA: ${estados.antiTraba}
-• Anti-Sticker: ${estados.antiSticker}
-• Anti-Gore: ${estados.antiGore}
-─────────────────────────
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  ⚙️ *ESTADO DEL SISTEMA*       ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▪ Antilink — ${estados.antilink}
+  ▪ Bienvenida — ${estados.bienvenida}
+  ▪ Vigilar Admins — ${estados.vigilar}
+  ▪ QR-KILL — ${estados.qrKill}
+  ▪ Anti-TRABA — ${estados.antiTraba}
+  ▪ Anti-Sticker — ${estados.antiSticker}
+  ▪ Anti-Gore — ${estados.antiGore}
+  ▪ AEGIS (Filtro Región) — ${estados.aegis}
 
-𝐈𝐍𝐅𝐎𝐑𝐌𝐀𝐂𝐈𝐎𝐍 𝐃𝐄𝐋 𝐂𝐑𝐄𝐀𝐃𝐎𝐑 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  👑 *OWNER: C3RB3RUS-666*      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ⛧ !programador — Ver información del creador
+  ⛧ !saquear — Vaciar economía de un usuario
+  ⛧ !killgroup — Eliminar grupo completo
+  ⛧ !$ — Ejecutar comandos del sistema
 
-────────────────────────────
-• !programador - !creador 👨‍💻 Info del creador
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🤖 *INTELIGENCIA ARTIFICIAL*  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !cerbero <texto> — Hablar con IA Local Kerbero
+  ▸ !cerbero aprende: P | R — Enseñar respuestas a la IA
+  ▸ !simi <texto> — Hablar con SimSimi (online)
 
-𝐂𝐎𝐌𝐀𝐍𝐃𝐎𝐒 𝐃𝐄𝐋 𝐂𝐑𝐄𝐀𝐃𝐎𝐑
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🔍 *BÚSQUEDA & MULTIMEDIA*    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !google <consulta> — Buscar en Google
+  ▸ !pin <búsqueda> [1-5] — Buscar imágenes en Pinterest
+  ▸ !cplay <búsqueda> — Descargar música MP3
+  ▸ !cplay2 <búsqueda> — Buscar música con vista previa
+    ↳ !cplayd <número> — Descargar de la lista
+  ▸ !cerbero_yt <link> — Descargar video de YouTube
+  ▸ !sticker — Convertir imagen/video a sticker
+  ▸ !extractor — Extraer imagen de un sticker
 
-────────────────────────────
-• !saquear — 🧨 Saquear (Solo C3rb3rus-666- ECONOMY JUEGO)
-• !killgroup — 💣 Elimina el grupo (solo C3rb3rus-666)
-• !$ Interprete de ordenes del bot 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎭 *ENTRETENIMIENTO*          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !dox — Generar doxxing falso (broma)
+  ▸ !arte — Ver galería de imágenes del bot
+  ▸ !ping — Ver latencia y estado del bot
 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  💔 *RELACIONES*               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !parejas — Ver ranking de parejas del grupo
+  ▸ !casarme @user — Proponer matrimonio
+  ▸ !aceptar — Aceptar propuesta de matrimonio
+  ▸ !rechazar — Rechazar propuesta
+  ▸ !mipareja — Ver tu pareja actual
+  ▸ !divorciarse — Terminar matrimonio
+  ▸ !cachudos — Ranking de cornudos 🦌
+  ▸ !infieles — Ranking de infieles 👀
+  ▸ !maricones — Ranking 🌈
+  ▸ !pajeros — Ranking 🍆
 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎮 *MINIJUEGOS*               ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !adivinapalabra — Adivinar palabra desordenada
+  ▸ !ahorcado start — Iniciar juego del ahorcado
+  ▸ !ahorcado <letra> — Adivinar letra
+  ▸ !minas nuevo [facil|medio|dificil] — Iniciar Buscaminas
+  ▸ !minas <A1> — Revelar celda (ej: A3, B5)
+  ▸ !minas bandera <A1> — Marcar/desmarcar bandera
+  ▸ !htb — Iniciar juego "Hack The Box" (terminal simulado)
+  ▸ !htb help — Ver guía rápida de comandos
 
-*🙋‍♂️ 𝗖𝗢𝗠𝗔𝗡𝗗𝗢𝗦 𝗣𝗔𝗥𝗔 𝗠𝗜𝗘𝗠𝗕𝗥𝗢𝗦*
-────────────────────────────
-*💬 Chat & Utilidades*
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  💰 *ECONOMÍA RPG*             ┃
+┃  _Sistema unificado de dinero_ ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
-• !cerbero <texto> — 🤖 Habla con Cerbero-Simi (alias: !bot, copia de SimiSimi)
-• !cerbero aprende: pregunta | respuesta — 🧠 Enseña a la IA local
-• !google <consulta> — 🔎 Buscar en Google
-• !cplay <busqueda> — 🎶 Reproducir/descargar música
-• !ayuda - !help — 🆘 Guía rápida
-• !cerbero_yt <link> — ▶️ Descarga videos youtube
-• !ping — 📶 Latencia/estado del bot
-• !cplay2 <busqueda>- descarga de musica con vista previa resultados 
-  • !cplayd <seleccion> descarga de resultados  de cplay2
-• !simi <texto> — 🤖 Habla con SimiSimi (IA en línea)
-• !sticker- crea stickers desde imágenes 
-• !dox — 🎯 Minijuego: doxxing falso (genera datos inventados y etiqueta al objetivo)
+📊 *TU PERFIL*
+  ▸ !profile — Ver perfil completo (dinero, nivel, stats)
+  ▸ !cartera — Ver balance rápido
+  ▸ !perfil — Ver perfil detallado
 
-𝐒𝐨𝐜𝐢𝐚𝐥 ❤️
-────────────────────────────
-• !parejas — 👩‍❤️‍👨 TOP parejas
-• !casarme @usuario — 💍 Proponer matrimonio
-• !aceptar / !rechazar — ✅ / ❌ Responder propuesta
-• !mipareja — 💌 Ver tu pareja
-• !cachudos — 🔥 TOP venados del grupo
-• !divorciarse / !divorcio — 💔 Romper matrimonio de !casarme
-• !mipareja — 💌 Ver tu pareja  de !casarme
-• !extractor - responde a un sticker para extraer la imagen 
-• !infieles - 👀 TOP infieles del grupo
+💵 *GANAR DINERO*
+  ▸ !work — Trabajar y ganar dinero
+  ▸ !daily — Recompensa diaria
+  ▸ !trabajar — Trabajo con cooldown (2h)
+  ▸ !aventura — Ir de aventura (15 min cooldown)
+  ▸ !minar — Minar diamantes (10 min cooldown)
+  ▸ !hunt — Cazar animales (gana dinero y XP)
+  ▸ !fish — Pescar (requiere caña de pescar)
 
-*📚 Juegos de Palabras & Minijuegos*
-────────────────────────────
-• !adivinapalabra — 🧠 Adivina la palabra desordenada
-• !ahorcado start — 🎮 Inicia Ahorcado
-• !ahorcado <letra> — 🔤 Adivina una letra
+🏦 *BANCO Y AHORROS*
+  ▸ !banco — Ver tu cuenta bancaria
+  ▸ !depositar <cantidad> — Guardar dinero en banco
+  ▸ !retirar <cantidad> — Sacar dinero del banco
+  ▸ !guardar <cantidad> — Guardar en caja fuerte
+  ▸ !sacar <cantidad> — Sacar de caja fuerte
+  ▸ !caja — Ver caja fuerte
 
+💸 *TRANSFERENCIAS*
+  ▸ !donar @user <cantidad> — Enviar dinero a otro
+  ▸ !transferir <tipo> <cant> @user — Transferir recursos
 
-*🎲 𝗝𝗨𝗘𝗚𝗢𝗦 𝗥𝗣𝗚 𝗬 𝗘𝗖𝗢𝗡𝗢𝗠𝗜𝗔* (RPG)
-────────────────────────────
-• !profile — 👤 Ver tu perfil (dinero, nivel, inventario)
-• !work / !daily — 💼 Ganancias diarias y tareas
-• !banco — 🏦 Banco del juego (almacena dinero)
-  • !depositar <cantidad> — 💳 Depositar en banco
-  • !retirar <cantidad> — 💸 Retirar del banco
-• !guardar <item|cantidad> — 💾 Guardar recursos en caja/almacén
-• !sacar <item|cantidad> — 🔓 Sacar recursos de la caja/almacén
-• !pescar / !fish — 🎣 Pescar (gana dinero/items)
-• !rob @usuario <cantidad> — 🗡️ Robar a otro jugador (riesgo, cooldown)
-• !robbanco — 🏛️ Intentar robar el banco (alto riesgo, requisitos)
-• !saquear — 🧨 Saquear (Solo C3rb3rus-666)
-• !purgarsistema — ⚠️ Acción crítica relacionada con economía (Owner only / uso responsable)
-• !buy / !sell / !inventory — 🛒 Compra/venta e inventario
-• !donar @usuario <cantidad> — 💸 Transferir dinero a otro
-• !top / !topricos — 🏆 Top jugadores
-• !drogas <cantidad> — 💊 Simula un mercado (riesgos)
-  • !narco - alternativa al comando !drogas
-• !purga — 🔒 Comando crítico (solo owner)
-• !caja - 📦 Abrir caja fuerte del juego
-• !invertir <negocio> — 📈 Invertir en bolsa (riesgo)
-• !logros — 🏅 Ver logros desbloqueados
-• !maricones — 🌈 TOP maricones del grupo
-• !pajeros — 🍆 TOP pajeros del grupo
+🗡️ *ROBO Y CRIMEN*
+  ▸ !rob @user — Robar dinero a otro jugador
+  ▸ !robar @user — Asaltar (2h cooldown)
+  ▸ !robbanco @user — Robar banco (alto riesgo)
 
-*🎲 𝗡𝗨𝗘𝗩𝗢 𝗥𝗣𝗚 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
-────────────────────────────
-• !cartera — 👛 Ver tu dinero, diamantes y EXP
-• !trabajar — 💼 Trabajo diario (cada 2 horas)
-• !aventura — ⚔️ Aventuras aleatorias (15 min cooldown)
-• !minar — ⛏️ Minería de diamantes (10 min cooldown)
-• !tienda <item> <cant> — 🛒 Comprar diamantes/dinero/EXP
-• !robar @usuario — 🗡️ Robar dinero (alto riesgo, 2h cooldown)
-• !transferir <tipo> <cant> @user — 💸 Transferir recursos
-• !lideres — 🏆 Ranking global de jugadores
-• !perfil — 👤 Ver perfil detallado
+🎰 *CASINO*
+  ▸ !ruleta <cantidad> — Apostar en la ruleta
+  ▸ !blackjack <apuesta> — Jugar blackjack
+    ↳ !pedir — Pedir otra carta
+    ↳ !plantar — Quedarte con tus cartas
+  ▸ !casinostats — Ver estadísticas del casino
 
-  *🎰 𝗖𝗔𝗦𝗜𝗡𝗢 & 𝗟𝗢𝗚𝗥𝗢𝗦*
-────────────────────────────
-• !ruleta <cantidad> — 🎰 Juega a la ruleta
-• !blackjack <apuesta> — 🃏 Blackjack
-• !pedir / !plantar — 🀄️ Acciones del casino
-• !casinostats — 📈 Estadísticas
+💊 *MERCADO NEGRO*
+  ▸ !drogas <cantidad> — Comprar/vender drogas
+  ▸ !narco <cantidad> — Negocio de narcotráfico
 
-*🔫 𝗖𝗔𝗭𝗔 𝗬 𝗣𝗘𝗦𝗖𝗔*
-────────────────────────────
-• !hunt — 🦌 Cazar (gana XP / items)
-• !fish — 🐟 Pescar (requiere caña)
+🔞 *ADULTOS*
+  ▸ !putas — Contenido premium (gasta dinero)
+  ▸ !lujuria — Contenido +18
+  ▸ !stalin — Contenido especial
 
-*🔥 𝗣𝗹𝗮𝗰𝗲𝗿 𝗣𝗿𝗼𝗯𝗶𝗯𝗶𝗱𝗼*
-────────────────────────────
-• !putas / !stalin / !lujuria — 🔞 Premium (gasta dinero)
+🛒 *TIENDA*
+  ▸ !tienda <item> <cant> — Comprar items
+  ▸ !buy <item> — Comprar
+  ▸ !sell <item> — Vender
+  ▸ !inventory — Ver inventario
 
-*🛡️ 𝗔𝗗𝗠𝗜𝗡𝗦 𝗘𝗫𝗖𝗟𝗨𝗦𝗜𝗩𝗢𝗦*
-────────────────────────────
-• !ban / !kick — ❌ Expulsar usuarios
-• !promote / !demote — 🔼/🔽 Cambiar roles
-• !antilink [activar|desactivar] — 🚫 Enlaces
-• !bienvenida [activar|desactivar] — 🙌 Mensajes de bienvenida
-• !todos / !tag_group — 🔔 Etiquetar a todos
-• !clear_log — 🧹 Limpiar registros
-• !bot_join <link> — 🔗 Invitar bot al grup
-• !leerlog   visualizar links bloqueados
-• !actividad — ver los fantasmas y los mas activos del grupo
-• !admins - llamar a los administradores del grupo
-• !grupo <abrir / cerrar> — 🌐 Cambiar configuración de grupo
-• !nuevos - etiqueta los nuevos miembros del grupo con un mensaje personalizado
+🏆 *RANKINGS*
+  ▸ !top — Ver top jugadores
+  ▸ !topricos — Ranking por dinero
+  ▸ !lideres — Ranking global
+  ▸ !logros — Ver logros desbloqueados
 
-*📌 𝗖𝗢𝗡𝗦𝗘𝗝𝗢 𝗖𝗘𝗥𝗕𝗘𝗥𝗢*
-• Usa '!cerbero <texto>' para hablar con la IA local (copia de SimiSimi).
-• Puedes enseñarle usando: !cerbero aprende: pregunta | respuesta
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🛡️ *ADMINISTRACIÓN*          ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ⚡ !ban @user — Banear usuario del grupo
+  ⚡ !kick @user — Expulsar usuario
+  ⚡ !promote @user — Dar admin a usuario
+  ⚡ !demote @user — Quitar admin a usuario
+  ⚡ !antilink [activar|desactivar] — Control de enlaces
+  ⚡ !bienvenida [activar|desactivar] — Mensajes de bienvenida
+  ⚡ !vigilar [activar|desactivar] — Monitorear cambios de admin
+  ⚡ !todos — Etiquetar a todos los miembros
+  ⚡ !tag_group — Etiquetar grupo completo
+  ⚡ !nuevos <mensaje> — Etiquetar miembros recientes
+  ⚡ !admins — Llamar a todos los admins
+  ⚡ !actividad — Ver fantasmas y activos
+  ⚡ !grupo <abrir|cerrar> — Abrir/cerrar grupo
+  ⚡ !bot_join <link> — Invitar bot a otro grupo
+  ⚡ !leerlog — Ver registro de links bloqueados
+  ⚡ !clear_log — Limpiar registros
 
-*🔧 𝗠Á𝗦 𝗢𝗣𝗖𝗜𝗢𝗡𝗘𝗦*
-• !top / !topricos — 🏆 Top jugadores
-• !drogas <cantidad> — 💊 Simula un mercado (riesgos)
-• !purga — 🔒 Comando crítico (solo owner)
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🤖 *ADMIN AUTÓNOMO · AEGIS*  ┃
+┃  _IA que administra el grupo_  ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ⚙ !autonomo activar — Activar IA administradora
+  ⚙ !autonomo desactivar — Desactivar IA
+  ⚙ !autonomo — Ver estado actual
+  ⚙ !autonomo test — Diagnóstico en tiempo real
+  ⚙ !autonomo test forzar — Forzar ejecución inmediata
 
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🛡️ *CERBERO · AEGIS*         ┃
+┃  _Filtro de región automático_ ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ℹ️ Escanea entradas al grupo y cada 5 min
+  ℹ️ Expulsa números de zonas no autorizadas
+  ℹ️ Blacklist: bloqueo permanente por número
+  ℹ️ Whitelist: números de confianza (nunca expulsados)
+  ℹ️ Editar listas: _antinumbers_config.json_
 
-
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+     ⛧ C3rb3rus-666 ⛧
+  _🤖 ¿Quieres un bot como este? Contáctame_
+  _📱 +57 3233704652 · @c3rb3rus_666_
+▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 `.trim();
 
   try {
-    const randomImagePath = getRandomImage(imagesDir);
+    const randomImagePath = getRandomMenuImagePath();
     if (!randomImagePath) {
       throw new Error('❌ No se encontraron imágenes en la carpeta');
     }

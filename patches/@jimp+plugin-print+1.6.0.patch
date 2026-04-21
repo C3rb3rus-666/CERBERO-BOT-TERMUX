@@ -1,0 +1,14 @@
+diff --git a/node_modules/@jimp/plugin-print/dist/esm/load-bitmap-font.js b/node_modules/@jimp/plugin-print/dist/esm/load-bitmap-font.js
+index 508fb92..2565931 100644
+--- a/node_modules/@jimp/plugin-print/dist/esm/load-bitmap-font.js
++++ b/node_modules/@jimp/plugin-print/dist/esm/load-bitmap-font.js
+@@ -4,8 +4,7 @@ import readBinary from "parse-bmfont-binary";
+ import png from "@jimp/js-png";
+ import { createJimp } from "@jimp/core";
+ import path from "path";
+-import xmlPackage from "simple-xml-to-json";
+-const { convertXML } = xmlPackage;
++import { convertXML } from "simple-xml-to-json";
+ export const isWebWorker = typeof self !== "undefined" && self.document === undefined;
+ const CharacterJimp = createJimp({ formats: [png] });
+ const HEADER = Buffer.from([66, 77, 70, 3]);

@@ -4,7 +4,7 @@ import tensorflow as tf
 import numpy as np
 import os
 
-MODEL_PATH = "model_termux"
+MODEL_PATH = "spam_model"
 
 # Si ya hay modelo, cargarlo
 if os.path.exists(MODEL_PATH):

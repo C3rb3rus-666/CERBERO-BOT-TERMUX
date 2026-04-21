@@ -1,6 +1,6 @@
 import pino from 'pino';
 import chalk from 'chalk';
-import { makeWASocket, useMultiFileAuthState, DisconnectReason, delay, downloadMediaMessage } from '@whiskeysockets/baileys';
+import { makeWASocket, useMultiFileAuthState, DisconnectReason, delay, downloadMediaMessage, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import readline from 'readline'; 
 import fs from 'fs'; 
@@ -16,11 +16,17 @@ import { blockQr } from './comandos_cerbero/qrkill.js';
 import { handleStickerSpam } from './comandos_cerbero/antispamstickers.js';
 import { simsimiBot } from "./comandos_cerbero/simi.js";
 import { cerberoSimiBot } from './comandos_cerbero/cerbero_simi.js';
-import { onGroupUpdate } from './comandos_cerbero/monitor_evento.js' 
+import { onGroupUpdate, onGroupAddBaseline } from './comandos_cerbero/monitor_evento.js' 
 import { antiSpamMedia } from './comandos_cerbero/anti_spamimg.js';
 import { detectNSFW } from './comandos_cerbero/nsfw_detector.js';
+import { warmupModels as warmupNSFW } from './comandos_cerbero/nsfw_classifier.js';
+import { verificarParticipanteNuevo, iniciarEscaneoPeriodicoRegion } from './comandos_cerbero/anti_numbers.js';
+import { iniciarAdminAutonomo, toggleAdminAutonomo, darBienvenidaAutonoma, iniciarScannerBienvenida, onGroupSettingChange, onAdminChange } from './comandos_cerbero/admin_autonomo.js';
+// cerbero_ia desactivada — autorespuesta reemplazada por cerbero_simi local
 import * as autobanVideo from './comandos_cerbero/autobanvideo.js';
 import { verificarLealtad } from './comandos_cerbero/lealtad.js';
+import { amorCommand, iniciarMensajesDiarios } from './comandos_cerbero/amor_bot.js';
+import { manejarDMConf, manejarComandoConf } from './comandos_cerbero/confesiones.js';
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
@@ -154,6 +160,19 @@ async function connectToWhatsApp() {
     const estadoRecuperacion = cargarEstadoRecuperacion();
     const { state, saveCreds } = await useMultiFileAuthState('./sessions');
 
+    let waVersion = [2, 3000, 1];
+    try {
+      const fetched = await fetchLatestBaileysVersion();
+      waVersion = fetched.version;
+      console.log(paint.sys(` [NET] WA Web version: ${waVersion.join('.')} ${fetched.isLatest ? '' : '(fallback cached)'}`));
+    } catch (e) {
+      console.error(paint.warn(' [WARN] No se pudo obtener la versión de WhatsApp Web. Usando fallback.'));
+      if (state?.creds?.version) {
+        waVersion = state.creds.version;
+        console.log(paint.dim(` [INFO] Usando versión guardada: ${waVersion.join('.')}`));
+      }
+    }
+
     // Wrapper para saveCreds que añade logging y escribe una copia legible (debug)
     const saveCredsWithLog = async (creds) => {
       try {
@@ -197,15 +216,16 @@ async function connectToWhatsApp() {
 
     const sock = makeWASocket({
       auth: state,
+      version: waVersion,
       logger: logger,
       printQRInTerminal: false,
-      browser: ["Windows", "Chrome", "10.15.7"], 
+      browser: process.arch === 'arm64' ? ['Cerbero-OS Linux ARM64', 'Chrome', '23.0.0'] : ['Cerbero-OS Linux', 'Chrome', '23.0.0'], // Cerbero-OS Linux (ARM64 en proot-debian | x64 en PC)
       connectTimeoutMs: 60000, 
       defaultQueryTimeoutMs: 0,
       keepAliveIntervalMs: 10000, 
       emitOwnEvents: true,
       fireInitQueries: true, 
-      shouldIgnoreJid: jid => !jid.endsWith('@g.us'),
+      shouldIgnoreJid: jid => jid === 'status@broadcast', // solo ignorar status, DMs permitidos
       markOnlineOnConnect: true, 
       syncFullHistory: true,
       generateHighQualityLinkPreview: true,
@@ -258,7 +278,17 @@ async function connectToWhatsApp() {
         showBanner();
         console.log(paint.sys(' █ SYSTEM ONLINE █ '));
         console.log(paint.dim(' Monitoring traffic for C3rb3rus-666...\n'));
-        reconnectDelay = 100; 
+        reconnectDelay = 100;
+        // Iniciar escáner periódico de región (cada 5 min)
+        try { const t = iniciarEscaneoPeriodicoRegion(sock); if (t) allTimers.push(t); } catch(e) { console.error('[REGION] Error iniciando escáner:', e.message); }
+        // Iniciar administrador autónomo de grupos (cada 5 min)
+        try { const t = iniciarAdminAutonomo(sock); if (t) allTimers.push(t); } catch(e) { console.error('[ADMIN-AUTO] Error iniciando admin autónomo:', e.message); }
+        // Scanner de bienvenidas pendientes (cada 2 min — lee recent_joins.json)
+        try { const t = iniciarScannerBienvenida(sock); if (t) allTimers.push(t); } catch(e) { console.error('[ADMIN-AUTO] Error iniciando scanner bienvenidas:', e.message); }
+        // Pre-calentar modelos ML anti-NSFW (evita lag en la primera imagen)
+        warmupNSFW().catch(e => console.error('[NSFW] warmup error:', e.message));
+        // Iniciar mensajes románticos diarios (si están configurados)
+        iniciarMensajesDiarios(sock).catch(e => console.error('[AMOR-BOT] Error iniciando:', e.message));
 
         if (bannerInterval) clearInterval(bannerInterval);
         bannerInterval = setInterval(() => {
@@ -277,7 +307,13 @@ async function connectToWhatsApp() {
 
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
+      const msg0 = messages[0];
+      const jid0 = msg0?.key?.remoteJid || '';
+      if (!jid0.endsWith('@g.us')) {
+        console.log(`[RAW DM] type=${type} jid=${jid0} fromMe=${msg0?.key?.fromMe} hasMsg=${!!msg0?.message}`);
+      }
+      // Aceptar 'notify' y 'append' para no perder DMs
+      if (type !== 'notify' && type !== 'append') return;
       const msg = messages[0];
       if (!msg?.key?.remoteJid || !msg?.message) return;
 
@@ -296,17 +332,13 @@ async function connectToWhatsApp() {
 
         const senderJid = msg.key.participant || msg.key.remoteJid;
 
-        // Bloquear y reportar mensajes privados
+        // Mensajes privados: revisar si es una confesión anónima
         if (!isGroup && !msg.key.fromMe) {
-            try {
-                await sock.sendMessage(chatId, { text: 'Lo siento, no acepto mensajes privados. Serás bloqueado y reportado por seguridad.' });
-                await sock.blockContact(senderJid);
-                await sock.reportContact(senderJid, 'spam');
-                console.log(paint.warn(`[BLOCK] Usuario ${senderJid} bloqueado y reportado por mensaje privado.`));
-            } catch (error) {
-                console.error(paint.warn(`[ERROR] No se pudo bloquear/reportar a ${senderJid}:`), error.message);
-            }
-            return;
+          const textDM = msg.message?.conversation ||
+                         msg.message?.extendedTextMessage?.text || '';
+          console.log(`[DM RECV] 📩 ${senderJid} → "${textDM?.slice(0,80)}"`);
+          await manejarDMConf(sock, senderJid, textDM);
+          return;
         }
 
         if (isGroup) {
@@ -331,6 +363,17 @@ async function connectToWhatsApp() {
                    msg.message?.imageMessage?.caption || 
                    msg.message?.videoMessage?.caption || "";
 
+        const quotedInfo = msg.message?.extendedTextMessage?.contextInfo;
+        const quotedText =
+          quotedInfo?.quotedMessage?.conversation ||
+          quotedInfo?.quotedMessage?.extendedTextMessage?.text ||
+          '';
+        const referencedBotMessage =
+          quotedInfo?.participant === sock.user?.id ||
+          quotedText.includes('CERBERO-BOT');
+        const isReplyToBot = Boolean(quotedInfo?.quotedMessage && referencedBotMessage);
+        const isFromBot = Boolean(msg.key.fromMe);
+
         let logDisplay = text; 
         
         if (!text) {
@@ -351,12 +394,18 @@ async function connectToWhatsApp() {
         if (logDisplay) {
             const senderNum = (senderJid || '').toString().split('@')[0];
           // Incrementar contador de mensajes por participante (persistente)
-          try { await incrementCount(chatId, senderJid, text || logDisplay || ''); } catch (e) { /* no bloquear logging */ }
+          // Solo mensajes humanos — los del bot no cuentan como actividad del grupo
+          if (!isFromBot) {
+            try { await incrementCount(chatId, senderJid, text || logDisplay || ''); } catch (e) { /* no bloquear logging */ }
+          }
             const time = new Date().toLocaleTimeString('es-CO', { hour12: false });
             const tag = isGroup ? paint.sys('GRUP') : paint.warn('PRIV');
             
             // ✅ NOMBRE DEL GRUPO COMPLETO (SIN SUBSTRING)
             const source = isGroup ? groupName : 'ENCRYPTED'.padEnd(15);
+            const replyMarker = isReplyToBot ? paint.bgTitle(' RESPUESTA-BOT ') : '';
+            const botMarker = isFromBot ? paint.bgSys(' CERBERO ') : '';
+            const sourceWithMarker = paint.sys(source) + (replyMarker || botMarker ? ` ${replyMarker || botMarker}` : '');
 
             // Resolver short JID y nombre legible del remitente (similar a !actividad)
             const resolveParticipantDisplay = (jid) => {
@@ -367,8 +416,11 @@ async function connectToWhatsApp() {
                   return id.split('@')[0] === short;
                 });
                 if (p) {
-                  const display = (p.notify || p.notifyName || p.name || p.pushname || (p.id && p.id.split('@')[0]) || short).toString();
-                  return { short, display };
+                  // Resolver número real si viene como LID
+                  const phoneNum = p.phoneNumber ? p.phoneNumber.toString().split('@')[0] : null;
+                  const realShort = phoneNum || short;
+                  const display = (p.notify || p.notifyName || p.name || p.pushname || realShort).toString();
+                  return { short: realShort, display };
                 }
               }
               // fallback a pushName o short
@@ -379,16 +431,32 @@ async function connectToWhatsApp() {
             const senderDisplay = senderInfo.display;
             const senderShort = senderInfo.short;
 
+            // ── ID completo del grupo ──
+            const groupIdShort = isGroup
+              ? paint.dim('[') + chalk.hex('#555').bold(chatId) + paint.dim(']')
+              : paint.dim('[') + chalk.hex('#555').bold('DM') + paint.dim(']');
+
+            // ── Nombre del remitente: mostrar nombre si es distinto del número ──
+            const senderLabel = (senderDisplay && senderDisplay !== senderShort)
+              ? paint.usr('@' + senderShort) + chalk.hex('#666')(` ${senderDisplay}`)
+              : paint.usr('@' + senderShort);
+
+            // ── Marcadores de rol/contexto ──
+            const roleMarker = isReplyToBot ? chalk.bgHex('#003355').hex('#00f2ff').bold(' ↩ BOT ') :
+                               isFromBot    ? chalk.bgHex('#220033').hex('#b026ff').bold(' ⚙ SYS ') : '';
+
             console.log(
-              paint.dim(`${time}`) + ' ' + 
-              paint.dim('|') + ' ' + 
-              tag + ' ' +
-              paint.dim('|') + ' ' +
-              paint.sys(source) + ' ' + 
-              paint.dim('>>') + ' ' +
-              paint.usr('@' + senderShort) + (senderDisplay ? ' (' + senderDisplay + ')' : '') + ' ' +
-              paint.txt(': ') + 
-              logDisplay
+              paint.dim(time) +
+              paint.dim(' │ ') +
+              (isGroup ? chalk.hex('#00f2ff').bold('GRP') : chalk.hex('#ffae00').bold('DM ')) +
+              paint.dim(' │ ') +
+              groupIdShort + ' ' +
+              chalk.hex('#e0e0e0').bold(source) +
+              (roleMarker ? ' ' + roleMarker : '') +
+              paint.dim(' ▸ ') +
+              senderLabel +
+              paint.dim(' : ') +
+              chalk.hex('#e0e0e0')(logDisplay)
             );
         }
         // =======================================================
@@ -399,45 +467,85 @@ async function connectToWhatsApp() {
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
 
         if (isCommand) {
-            console.log(paint.dim('┌──────────────────────────────────────────────────┐'));
-            console.log(paint.dim('│ ') + paint.bgTitle(' ⚡ COMMAND DETECTED ⚡ ') + paint.dim('                         │'));
-            console.log(paint.dim('├──────────────────────────────────────────────────┤'));
-            console.log(paint.dim('│ ') + paint.warn('OWNER:') + ' C3RB3RUS-666' + paint.dim('                               │'));
-            console.log(paint.dim('│ ') + paint.sys('INPUT:') + ' ' + paint.txt(`!${command}`) + paint.dim('                                     ').substring(0, 35 - command.length) + paint.dim('│'));
-            console.log(paint.dim('│ ') + paint.sys('ORIGIN:') + ' ' + paint.txt(groupName.substring(0, 25)) + paint.dim('                                ').substring(0, 25 - groupName.length) + paint.dim('    │'));
-            console.log(paint.dim('└──────────────────────────────────────────────────┘'));
+          // Resolver número real del sender para el log de comandos
+          const cmdSenderInfo = (() => {
+            const short = (senderJid || '').split('@')[0];
+            if (isGroup && groupMetadata && Array.isArray(groupMetadata.participants)) {
+              const p = groupMetadata.participants.find(x => (x.id || '').split('@')[0] === short);
+              if (p) {
+                const phoneNum = p.phoneNumber ? p.phoneNumber.toString().split('@')[0] : null;
+                const realNum = phoneNum || short;
+                const name = p.notify || p.notifyName || p.name || msg.pushName || realNum;
+                return { num: realNum, name };
+              }
+            }
+            return { num: short, name: (msg.pushName && msg.pushName.trim()) || short };
+          })();
+
+          const time = new Date().toLocaleTimeString('es-CO', { hour12: false });
+          console.log('');
+          console.log(
+            chalk.bgHex('#1a0033').hex('#b026ff').bold(' ⚡ CMD ') + ' ' +
+            chalk.hex('#b026ff')('┄'.repeat(38))
+          );
+          console.log(
+            paint.dim('  ├ ⏱  ') + chalk.hex('#aaa')(time) +
+            paint.dim('  ·  ') +
+            chalk.hex('#555').bold(chatId) + ' ' +
+            chalk.hex('#e0e0e0').bold(groupName)
+          );
+          console.log(
+            paint.dim('  ├ 👤 ') + paint.usr('@' + cmdSenderInfo.num) +
+            chalk.hex('#666')(` ${cmdSenderInfo.name}`)
+          );
+          console.log(
+            paint.dim('  └ 💀 ') + chalk.hex('#ff2d6b').bold(`!${command}`) +
+            (args.length ? chalk.hex('#888')(` ${args.join(' ')}`) : '')
+          );
+          console.log('');
+            
+            // Comando especial !amor (privado para Carlos)
+            if (command === 'amor') {
+                await amorCommand(sock, msg, args);
+                return;
+            }
+
+            // Dinámica de confesiones anónimas
+            if (command === 'confesiones') {
+                await manejarComandoConf(sock, chatId, senderJid, isAdmin, args);
+                return;
+            }
             
             await commandsCerbero(sock, msg, isAdmin, groupMetadata);
         }
 
-        // El trigger automático para Cerbero-AI y Simi fue DESACTIVADO por petición.
-        // Ahora ofrecemos un trigger abierto: cualquier mensaje (no comando) puede invocar la IA
-        // respetando un cooldown por chat y añadiendo un retraso antes de ejecutar la llamada.
-        // Además, solo responde en un porcentaje configurable de veces para evitar acoso intensivo.
+        // Autorespuesta local (cerbero_simi) solo cuando lo mencionan o responden directamente.
+        // La participación espontánea y la IA de Gemini se desactivan aquí.
         if (text && !isCommand && !msg.key.fromMe) {
             try {
-                const cooldownMs = CERBERO_COOLDOWN_MS;
-                const delayMs = CERBERO_DELAY_MS;
-                const responseProb = CERBERO_RESPONSE_PROBABILITY;
-                const now = Date.now();
-                const last = lastCerberoTrigger.get(chatId) || 0;
-                if (Math.random() < responseProb && now - last > cooldownMs) {
-                    lastCerberoTrigger.set(chatId, now);
-                    setTimeout(async () => {
-                        try {
-                            await cerberoSimiBot(sock, msg);
-                        } catch (err) {
-                            console.error('cerbero trigger error', err);
-                        }
-                    }, delayMs);
+                const botId  = sock.user?.id || '';
+                const botNum = botId.split('@')[0].split(':')[0];
+                const quotedInfo   = msg.message?.extendedTextMessage?.contextInfo;
+                const isReplyToBot = quotedInfo?.participant === botId ||
+                                     (quotedInfo?.participant || '').split(':')[0] === botNum;
+                const mentionedJids = [
+                    ...(quotedInfo?.mentionedJid || []),
+                    ...(msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || []),
+                ];
+                const mentionsBot   = mentionedJids.some(j => j === botId || j.split(':')[0] === botNum);
+                const mentionsByText = text.includes(botNum) || text.toLowerCase().includes('cerbero');
+                const isDirectTrigger = isReplyToBot || mentionsBot || mentionsByText;
+
+                if (isDirectTrigger) {
+                    await cerberoSimiBot(sock, msg);
                 }
             } catch (e) {
-                console.error('Error en trigger abierto cerbero:', e);
+                console.error('Error en autorespuesta local:', e);
             }
         }
 
         if (isGroup && !msg.key.fromMe) {
-          if (text) {
+          if (text && !text.startsWith('!')) {
               await antilink(sock, msg, groupMetadata, isAdmin);
               await deleteLongMessage(sock, msg);
               if (text.startsWith('#') || text.startsWith('.')) {
@@ -449,10 +557,16 @@ async function connectToWhatsApp() {
           const isImage = !!msg.message?.imageMessage || (msg.message?.documentMessage && msg.message.documentMessage.mimetype?.startsWith('image/'));
           if (isImage) {
             await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
-            await detectNSFW(sock, msg, isAdmin, groupMetadata);
-            await blockQr(sock, msg, isAdmin, groupMetadata);
+            // Anti-QR primero (más ligero y específico).
+            // Si detecta QR, ya borró el mensaje y expulsó → saltar NSFW para no duplicar recursos.
+            const wasQr = await blockQr(sock, msg, isAdmin, groupMetadata);
+            if (!wasQr) {
+              await detectNSFW(sock, msg, isAdmin, groupMetadata);
+            }
           }
-          if (msg.message?.stickerMessage) await handleStickerSpam(sock, msg);
+          if (msg.message?.stickerMessage) {
+            await handleStickerSpam(sock, msg);
+          }
         }
       } catch (error) {
         // Ignorar
@@ -507,24 +621,75 @@ async function connectToWhatsApp() {
         const time = new Date().toLocaleTimeString('es-CO', { hour12: false });
 
         if (action === 'add') {
-             // ✅ NOMBRE COMPLETO SIN CORTES
-             console.log(`${paint.dim(time)} ${paint.join('[+] ENTITY JOINED')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(participants[0].split('@')[0])}`);
+             // Resolver número real del participante
+             const addTarget = participants[0];
+             const addClean = (addTarget || '').split('@')[0].split(':')[0];
+             const addReal = groupMetadata.participants?.find(p => (p.id||'').split('@')[0].split(':')[0] === addClean);
+             const addNum = addReal?.phoneNumber ? addReal.phoneNumber.toString().split('@')[0] : addClean;
+             console.log(`${paint.dim(time)} ${paint.join('[+] ENTITY JOINED')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(addNum)}`);
              
              await humanDelayWelcome(sock, update.id, 5, 10);
              await welcomeHandler(sock, update);
+             await onGroupAddBaseline(sock, update);
+             // Bienvenida autónoma (si el grupo tiene admin autónomo activado)
+             darBienvenidaAutonoma(sock, chatId, participants, groupMetadata)
+               .catch(e => console.error('[ADMIN-AUTO] bienvenida error:', e.message));
+             // Verificar región del nuevo participante
+             try {
+               for (const pJid of participants) {
+                 await verificarParticipanteNuevo(sock, chatId, pJid);
+               }
+             } catch(e) { console.error('[REGION] Error en verificación de nuevo miembro:', e.message); }
 
         } else if (action === 'remove') {
-             console.log(`${paint.dim(time)} ${paint.leave('[-] ENTITY LEFT  ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(participants[0].split('@')[0])}`);
+             const rmTarget = participants[0];
+             const rmClean = (rmTarget || '').split('@')[0].split(':')[0];
+             const rmReal = groupMetadata.participants?.find(p => (p.id||'').split('@')[0].split(':')[0] === rmClean);
+             const rmNum = rmReal?.phoneNumber ? rmReal.phoneNumber.toString().split('@')[0] : rmClean;
+             console.log(`${paint.dim(time)} ${paint.leave('[-] ENTITY LEFT  ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(rmNum)}`);
+             // Reevaluar modo solo: puede que quien salió era el único admin humano
+             onAdminChange(sock, update).catch(e => console.error('[ADMIN-AUTO] onAdminChange error:', e.message));
 
         } else if (action === 'promote') {
-             console.log(`${paint.dim(time)} ${paint.promote('[↑] PROMOTED     ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(participants[0].split('@')[0])}`);
+             // Resolver número real del participante
+             const promoTarget = participants[0];
+             const promoClean = (promoTarget || '').split('@')[0].split(':')[0];
+             const promoReal = groupMetadata.participants?.find(p => (p.id||'').split('@')[0].split(':')[0] === promoClean);
+             const promoNum = promoReal?.phoneNumber ? promoReal.phoneNumber.toString().split('@')[0] : promoClean;
+             console.log(`${paint.dim(time)} ${paint.promote('[↑] PROMOTED     ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(promoNum)}`);
+             await onGroupUpdate(sock, update);
+             // Reevaluar modo solo: un nuevo admin humano puede activar TEAM MODE
+             onAdminChange(sock, update).catch(e => console.error('[ADMIN-AUTO] onAdminChange error:', e.message));
 
         } else if (action === 'demote') {
-             console.log(`${paint.dim(time)} ${paint.demote('[↓] DEMOTED      ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(participants[0].split('@')[0])}`);
-             await onGroupUpdate(sock, update); 
+             // Resolver número real del participante
+             const demoTarget = participants[0];
+             const demoClean = (demoTarget || '').split('@')[0].split(':')[0];
+             const demoReal = groupMetadata.participants?.find(p => (p.id||'').split('@')[0].split(':')[0] === demoClean);
+             const demoNum = demoReal?.phoneNumber ? demoReal.phoneNumber.toString().split('@')[0] : demoClean;
+             console.log(`${paint.dim(time)} ${paint.demote('[↓] DEMOTED      ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(demoNum)}`);
+             await onGroupUpdate(sock, update);
+             // Reevaluar modo solo: el admin destituido puede haber sido el último humano
+             onAdminChange(sock, update).catch(e => console.error('[ADMIN-AUTO] onAdminChange error:', e.message));
+        } else if (action === 'leave') {
+             // Salida voluntaria — igual que remove, puede ser un admin humano
+             const leaveTarget = participants[0];
+             const leaveClean = (leaveTarget || '').split('@')[0].split(':')[0];
+             console.log(`${paint.dim(time)} ${paint.leave('[←] ENTITY LEFT  ')} ${paint.dim('|')} ${paint.sys(groupName)} ${paint.dim('>>')} ${paint.txt(leaveClean)}`);
+             onAdminChange(sock, update).catch(e => console.error('[ADMIN-AUTO] onAdminChange error:', e.message));
         }
 
       } catch (error) {
+      }
+    });
+
+    // ── ADMIN AUTÓNOMO: detectar cambios de configuración del grupo en tiempo real ──
+    // Reacciona inmediatamente cuando algún admin abre/cierra el grupo manualmente.
+    sock.ev.on('groups.update', async (updates) => {
+      try {
+        await onGroupSettingChange(sock, updates);
+      } catch (e) {
+        console.error('[GROUPS.UPDATE] Error en onGroupSettingChange:', e.message);
       }
     });
 
