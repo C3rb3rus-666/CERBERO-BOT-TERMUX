@@ -44,7 +44,7 @@ export async function artCommand(sock, msg) {
     await sock.sendPresenceUpdate('composing', chatId);
     await sock.sendMessage(chatId, {
       image: imageBuffer,
-      caption: 'arte de cerbero-bot version 4.2.14 by C3rb3rus-666 sistema operativo Cerbero-OS Based on arch linux github.com/C3rb3rus-666',
+      caption: 'arte de cerbero-bot version 4.4.17 by C3rb3rus-666 sistema operativo Cerbero-OS Based on arch linux github.com/C3rb3rus-666',
       contextInfo: {
         mentionedJid: [mentionTarget],
         forwardingScore: 999,

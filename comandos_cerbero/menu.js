@@ -59,7 +59,7 @@ export async function menuCommand(sock, msg) {
 ▓                             ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-       ⚔️ *v4.2.16 · Build 89* ⚔️
+       ⚔️ *v4.4.17 · Build 92* ⚔️
         _Coded by C3rb3rus-666_
 
   ╔════════════════════════════╗
