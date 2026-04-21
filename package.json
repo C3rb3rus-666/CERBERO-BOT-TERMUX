@@ -1,6 +1,6 @@
 {
   "name": "cerbero-bot",
-  "version": "4.2.17",
+  "version": "4.4.17",
   "description": "Cerbero-bot By C3rb3rus-666 (Build 90)",
   "type": "module",
   "main": "index.js",
@@ -60,5 +60,5 @@
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0"
   },
-  "build": "90"
+  "build": "92"
 }
