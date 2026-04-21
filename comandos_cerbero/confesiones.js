@@ -337,6 +337,32 @@ async function publicarConf(sock, texto, id) {
   }
 }
 
+// ── Filtro anti-basura ────────────────────────────────────────────────────────
+const BASURA = [
+  /^(hola|buenas?|buenos?\s+d[ií]as?|buenas?\s+noches?|buenas?\s+tardes?)/i,
+  /soy\s+nuevo/i,
+  /quien\s+me\s+agrega/i,
+  /alguien\s+me\s+agrega/i,
+  /me\s+pueden\s+agregar/i,
+  /agreguen?me/i,
+  /\bagg\b/i,
+  /ag+[s]?\b/i,
+  /\btest\b/i,
+  /^(ok|okay|bien|si|no|jaja|lol|xd|😂|🤣|👍|😊)\s*$/i,
+  /^[?!.]+$/,
+  /qu[eé]\s+(es\s+esto|hace|hacen|pasa)/i,
+  /c[oó]mo\s+(funciona|se\s+usa)/i,
+];
+
+function esBasura(texto) {
+  if (!texto || texto.trim().length < 15) return true;
+  const t = texto.trim();
+  // Más del 60% del texto son emojis/símbolos → basura
+  const soloTexto = t.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{27BF}\s]/gu, '');
+  if (soloTexto.length < 5) return true;
+  return BASURA.some(pat => pat.test(t));
+}
+
 // ── Manejador de DMs ──────────────────────────────────────────────────────────
 
 export async function manejarDMConf(sock, senderJid, text) {
@@ -348,9 +374,18 @@ export async function manejarDMConf(sock, senderJid, text) {
     await sock.sendMessage(senderJid, {
       text:
         `🤫 ¡Hola! Soy el bot de confesiones anónimas.\n\n` +
-        `Escríbeme tu secreto directamente (mínimo 10 caracteres) y lo publicaré de forma anónima en el grupo. 🔐`,
+        `Escríbeme tu secreto directamente y lo publicaré de forma anónima en el grupo. 🔐`,
     });
     return false;
+  }
+
+  // ── Filtro anti-basura ────────────────────────────────────────────────────
+  if (esBasura(confesion)) {
+    console.log(`[CONF DM] 🚫 bloqueado por filtro anti-basura`);
+    await sock.sendMessage(senderJid, {
+      text: `🤫 Ese mensaje no parece una confesión.\nCuéntame algo real y lo publicaré de forma anónima 🔐`,
+    });
+    return true;
   }
 
   const config = loadConfig();
@@ -358,30 +393,21 @@ export async function manejarDMConf(sock, senderJid, text) {
 
   if (!config.grupo_id || !config.activo) {
     await sock.sendMessage(senderJid, {
-      text:
-        `🤫 Recibí tu mensaje, pero las confesiones no están activas ahora mismo.\n` +
-        `Espera a que un admin active la dinámica con *!confesiones abrir*.`,
+      text: `🤫 Las confesiones no están activas ahora mismo. Espera a que un admin las abra.`,
     });
     return true;
   }
 
-  // Asignar ID y guardar registro mínimo (sin texto, solo timestamp)
+  // ── Publicar directamente ─────────────────────────────────────────────────
   const data = loadData();
   const id   = data.nextId++;
   data.confesiones.push({ id, ts: Date.now() });
-  // Conservar solo los últimos 50 registros de historial (sin contenido)
   if (data.confesiones.length > 50) data.confesiones = data.confesiones.slice(-50);
   saveData(data);
 
-  // Publicar imagen al grupo inmediatamente
   await publicarConf(sock, confesion, id);
-
-  // Confirmar al remitente
   await sock.sendMessage(senderJid, {
-    text:
-      `✅ *Tu confesión fue publicada* (#${id})\n\n` +
-      `🔐 Es 100% anónima — nadie sabe que fuiste tú.\n` +
-      `_Este chat no está guardado._`,
+    text: `✅ *¡Publicada!* (#${id}) 🔐\n_Nadie sabe que fuiste tú._`,
   });
 
   return true;
