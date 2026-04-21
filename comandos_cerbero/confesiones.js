@@ -293,19 +293,27 @@ async function publicarConf(sock, texto, id) {
   const config = loadConfig();
   if (!config.grupo_id || !config.activo) return false;
 
+  // Etiquetar a todos solo cada 2 confesiones (IDs pares), el resto sin tags
+  const esTurnoTag = (id % 2 === 0);
+
   try {
     const img = await generarImagenConf(texto, id);
 
-    // Etiquetar a todos los miembros del grupo
     let mentions = [];
-    try {
-      const meta = await sock.groupMetadata(config.grupo_id);
-      mentions = (meta.participants || []).map(p => p.id);
-    } catch (_) {}
+    if (esTurnoTag) {
+      try {
+        const meta = await sock.groupMetadata(config.grupo_id);
+        mentions = (meta.participants || []).map(p => p.id);
+      } catch (_) {}
+    }
 
     const ts = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
     const frase = FRASES_INCENTIVO[id % FRASES_INCENTIVO.length];
-    const tags  = mentions.map(jid => `@${jid.split('@')[0]}`).join(' ');
+
+    // Caption con etiquetas solo cuando toca
+    const tagLine = esTurnoTag && mentions.length
+      ? `\n👥 ${mentions.map(j => `@${j.split('@')[0]}`).join(' ')}\n`
+      : '';
 
     await sock.sendMessage(config.grupo_id, {
       image:    img,
@@ -318,7 +326,7 @@ async function publicarConf(sock, texto, id) {
         `▸ TS      : ${ts}\n` +
         `▸ STATUS  : ANONYMOUS ✓\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `${frase}\n\n` +
+        `${frase}${tagLine}\n\n` +
         `📩 _Escríbeme en privado: "🤫 tu secreto aquí"_\n` +
         `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
       mentions,
