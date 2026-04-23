@@ -20,7 +20,7 @@ function loadGeminiKey() {
     const match = fs.readFileSync(envPath, 'utf-8').match(/GEMINI_API_KEY=(.+)/);
     if (match?.[1]) return match[1].trim();
   }
-  return 'AIzaSyAhGF8k8NsPK-W557rH3-d8h252poJVkyE';
+  return 'AIzaSyD2hnvT_1dgYj4hvrg31ovjyRQjYlm_928';
 }
 
 // Modelos Gemini en orden de preferencia
