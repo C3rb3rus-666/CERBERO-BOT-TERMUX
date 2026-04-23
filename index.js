@@ -292,36 +292,6 @@ async function connectToWhatsApp() {
         // Iniciar mensajes románticos diarios (si están configurados)
         iniciarMensajesDiarios(sock).catch(e => console.error('[AMOR-BOT] Error iniciando:', e.message));
 
-        // ── Disculpa única por expulsiones falsas del anti-flood ───────────────
-        const _disculpaFlag = path.join(process.cwd(), 'temp', '.antiflood_disculpa_enviada');
-        if (!fs.existsSync(_disculpaFlag)) {
-          setTimeout(async () => {
-            try {
-              const _grupos = await sock.groupFetchAllParticipating();
-              const _ids = Object.keys(_grupos);
-              for (const gid of _ids) {
-                try {
-                  await sock.sendMessage(gid, {
-                    text:
-                      `🙏 *Admin autónomo se disculpa.*\n\n` +
-                      `Expulsé por error a algunos miembros debido a un fallo en mi función *Anti-Flood*.\n\n` +
-                      `El programador *C3rb3rus-666* corrigió mis redes neuronales. ` +
-                      `El error ya fue solucionado y no volverá a ocurrir. 🔧\n\n` +
-                      `— _C3RB3RUS-BOT_`,
-                  });
-                  await new Promise(r => setTimeout(r, 1500));
-                } catch (_) {}
-              }
-              fs.mkdirSync(path.join(process.cwd(), 'temp'), { recursive: true });
-              fs.writeFileSync(_disculpaFlag, Date.now().toString());
-              console.log('[BOT] ✅ Mensaje de disculpa anti-flood enviado a todos los grupos.');
-            } catch (e) {
-              console.error('[BOT] Error enviando disculpa:', e.message);
-            }
-          }, 8000); // esperar 8s a que la conexión esté estable
-        }
-        // ──────────────────────────────────────────────────────────────────────
-
         if (bannerInterval) clearInterval(bannerInterval);
         bannerInterval = setInterval(() => {
             showBanner(); 
