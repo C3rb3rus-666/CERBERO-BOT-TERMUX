@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 from colorama import Fore, init
 
@@ -44,17 +45,37 @@ time.sleep(2)
 # Función para instalar yt-dlp y ffmpeg
 def install_tools():
     print(f"{Fore.CYAN}[INFO] {Fore.YELLOW}Iniciando la instalación de yt-dlp y ffmpeg...\n")
-    # Ejecuta los comandos de instalación
-    result = os.system("sudo apt update && sudo apt install -y yt-dlp ffmpeg")
-    
-    # Comprobar si la instalación fue exitosa
-    if result == 0:
+
+    # Instalar ffmpeg via apt (sin yt-dlp del sistema, que tiene Python roto)
+    os.system("sudo apt update && sudo apt install -y ffmpeg")
+
+    # Instalar yt-dlp via pip en el venv activo (evita el yt-dlp del sistema con Python roto)
+    pip_result = os.system(f"{sys.executable} -m pip install -U yt-dlp")
+
+    if pip_result == 0:
+        # Crear symlink en /usr/local/bin para que node.js lo encuentre globalmente
+        venv_ytdlp = os.path.join(os.path.dirname(sys.executable), "yt-dlp")
+        if os.path.exists(venv_ytdlp):
+            symlink_result = os.system(f"sudo ln -sf {venv_ytdlp} /usr/local/bin/yt-dlp")
+            if symlink_result == 0:
+                print(f"{Fore.GREEN}[SUCCESS] {Fore.WHITE}yt-dlp instalado y symlink creado en /usr/local/bin/yt-dlp")
+            else:
+                print(f"{Fore.YELLOW}[WARN] {Fore.WHITE}yt-dlp instalado pero no se pudo crear symlink (requiere sudo)")
         print(f"{Fore.GREEN}[SUCCESS] {Fore.WHITE}Instalación completada correctamente.")
     else:
-        print(f"{Fore.RED}[ERROR] {Fore.BLUE}Hubo un problema durante la instalación.")
+        print(f"{Fore.RED}[ERROR] {Fore.BLUE}Hubo un problema durante la instalación de yt-dlp.")
 
-# Comprobar si los comandos existen
+# Comprobar si los comandos existen y funcionan correctamente
 def check_command(command):
+    if command == "yt-dlp":
+        # Verificar que el yt-dlp encontrado realmente funciona (no el del sistema con Python roto)
+        result = os.system(f"{command} --version > /dev/null 2>&1")
+        if result != 0:
+            print(f"{Fore.RED}[ERROR] {Fore.BLUE}El comando '{command}' no funciona correctamente.")
+            return False
+        else:
+            print(f"{Fore.GREEN}[OK] {Fore.WHITE}El comando '{command}' está disponible y funciona.")
+            return True
     if os.system(f"command -v {command} > /dev/null 2>&1") != 0:
         print(f"{Fore.RED}[ERROR] {Fore.BLUE}El comando '{command}' no está disponible.")
         return False
