@@ -5,18 +5,30 @@ import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Archivo de cookies exportado del navegador (formato Netscape/cookies.txt)
+// Para generarlo: instala la extensión "Get cookies.txt LOCALLY" en Chrome/Firefox,
+// abre youtube.com logueado y exporta las cookies a este archivo.
+const COOKIES_FILE = path.resolve(__dirname, '..', 'config', 'youtube_cookies.txt');
 
 function findYtDlpCommand() {
-    // Prefer system binary 'yt-dlp', then 'yt_dlp', then user install, else fallback to 'python3 -m yt_dlp' or 'python -m yt_dlp'
+    // Preferir rutas absolutas conocidas donde el binario funciona correctamente
+    const knownPaths = [
+        '/usr/local/bin/yt-dlp',  // symlink a venv (prioritario)
+        path.join(process.env.HOME || '', '.cerbero-venv', 'bin', 'yt-dlp'),
+        path.join(process.env.HOME || '', '.local', 'bin', 'yt-dlp'),
+    ];
+    for (const p of knownPaths) {
+        if (fs.existsSync(p)) return { cmd: p, args: [] };
+    }
+
     const has = (cmd) => {
         try { return require('child_process').execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0; } catch(e){ return false; }
     }
 
-    if (has('yt-dlp')) return { cmd: 'yt-dlp', args: [] };
     if (has('yt_dlp')) return { cmd: 'yt_dlp', args: [] };
-    // Check for binary in common user install location
-    const userYtDlp = path.join(process.env.HOME || '', '.local', 'bin', 'yt-dlp');
-    if (fs.existsSync(userYtDlp)) return { cmd: userYtDlp, args: [] };
     // prefer python3 or python as module runner for yt_dlp
     if (has('python3')) return { cmd: 'python3', args: ['-m', 'yt_dlp'] };
     if (has('python')) return { cmd: 'python', args: ['-m', 'yt_dlp'] };
@@ -62,7 +74,15 @@ async function runYtDlp(url, outPrefix) {
         }
     }
     const { cmd, args: baseArgs } = found;
+    // Agregar cookies si el archivo existe y tiene contenido real
+    const cookiesArgs = [];
+    try {
+        const cookiesStat = fs.statSync(COOKIES_FILE);
+        if (cookiesStat.size > 100) cookiesArgs.push('--cookies', COOKIES_FILE);
+    } catch (_) {}
     const args = (baseArgs || []).concat([
+        '--js-runtimes', 'nodejs', // usar Node.js ya instalado como runtime JS
+        ...cookiesArgs,
         '-f', 'bestaudio',
         '--extract-audio',
         '--audio-format', 'mp3',
@@ -108,7 +128,8 @@ export async function downloadAudioFromYoutube(url, requesterId = 'anon') {
 
         return outPath;
     } catch (e) {
-        console.warn('ytdl-core falló, usando yt-dlp como fallback:', e && (e.message || e));
+        const ytdlErr = (e && e.message) || String(e);
+        console.warn('ytdl-core falló, usando yt-dlp como fallback:', ytdlErr);
         // Fallback to yt-dlp (extract to mp3)
         const outPrefix = path.join(tmpdir(), `cerbero_${requesterId}_${unique}`);
         console.log('[youtubeDownloader] runYtDlp outPrefix:', outPrefix);
@@ -120,8 +141,15 @@ export async function downloadAudioFromYoutube(url, requesterId = 'anon') {
             return finalPath;
         } catch (err) {
             console.error('[youtubeDownloader] runYtDlp failed:', err && (err.message || err));
-            // Re-throw with actionable instructions for the operator
-            throw new Error(`yt-dlp fallback falló: ${err && (err.message || err)}\nInstala yt-dlp con: 'python3 -m pip install -U yt-dlp' o coloca el binario 'yt-dlp' en PATH. Ejecuta './install.sh' si deseas que el instalador lo intente automáticamente.`);
+            const msg = (err && err.message) || String(err);
+            // Errores con mensaje claro al usuario
+            if (msg.includes('Sign in to confirm your age') || msg.includes('age-restricted')) {
+                throw new Error('AGE_RESTRICTED');
+            }
+            if (msg.includes('Private video') || msg.includes('This video is private')) {
+                throw new Error('PRIVATE_VIDEO');
+            }
+            throw new Error(`yt-dlp fallback falló: ${msg}`);
         }
     }
 }

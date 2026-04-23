@@ -38,3 +38,6 @@ confesiones_data.json
 models_cache/
 comandos_cerbero/sessions/
 comandos_cerbero/temp/
+
+# YouTube cookies (contiene sesión de cuenta, no subir al repo)
+config/youtube_cookies.txt

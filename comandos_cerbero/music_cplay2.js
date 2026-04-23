@@ -170,7 +170,14 @@ export async function handleCplaydSelection(sock, message, selParam = null) {
         try { if (fs.existsSync(oggPath)) fs.unlinkSync(oggPath); } catch (e) {}
     } catch (e) {
         console.error('Error en descarga cplayd:', e && (e.message || e));
-        await sock.sendMessage(chatId, { text: 'Error al descargar el audio.' }, { quoted: message });
+        const errMsg = (e && e.message) || String(e);
+        let userText = 'Error al descargar el audio.';
+        if (errMsg.includes('AGE_RESTRICTED')) {
+            userText = '🔞 Ese video tiene restricción de edad en YouTube y no se puede descargar sin verificación de cuenta.';
+        } else if (errMsg.includes('PRIVATE_VIDEO')) {
+            userText = '🔒 Ese video es privado y no se puede descargar.';
+        }
+        await sock.sendMessage(chatId, { text: userText }, { quoted: message });
     } finally {
         session.downloads--;
         if (session.downloads <= 0) userSessions.delete(userId);

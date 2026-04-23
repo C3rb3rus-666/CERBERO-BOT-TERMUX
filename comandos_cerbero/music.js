@@ -124,11 +124,14 @@ export async function playMusicCommand(sock, message, args) {
   );
   } catch (error) {
     console.error("Error en playMusicCommand:", error);
-
-    await sock.sendMessage(groupId, {
-      text: "**[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ⚠️ 𝐄𝐫𝐫𝐨𝐫 𝐚𝐥 𝐩𝐫𝐨𝐜𝐞𝐬𝐚𝐫 𝐥𝐚 𝐬𝐨𝐥𝐢𝐜𝐢𝐭𝐮𝐝.**",
-    },
-    { quoted: message });
+    const errMsg = (error && error.message) || String(error);
+    let userText = "**[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] ⚠️ 𝐄𝐫𝐫𝐨𝐫 𝐚𝐥 𝐩𝐫𝐨𝐜𝐞𝐬𝐚𝐫 𝐥𝐚 𝐬𝐨𝐥𝐢𝐜𝐢𝐭𝐮𝐝.**";
+    if (errMsg.includes('AGE_RESTRICTED')) {
+      userText = '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🔞 Ese video tiene restricción de edad en YouTube y no se puede descargar sin verificación de cuenta.';
+    } else if (errMsg.includes('PRIVATE_VIDEO')) {
+      userText = '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🔒 Ese video es privado y no se puede descargar.';
+    }
+    await sock.sendMessage(groupId, { text: userText }, { quoted: message });
   } finally {
     // Marcar la solicitud como completada
     activeRequests.delete(senderId);
