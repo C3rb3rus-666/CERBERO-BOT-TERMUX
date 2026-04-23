@@ -3,7 +3,8 @@ import chalk from 'chalk';
 import { makeWASocket, useMultiFileAuthState, DisconnectReason, delay, downloadMediaMessage, fetchLatestBaileysVersion, Browsers } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import readline from 'readline'; 
-import fs from 'fs'; 
+import fs from 'fs';
+import path from 'path';
 
 // ==========================================
 // 📦 IMPORTACIÓN DE MÓDULOS
@@ -476,17 +477,39 @@ async function connectToWhatsApp() {
           if (flood) {
             console.log(`[FLOOD] 🚫 ATAQUE DETECTADO — ${senderJid} en ${chatId} → ${reason}`);
             if (!muted) {
-              // Primera detección: avisar, cerrar grupo y expulsar al infractor
+              // Primera detección: avisar con imagen aleatoria, cerrar grupo y expulsar al infractor
               try {
-                // 1. Anunciar en el grupo
-                await sock.sendMessage(chatId, {
-                  text:
-                    `🚨 *[C3RB3RUS :: FLOOD DETECTED]*\n\n` +
-                    `@${senderJid.split('@')[0]} ha sido detectado realizando un ataque de flood.\n\n` +
-                    `▸ Acción: *expulsado + grupo cerrado temporalmente*\n` +
-                    `▸ Razón: ${reason}`,
-                  mentions: [senderJid],
-                });
+                // 1. Anunciar en el grupo con imagen aleatoria del bot
+                const _floodImgDir = path.join(process.cwd(), 'comandos_cerbero', 'imagenes');
+                const _floodImgExts = ['.jpg', '.jpeg', '.png', '.webp'];
+                let _floodImgBuf = null;
+                try {
+                  const _floodFiles = fs.readdirSync(_floodImgDir)
+                    .filter(f => _floodImgExts.includes(path.extname(f).toLowerCase()));
+                  if (_floodFiles.length) {
+                    const _chosen = _floodFiles[Math.floor(Math.random() * _floodFiles.length)];
+                    _floodImgBuf = fs.readFileSync(path.join(_floodImgDir, _chosen));
+                  }
+                } catch (_) {}
+
+                const _floodCaption =
+                  `🚨 *[C3RB3RUS :: FLOOD DETECTED]*\n\n` +
+                  `@${senderJid.split('@')[0]} ha sido detectado realizando un ataque de flood.\n\n` +
+                  `▸ Acción: *expulsado + grupo cerrado temporalmente*\n` +
+                  `▸ Razón: ${reason}`;
+
+                if (_floodImgBuf) {
+                  await sock.sendMessage(chatId, {
+                    image: _floodImgBuf,
+                    caption: _floodCaption,
+                    mentions: [senderJid],
+                  });
+                } else {
+                  await sock.sendMessage(chatId, {
+                    text: _floodCaption,
+                    mentions: [senderJid],
+                  });
+                }
               } catch (_) {}
 
               // 2. Cerrar el grupo (solo admins pueden enviar)
