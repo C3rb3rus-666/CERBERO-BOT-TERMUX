@@ -480,7 +480,7 @@ async function connectToWhatsApp() {
         // Excluir: mensajes propios, mensajes que empiezan con . o # (no son comandos válidos),
         // y mensajes sin texto real
         if (!msg.key.fromMe && isGroup && text && !text.startsWith('.') && !text.startsWith('#')) {
-          const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand, text);
+          const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand);
           if (flood) {
             console.log(`[FLOOD] 🚫 ATAQUE DETECTADO — ${senderJid} en ${chatId} → ${reason}`);
             if (!muted) {

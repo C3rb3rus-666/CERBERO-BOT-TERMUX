@@ -1,25 +1,19 @@
 /**
  * ──────────────────────────────────────────────────────────────
  *  C3RB3RUS :: ANTI-FLOOD
- *  Detecta y silencia a usuarios que spamean comandos o mensajes
- *  antes de que lleguen al procesador de comandos.
+ *  Solo detecta spam de COMANDOS (mensajes que empiezan con !)
+ *  Los mensajes normales NUNCA se cuentan ni se bloquean.
  * ──────────────────────────────────────────────────────────────
- *
- *  Ventana de tiempo : WINDOW_MS   (por defecto 8 segundos)
- *  Umbral de comandos: CMD_LIMIT   (máx. comandos en la ventana)
- *  Umbral de mensajes: MSG_LIMIT   (máx. mensajes en la ventana)
- *  Tiempo de mute    : MUTE_MS     (cuánto tiempo se ignora al usuario)
- *
- *  Retorna true  → mensaje es FLOOD, debe ignorarse / bloquearse
- *  Retorna false → mensaje es legítimo, procesar normalmente
+ *  Ventana de tiempo : WINDOW_MS  (6 segundos)
+ *  Umbral de comandos: CMD_LIMIT  (máx. comandos ! en la ventana)
+ *  Tiempo de mute    : MUTE_MS    (cuánto tiempo se ignora al usuario)
  */
 
-const WINDOW_MS  = 6_000;   // ventana de análisis (6 segundos)
-const CMD_LIMIT  = 5;        // máx. comandos permitidos en la ventana (6to = flood)
-const MSG_LIMIT  = 15;       // máx. mensajes permitidos en la ventana (16to = flood)
-const MUTE_MS    = 60_000;   // tiempo de silencio tras detectar flood (1 minuto)
+const WINDOW_MS = 6_000;  // ventana de análisis
+const CMD_LIMIT = 5;       // más de 5 comandos ! en 6s = flood
+const MUTE_MS   = 60_000; // mute de 60s tras detectar flood
 
-// Mapa: `${chatId}::${senderJid}` → { cmdTs: [], msgTs: [], mutedUntil: 0 }
+// Mapa: `${chatId}::${senderJid}` → { cmdTs: [], mutedUntil: 0 }
 const floodMap = new Map();
 
 function getKey(chatId, senderJid) {
@@ -29,7 +23,7 @@ function getKey(chatId, senderJid) {
 function getEntry(chatId, senderJid) {
   const key = getKey(chatId, senderJid);
   if (!floodMap.has(key)) {
-    floodMap.set(key, { cmdTs: [], msgTs: [], mutedUntil: 0 });
+    floodMap.set(key, { cmdTs: [], mutedUntil: 0 });
   }
   return floodMap.get(key);
 }
@@ -40,8 +34,7 @@ setInterval(() => {
   for (const [key, entry] of floodMap.entries()) {
     if (
       entry.mutedUntil < now &&
-      entry.cmdTs.every(t => now - t > WINDOW_MS) &&
-      entry.msgTs.every(t => now - t > WINDOW_MS)
+      entry.cmdTs.every(t => now - t > WINDOW_MS)
     ) {
       floodMap.delete(key);
     }
@@ -49,14 +42,15 @@ setInterval(() => {
 }, 60_000);
 
 /**
- * Verifica si el mensaje es flood.
+ * Verifica si el mensaje es flood de comandos (!).
+ * Los mensajes normales siempre retornan flood=false sin contar.
  *
- * @param {string}  chatId      - JID del chat (@g.us o número@s.whatsapp.net)
- * @param {string}  senderJid   - JID del remitente
- * @param {boolean} isCommand   - true si el mensaje es un comando (empieza por !)
+ * @param {string}  chatId    - JID del chat
+ * @param {string}  senderJid - JID del remitente
+ * @param {boolean} isCommand - true si empieza con !
  * @returns {{ flood: boolean, muted: boolean, reason: string }}
  */
-export function checkFlood(chatId, senderJid, isCommand, text = '') {
+export function checkFlood(chatId, senderJid, isCommand) {
   const now   = Date.now();
   const entry = getEntry(chatId, senderJid);
 
@@ -65,32 +59,26 @@ export function checkFlood(chatId, senderJid, isCommand, text = '') {
     return { flood: true, muted: true, reason: 'MUTED' };
   }
 
-  // ── Limpiar timestamps fuera de la ventana ─────────────────────────────────
-  entry.cmdTs = entry.cmdTs.filter(t => now - t < WINDOW_MS);
-  entry.msgTs = entry.msgTs.filter(t => now - t < WINDOW_MS);
-
-  // ── Registrar timestamp actual ─────────────────────────────────────────────
-  // No contar mensajes triviales (puntos, letras sueltas, emojis, textos < 2 chars)
-  // en el contador de mensajes para evitar falsos positivos
-  const isTrivial = !isCommand && text.trim().length <= 2;
-
-  if (isCommand) {
-    entry.cmdTs.push(now);
-  } else if (!isTrivial) {
-    entry.msgTs.push(now);
+  // Mensajes normales (no comandos !) → NUNCA son flood, ignorar completamente
+  if (!isCommand) {
+    return { flood: false, muted: false, reason: '' };
   }
 
-  // ── Evaluar límites ────────────────────────────────────────────────────────
-  const cmdFlood = entry.cmdTs.length > CMD_LIMIT;
-  const msgFlood = entry.msgTs.length > MSG_LIMIT;
+  // ── Limpiar timestamps fuera de la ventana ─────────────────────────────────
+  entry.cmdTs = entry.cmdTs.filter(t => now - t < WINDOW_MS);
 
-  if (cmdFlood || msgFlood) {
+  // ── Registrar el comando ───────────────────────────────────────────────────
+  entry.cmdTs.push(now);
+
+  // ── Evaluar límite ─────────────────────────────────────────────────────────
+  if (entry.cmdTs.length > CMD_LIMIT) {
     entry.mutedUntil = now + MUTE_MS;
     entry.cmdTs = [];
-    entry.msgTs = [];
-    const reason = cmdFlood ? `CMD_FLOOD (${CMD_LIMIT + 1}+ cmds en ${WINDOW_MS / 1000}s)` :
-                              `MSG_FLOOD (${MSG_LIMIT + 1}+ msgs en ${WINDOW_MS / 1000}s)`;
-    return { flood: true, muted: false, reason };
+    return {
+      flood: true,
+      muted: false,
+      reason: `CMD_FLOOD (${CMD_LIMIT + 1}+ comandos ! en ${WINDOW_MS / 1000}s)`,
+    };
   }
 
   return { flood: false, muted: false, reason: '' };
