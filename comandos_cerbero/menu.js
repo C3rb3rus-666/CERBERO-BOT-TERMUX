@@ -59,7 +59,7 @@ export async function menuCommand(sock, msg) {
 ▓                             ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-       ⚔️ *v4.4.17 · Build 92* ⚔️
+       ⚔️ *v4.4.17 · Build 93* ⚔️
         _Coded by C3rb3rus-666_
 
   ╔════════════════════════════╗
@@ -79,6 +79,7 @@ export async function menuCommand(sock, msg) {
   ▪ Anti-Sticker — ${estados.antiSticker}
   ▪ Anti-Gore — ${estados.antiGore}
   ▪ AEGIS (Filtro Región) — ${estados.aegis}
+  ▪ Anti-Flood — 🟢 Activo (Global)
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  👑 *OWNER: C3RB3RUS-666*      ┃
@@ -243,6 +244,18 @@ export async function menuCommand(sock, msg) {
   ℹ️ Blacklist: bloqueo permanente por número
   ℹ️ Whitelist: números de confianza (nunca expulsados)
   ℹ️ Editar listas: _antinumbers_config.json_
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🌊 *ANTI-FLOOD*              ┃
+┃  _Protección ante ataques spam_ ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ℹ️ Detecta ataques automáticos de spam/comandos
+  ℹ️ Ventana: 6s · Límite: 3 cmds / 8 msgs
+  ℹ️ Al detectar flood:
+      🔒 Cierra el grupo automáticamente
+      👢 Expulsa al infractor (si no es admin)
+      🔓 Reabre el grupo tras 2 minutos
+  ℹ️ Siempre activo, sin configuración manual
 
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
      ⛧ C3rb3rus-666 ⛧
