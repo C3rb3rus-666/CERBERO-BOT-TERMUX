@@ -15,8 +15,8 @@
  */
 
 const WINDOW_MS  = 6_000;   // ventana de análisis (6 segundos)
-const CMD_LIMIT  = 3;        // máx. comandos permitidos en la ventana (4to = flood)
-const MSG_LIMIT  = 8;        // máx. mensajes permitidos en la ventana (9no = flood)
+const CMD_LIMIT  = 5;        // máx. comandos permitidos en la ventana (6to = flood)
+const MSG_LIMIT  = 15;       // máx. mensajes permitidos en la ventana (16to = flood)
 const MUTE_MS    = 60_000;   // tiempo de silencio tras detectar flood (1 minuto)
 
 // Mapa: `${chatId}::${senderJid}` → { cmdTs: [], msgTs: [], mutedUntil: 0 }
@@ -56,7 +56,7 @@ setInterval(() => {
  * @param {boolean} isCommand   - true si el mensaje es un comando (empieza por !)
  * @returns {{ flood: boolean, muted: boolean, reason: string }}
  */
-export function checkFlood(chatId, senderJid, isCommand) {
+export function checkFlood(chatId, senderJid, isCommand, text = '') {
   const now   = Date.now();
   const entry = getEntry(chatId, senderJid);
 
@@ -70,9 +70,13 @@ export function checkFlood(chatId, senderJid, isCommand) {
   entry.msgTs = entry.msgTs.filter(t => now - t < WINDOW_MS);
 
   // ── Registrar timestamp actual ─────────────────────────────────────────────
+  // No contar mensajes triviales (puntos, letras sueltas, emojis, textos < 2 chars)
+  // en el contador de mensajes para evitar falsos positivos
+  const isTrivial = !isCommand && text.trim().length <= 2;
+
   if (isCommand) {
     entry.cmdTs.push(now);
-  } else {
+  } else if (!isTrivial) {
     entry.msgTs.push(now);
   }
 
