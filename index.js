@@ -339,6 +339,11 @@ async function connectToWhatsApp() {
         if (!isGroup && !msg.key.fromMe && type === 'notify') {
           const textDM = msg.message?.conversation ||
                          msg.message?.extendedTextMessage?.text || '';
+          // Ignorar DMs sin texto (stickers, audios, imágenes sin caption, notificaciones vacías)
+          if (!textDM.trim()) {
+            console.log(`[DM RECV] ⏭️ ${senderJid} → mensaje sin texto, ignorado`);
+            return;
+          }
           console.log(`[DM RECV] 📩 ${senderJid} → "${textDM?.slice(0,80)}"`);
           await manejarDMConf(sock, senderJid, textDM);
           return;
