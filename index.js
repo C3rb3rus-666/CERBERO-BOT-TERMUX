@@ -477,7 +477,9 @@ async function connectToWhatsApp() {
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
 
         // ── ANTI-FLOOD: interceptar antes del procesador de comandos ────────────
-        if (!msg.key.fromMe && isGroup) {
+        // Excluir: mensajes propios, mensajes que empiezan con . o # (no son comandos válidos),
+        // y mensajes sin texto real
+        if (!msg.key.fromMe && isGroup && text && !text.startsWith('.') && !text.startsWith('#')) {
           const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand, text);
           if (flood) {
             console.log(`[FLOOD] 🚫 ATAQUE DETECTADO — ${senderJid} en ${chatId} → ${reason}`);
