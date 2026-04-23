@@ -30,6 +30,7 @@ import { manejarDMConf, manejarComandoConf } from './comandos_cerbero/confesione
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
+import { checkFlood, mutedTimeLeft } from './utils/antiFlood.js';
 
 // ==========================================
 // 💀 THEME: C3RB3RUS-666 (DARK MODE EXTENDED)
@@ -333,13 +334,16 @@ async function connectToWhatsApp() {
         const senderJid = msg.key.participant || msg.key.remoteJid;
 
         // Mensajes privados: revisar si es una confesión anónima
-        if (!isGroup && !msg.key.fromMe) {
+        // Solo procesar eventos 'notify' para DMs (no 'append' que incluye mensajes propios del bot)
+        if (!isGroup && !msg.key.fromMe && type === 'notify') {
           const textDM = msg.message?.conversation ||
                          msg.message?.extendedTextMessage?.text || '';
           console.log(`[DM RECV] 📩 ${senderJid} → "${textDM?.slice(0,80)}"`);
           await manejarDMConf(sock, senderJid, textDM);
           return;
         }
+        // Ignorar DMs propios (fromMe) o append de DMs silenciosamente
+        if (!isGroup && (msg.key.fromMe || type === 'append')) return;
 
         if (isGroup) {
           try {
@@ -465,6 +469,46 @@ async function connectToWhatsApp() {
 
         const isCommand = text.startsWith('!');
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
+
+        // ── ANTI-FLOOD: verificar antes de procesar cualquier cosa ─────────────
+        if (!msg.key.fromMe) {
+          const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand);
+          if (flood) {
+            console.log(`[FLOOD] 🚫 ${senderJid} en ${chatId} → ${reason}`);
+            if (!muted) {
+              // Solo avisar la primera vez que se activa el mute (no en cada msg bloqueado)
+              const remaining = Math.ceil(mutedTimeLeft(chatId, senderJid) / 1000);
+              try {
+                await sock.sendMessage(chatId, {
+                  text: `⚠️ @${senderJid.split('@')[0]} detectado flood. Ignorado por ${remaining}s.`,
+                  mentions: [senderJid],
+                }, { quoted: msg });
+              } catch (_) {}
+            }
+            return;
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
+        // ── ANTI-FLOOD: verificar antes de procesar cualquier cosa ─────────────
+        if (!msg.key.fromMe) {
+          const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand);
+          if (flood) {
+            console.log(`[FLOOD] 🚫 ${senderJid} en ${chatId} → ${reason}`);
+            if (!muted) {
+              // Solo avisar la primera vez que se activa el mute (no en cada msg bloqueado)
+              const remaining = Math.ceil(mutedTimeLeft(chatId, senderJid) / 1000);
+              try {
+                await sock.sendMessage(chatId, {
+                  text: `⚠️ @${senderJid.split('@')[0]} detectado flood. Ignorado por ${remaining}s.`,
+                  mentions: [senderJid],
+                }, { quoted: msg });
+              } catch (_) {}
+            }
+            return;
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────
 
         if (isCommand) {
           // Resolver número real del sender para el log de comandos

@@ -352,8 +352,9 @@ const BASURA = [
   /quien\s+me\s+agrega/i,
   /alguien\s+me\s+agrega/i,
   /me\s+pueden\s+agregar/i,
-  /agreguen?me/i,
-  /\bagg\b/i,
+  /agr[eé]g[ua](?:en)?me/i,      // agrégueme, agrégame, agregame, agréguenme
+  /ag+a?me/i,                     // aggame, agame, aggaame
+  /\bagg(?:a|ar|en|s)?\b/i,       // agg, agga, aggar, aggen
   /ag+[s]?\b/i,
   /\btest\b/i,
   /^(ok|okay|bien|si|no|jaja|lol|xd|😂|🤣|👍|😊)\s*$/i,
@@ -361,6 +362,60 @@ const BASURA = [
   /qu[eé]\s+(es\s+esto|hace|hacen|pasa)/i,
   /c[oó]mo\s+(funciona|se\s+usa)/i,
 ];
+
+// ── Patrones de promoción / spam de redes sociales ────────────────────────────
+const PROMO_REDES = [
+  // WhatsApp — links de grupo o canal
+  /chat\.whatsapp\.com\//i,
+  /whatsapp\.com\/channel\//i,
+  /wa\.me\//i,
+  // Instagram
+  /instagram\.com\//i,
+  /instagr\.am\//i,
+  /(?:^|\s)@[\w.]+\s*(en|en\s+insta|instagram|ig)\b/i,
+  /(?:sígueme|sigan?me|follow\s*me|follow\s*us|visita\s+mi)\s+(?:en\s+)?(?:insta(?:gram)?|ig|face(?:book)?|fb|whatsapp|wa|tiktok|tt|youtube|yt)\b/i,
+  // Facebook
+  /facebook\.com\//i,
+  /fb\.com\//i,
+  /fb\.me\//i,
+  // TikTok
+  /tiktok\.com\//i,
+  /vm\.tiktok\.com\//i,
+  // YouTube canales / promoción
+  /youtube\.com\/(channel|c|@)/i,
+  /youtu\.be\//i,
+  // Telegram
+  /t\.me\//i,
+  /telegram\.me\//i,
+  // Menciones @usuario sueltas (cualquier @ seguido de nombre de usuario)
+  /@[\w.]{3,}/i,
+  // Patrones genéricos de autopromoción
+  /\bmi\s+(canal|perfil|cuenta|ig|insta(?:gram)?|face(?:book)?|fb|whatsapp|wa|tiktok|tt|yt|youtube)\b/i,
+  /\b(s[íi]gueme|s[íi]game|sigan?me|follow\s*me|follow\s*us)\b/i,
+  /\b(link\s+en\s+(bio|perfil)|link\s*:\s*http)/i,
+  /\bvisit[ae]\s+(mi\s+)?(perfil|canal|cuenta|ig|insta(?:gram)?|face(?:book)?|fb|tiktok|tt|yt|youtube)\b/i,
+  // "busca mi ig", "add mi fb", "search mi tt", "escríbeme al ig"
+  /\b(?:busca|add|a[ñn]ade|encuentra|escr[íi]beme|contacta?me|mensaje(?:a)?me|dm[eé]?me)\s+(?:a\s+|al\s+|mi\s+)?(?:ig|insta(?:gram)?|fb|face(?:book)?|tt|tiktok|yt|youtube|wa|whatsapp)\b/i,
+  // "en ig:", "en fb:", "en tt:" como anuncio de usuario
+  /\ben\s+(?:ig|insta(?:gram)?|fb|face(?:book)?|tt|tiktok|yt|youtube|wa|whatsapp)\s*[:→\-]/i,
+  // "escríbanme", "escríbeme", "escríbame" — invitación a contacto directo
+  /escr[\u00ed\u00eabi]b[ae](?:n)?me\b/i,
+  // "agregar al privado / pv / priv / priva / privado"
+  /agr[e\u00e9]g[ua](?:r|me|nos|en)?\s+(?:al?\s+)?(?:priv(?:ado|a)?|p[vb])\b/i,
+  // "al privado", "al priv", "al pv", "al priva" — solos también
+  /\bal\s+(?:priv(?:ado|a)?|p[vb])\b/i,
+  // "mándame mensaje al pv", "escríbeme al privado", "contáctame al priv"
+  /(?:manda?me|escr[\u00edi]b[ae](?:n)?me|contacta?me|habla?me|chatea?me)\s+(?:por\s+)?(?:al?\s+)?(?:priv(?:ado|a)?|p[vb]|privs?)\b/i,
+  // Números de WhatsApp con intención de contacto
+  /(?:escr[\u00edi]beme|contacta?me|manda?me\s+(?:msg|mensaje)|agr[e\u00e9]game)\s+(?:al?\s+)?\+?\d[\d\s\-]{7,}/i,
+];
+
+function esPromocion(texto) {
+  const t = texto.trim();
+  // Detectar URLs genéricas (http/https) — cualquier link = posible promo
+  if (/https?:\/\//i.test(t)) return true;
+  return PROMO_REDES.some(pat => pat.test(t));
+}
 
 function esBasura(texto) {
   if (!texto || texto.trim().length < 15) return true;
@@ -378,12 +433,16 @@ export async function manejarDMConf(sock, senderJid, text) {
 
   const confesion = detectarConf(text);
   if (!confesion) {
-    console.log(`[CONF DM] ⚠️ texto descartado (muy corto o es comando)`);
-    await sock.sendMessage(senderJid, {
-      text:
-        `🤫 ¡Hola! Soy el bot de confesiones anónimas.\n\n` +
-        `Escríbeme tu secreto directamente y lo publicaré de forma anónima en el grupo. 🔐`,
-    });
+    console.log(`[CONF DM] ⚠️ texto descartado (muy corto, no tiene prefijo o es comando)`);
+    // Solo responder con el mensaje de bienvenida si las confesiones están activas
+    const cfgCheck = loadConfig();
+    if (cfgCheck.activo) {
+      await sock.sendMessage(senderJid, {
+        text:
+          `🤫 ¡Hola! Soy el bot de confesiones anónimas.\n\n` +
+          `Empieza tu mensaje con: _"confesion: tu secreto aquí"_ y lo publicaré de forma anónima en el grupo. 🔐`,
+      });
+    }
     return false;
   }
 
@@ -392,6 +451,15 @@ export async function manejarDMConf(sock, senderJid, text) {
     console.log(`[CONF DM] 🚫 bloqueado por filtro anti-basura`);
     await sock.sendMessage(senderJid, {
       text: `🤫 Ese mensaje no parece una confesión.\nCuéntame algo real y lo publicaré de forma anónima 🔐`,
+    });
+    return true;
+  }
+
+  // ── Filtro anti-promoción de redes sociales ───────────────────────────────
+  if (esPromocion(confesion)) {
+    console.log(`[CONF DM] 🚫 bloqueado por promoción de redes sociales`);
+    await sock.sendMessage(senderJid, {
+      text: `🚫 Las confesiones anónimas no son para promocionar redes sociales ni compartir links.\n\nCuéntame un secreto de verdad 🤫`,
     });
     return true;
   }
