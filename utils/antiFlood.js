@@ -14,10 +14,10 @@
  *  Retorna false → mensaje es legítimo, procesar normalmente
  */
 
-const WINDOW_MS  = 8_000;   // ventana de análisis
-const CMD_LIMIT  = 4;        // comandos permitidos en la ventana
-const MSG_LIMIT  = 10;       // mensajes (no-comandos) permitidos en la ventana
-const MUTE_MS    = 30_000;   // tiempo de silencio tras detectar flood
+const WINDOW_MS  = 6_000;   // ventana de análisis (6 segundos)
+const CMD_LIMIT  = 3;        // máx. comandos permitidos en la ventana (4to = flood)
+const MSG_LIMIT  = 8;        // máx. mensajes permitidos en la ventana (9no = flood)
+const MUTE_MS    = 60_000;   // tiempo de silencio tras detectar flood (1 minuto)
 
 // Mapa: `${chatId}::${senderJid}` → { cmdTs: [], msgTs: [], mutedUntil: 0 }
 const floodMap = new Map();

@@ -470,44 +470,62 @@ async function connectToWhatsApp() {
         const isCommand = text.startsWith('!');
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
 
-        // ── ANTI-FLOOD: verificar antes de procesar cualquier cosa ─────────────
-        if (!msg.key.fromMe) {
+        // ── ANTI-FLOOD: interceptar antes del procesador de comandos ────────────
+        if (!msg.key.fromMe && isGroup) {
           const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand);
           if (flood) {
-            console.log(`[FLOOD] 🚫 ${senderJid} en ${chatId} → ${reason}`);
+            console.log(`[FLOOD] 🚫 ATAQUE DETECTADO — ${senderJid} en ${chatId} → ${reason}`);
             if (!muted) {
-              // Solo avisar la primera vez que se activa el mute (no en cada msg bloqueado)
-              const remaining = Math.ceil(mutedTimeLeft(chatId, senderJid) / 1000);
+              // Primera detección: avisar, cerrar grupo y expulsar al infractor
               try {
+                // 1. Anunciar en el grupo
                 await sock.sendMessage(chatId, {
-                  text: `⚠️ @${senderJid.split('@')[0]} detectado flood. Ignorado por ${remaining}s.`,
+                  text:
+                    `🚨 *[C3RB3RUS :: FLOOD DETECTED]*\n\n` +
+                    `@${senderJid.split('@')[0]} ha sido detectado realizando un ataque de flood.\n\n` +
+                    `▸ Acción: *expulsado + grupo cerrado temporalmente*\n` +
+                    `▸ Razón: ${reason}`,
                   mentions: [senderJid],
-                }, { quoted: msg });
+                });
               } catch (_) {}
+
+              // 2. Cerrar el grupo (solo admins pueden enviar)
+              try {
+                await sock.groupSettingUpdate(chatId, 'announcement');
+                console.log(`[FLOOD] 🔒 Grupo ${chatId} cerrado (solo admins).`);
+              } catch (e) {
+                console.error('[FLOOD] No se pudo cerrar el grupo:', e.message);
+              }
+
+              // 3. Expulsar al infractor (no expulsar si es admin)
+              try {
+                const floodMeta = await sock.groupMetadata(chatId);
+                const floodPart = floodMeta.participants.find(p => p.id === senderJid);
+                if (floodPart && !floodPart.admin) {
+                  await sock.groupParticipantsUpdate(chatId, [senderJid], 'remove');
+                  console.log(`[FLOOD] 👢 ${senderJid} expulsado.`);
+                } else {
+                  console.log(`[FLOOD] ⚠️ ${senderJid} es admin — no se expulsa.`);
+                }
+              } catch (e) {
+                console.error('[FLOOD] No se pudo expulsar al infractor:', e.message);
+              }
+
+              // 4. Reabrir el grupo automáticamente tras 2 minutos
+              setTimeout(async () => {
+                try {
+                  await sock.groupSettingUpdate(chatId, 'not_announcement');
+                  await sock.sendMessage(chatId, {
+                    text: `✅ *[C3RB3RUS]* Grupo reabierto. El ataque de flood fue neutralizado.`,
+                  });
+                  console.log(`[FLOOD] 🔓 Grupo ${chatId} reabierto.`);
+                } catch (_) {}
+              }, 2 * 60 * 1000);
             }
             return;
           }
         }
         // ─────────────────────────────────────────────────────────────────────
-
-        // ── ANTI-FLOOD: verificar antes de procesar cualquier cosa ─────────────
-        if (!msg.key.fromMe) {
-          const { flood, muted, reason } = checkFlood(chatId, senderJid, isCommand);
-          if (flood) {
-            console.log(`[FLOOD] 🚫 ${senderJid} en ${chatId} → ${reason}`);
-            if (!muted) {
-              // Solo avisar la primera vez que se activa el mute (no en cada msg bloqueado)
-              const remaining = Math.ceil(mutedTimeLeft(chatId, senderJid) / 1000);
-              try {
-                await sock.sendMessage(chatId, {
-                  text: `⚠️ @${senderJid.split('@')[0]} detectado flood. Ignorado por ${remaining}s.`,
-                  mentions: [senderJid],
-                }, { quoted: msg });
-              } catch (_) {}
-            }
-            return;
-          }
-        }
         // ─────────────────────────────────────────────────────────────────────
 
         if (isCommand) {
