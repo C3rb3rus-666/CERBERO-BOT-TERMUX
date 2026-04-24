@@ -57,20 +57,26 @@ const getYouTubeId = (url) => {
   return null;
 };
 
+function _ytCookiesFlag() {
+  try {
+    const p = path.resolve('./config/youtube_cookies.txt');
+    if (!fs.existsSync(p)) return '';
+    const first = fs.readFileSync(p, 'utf8').split('\n')[0].trim();
+    if (first === '# Netscape HTTP Cookie File' || first === '# HTTP Cookie File') return `--cookies "${p}"`;
+  } catch (_) {}
+  return '';
+}
+
 async function downloadAudio(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-  const cookiesFlag = fs.existsSync(path.resolve('./config/youtube_cookies.txt')) && fs.statSync(path.resolve('./config/youtube_cookies.txt')).size > 100
-    ? `--cookies "${path.resolve('./config/youtube_cookies.txt')}"`
-    : '';
+  const cookiesFlag = _ytCookiesFlag();
   const cmd = `yt-dlp --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
   await execAsync(cmd);
 }
 
 async function downloadVideo(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-  const cookiesFlag = fs.existsSync(path.resolve('./config/youtube_cookies.txt')) && fs.statSync(path.resolve('./config/youtube_cookies.txt')).size > 100
-    ? `--cookies "${path.resolve('./config/youtube_cookies.txt')}"`
-    : '';
+  const cookiesFlag = _ytCookiesFlag();
   const cmd = `yt-dlp --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
   await execAsync(cmd);
 }

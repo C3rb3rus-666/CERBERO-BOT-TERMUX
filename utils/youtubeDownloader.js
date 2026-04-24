@@ -77,8 +77,10 @@ async function runYtDlp(url, outPrefix) {
     // Agregar cookies si el archivo existe y tiene contenido real
     const cookiesArgs = [];
     try {
-        const cookiesStat = fs.statSync(COOKIES_FILE);
-        if (cookiesStat.size > 100) cookiesArgs.push('--cookies', COOKIES_FILE);
+        const firstLine = fs.readFileSync(COOKIES_FILE, 'utf8').split('\n')[0].trim();
+        if (firstLine === '# Netscape HTTP Cookie File' || firstLine === '# HTTP Cookie File') {
+            cookiesArgs.push('--cookies', COOKIES_FILE);
+        }
     } catch (_) {}
     // User-Agent de Chrome real para que las peticiones parezcan un navegador legítimo
     // Esto reduce el riesgo de que YouTube detecte y bloquee la cuenta
