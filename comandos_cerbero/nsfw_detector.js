@@ -115,18 +115,27 @@ function collectMediaEntries(msg) {
   push(root);
   push(getViewOnceContainer(root));
 
-  // Mensajes efímeros
+  // Mensajes efímeros (nivel 1)
   const ephemeral = root?.ephemeralMessage?.message;
   push(ephemeral);
   push(getViewOnceContainer(ephemeral));
 
-  // Mensaje citado (quoted) — alguien puede reenviar una imagen NSFW en un reply
+  // ephemeral nivel 2: viewOnce dentro de ephemeral
+  const ephemeralVo1 = root?.ephemeralMessage?.message?.viewOnceMessage?.message;
+  const ephemeralVo2 = root?.ephemeralMessage?.message?.viewOnceMessageV2?.message;
+  const ephemeralVo3 = root?.ephemeralMessage?.message?.viewOnceMessageV2Extension?.message;
+  push(ephemeralVo1);
+  push(ephemeralVo2);
+  push(ephemeralVo3);
+
+  // Mensaje citado (quoted)
   const quoted = root?.extendedTextMessage?.contextInfo?.quotedMessage
     || root?.imageMessage?.contextInfo?.quotedMessage
     || root?.videoMessage?.contextInfo?.quotedMessage;
   push(quoted);
   push(getViewOnceContainer(quoted));
 
+  console.log(`[NSFW] collectMediaEntries: ${entries.length} entrada(s). root keys: [${Object.keys(root || {}).join(', ')}]`);
   return entries;
 }
 
@@ -227,13 +236,13 @@ async function processImageEntry(entry, context, entryIndex) {
             .join('\n');
 
           const safeText =
-            `💀 *[K3RB·0xEY3]* — TARGET SCANNED\n` +
+            `💀 *[CERBERO-BOT* — *IMAGEN VERIFICADA]*\n` +
             `▶ src: @${userId.split('@')[0]}\n` +
             `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
             `${scoreLines}\n` +
             `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
             `✅ STATUS: *CLEAN* — conf: ${(topScore * 100).toFixed(1)}%\n` +
-            `🔒 K3RB·0xEY3 v1.0 — [CLASSIFIED]`;
+            `🔒 MOTOR : ·0xEY3 v1.0 — [CLASSIFIED]`;
 
           const safeImg = getRandomMenuImage();
           if (safeImg) {

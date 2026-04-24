@@ -654,15 +654,20 @@ async function connectToWhatsApp() {
               }
           }
           await autobanVideo.handler(sock, msg, groupMetadata);
-          // Detectar imagen normal, documento-imagen, y ver-una-vez (viewOnce v1/v2/v2Ext)
-          const _viewOnceMsg = msg.message?.viewOnceMessage?.message
-            || msg.message?.viewOnceMessageV2?.message
-            || msg.message?.viewOnceMessageV2Extension?.message;
-          const isImage = !!msg.message?.imageMessage
-            || (msg.message?.documentMessage && msg.message.documentMessage.mimetype?.startsWith('image/'))
-            || !!_viewOnceMsg?.imageMessage;
+          // Detectar imagen: normal, documento-imagen, viewOnce (cualquier nivel de anidamiento)
+          const _rawMsg = msg.message || {};
+          const _viewOnceInner = _rawMsg.viewOnceMessage?.message
+            || _rawMsg.viewOnceMessageV2?.message
+            || _rawMsg.viewOnceMessageV2Extension?.message
+            || _rawMsg.ephemeralMessage?.message?.viewOnceMessage?.message
+            || _rawMsg.ephemeralMessage?.message?.viewOnceMessageV2?.message
+            || _rawMsg.ephemeralMessage?.message?.viewOnceMessageV2Extension?.message;
+          const _isViewOnceImage = !!_viewOnceInner?.imageMessage || !!_viewOnceInner?.videoMessage;
+          const isImage = !!_rawMsg.imageMessage
+            || (_rawMsg.documentMessage && _rawMsg.documentMessage.mimetype?.startsWith('image/'))
+            || _isViewOnceImage;
           if (isImage) {
-            const imgType = msg.message?.imageMessage ? 'normal' : _viewOnceMsg?.imageMessage ? 'view-once' : 'document';
+            const imgType = _rawMsg.imageMessage ? 'normal' : _isViewOnceImage ? 'view-once' : 'document';
             console.log(`[NSFW] 🖼️ Imagen detectada (${imgType}) de ${msg.key.participant || msg.key.remoteJid}`);
             await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
             // Anti-QR primero (más ligero y específico).
