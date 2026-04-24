@@ -227,13 +227,13 @@ async function processImageEntry(entry, context, entryIndex) {
             .join('\n');
 
           const safeText =
-            `⛓️ *C3RBERUS·SIGHT* — Escaneo de imagen\n` +
-            `👤 Usuario: @${userId.split('@')[0]}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `💀 *[K3RB·0xEY3]* — TARGET SCANNED\n` +
+            `▶ src: @${userId.split('@')[0]}\n` +
+            `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
             `${scoreLines}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `✅ Resultado: *SEGURA* (${(topScore * 100).toFixed(1)}% confianza)\n` +
-            `🔍 C3RBERUS·SIGHT v1.0 — Xenova·ONNX · nsfwjs · YCbCr·BT601 · Sobel · HSV·Anime · LBP·GLCM·Entropy`;
+            `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
+            `✅ STATUS: *CLEAN* — conf: ${(topScore * 100).toFixed(1)}%\n` +
+            `🔒 K3RB·0xEY3 v1.0 — [CLASSIFIED]`;
 
           const safeImg = getRandomMenuImage();
           if (safeImg) {
