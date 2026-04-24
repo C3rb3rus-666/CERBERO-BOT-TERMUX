@@ -45,7 +45,7 @@ async function downloadMusic(query, requesterId) {
   const cookiesFlag = _cookiesValid ? `--cookies "${_cookiesPath}"` : '';
   // android no soporta cookies → usar web cuando hay cookies, android cuando no
   const playerClient = _cookiesValid ? 'web' : 'android';
-  const command = `yt-dlp --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
+  const command = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
 
   await execAsync(command);
 

@@ -71,7 +71,7 @@ async function downloadAudio(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   const cookiesFlag = _ytCookiesFlag();
   const playerClient = cookiesFlag ? 'web' : 'android';
-  const cmd = `yt-dlp --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
+  const cmd = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
   await execAsync(cmd);
 }
 
@@ -79,7 +79,7 @@ async function downloadVideo(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   const cookiesFlag = _ytCookiesFlag();
   const playerClient = cookiesFlag ? 'web' : 'android';
-  const cmd = `yt-dlp --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
+  const cmd = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
   await execAsync(cmd);
 }
 
