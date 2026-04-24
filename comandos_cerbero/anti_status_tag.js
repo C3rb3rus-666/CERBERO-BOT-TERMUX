@@ -5,7 +5,7 @@
  * Comportamiento:
  * - Elimina la notificación/mensaje de etiqueta dentro del grupo
  * - Envía una advertencia pública en el grupo mencionando al infractor
- * - Envía un DM privado de advertencia al infractor
+ * - Envía una advertencia pública en el grupo mencionando al infractor
  * - NO expulsa al miembro
  *
  * Cómo funciona:
@@ -58,7 +58,7 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
 
     if (!['on', 'off'].includes(arg)) {
         await sock.sendMessage(chatId, {
-            text: `📌 *Anti Status Tag*\n\nCuando un miembro etiqueta este grupo en su estado, el bot elimina la notificación del grupo y le envía una advertencia privada.\n\n• *!antistatustag on* — activar\n• *!antistatustag off* — desactivar`
+            text: `📌 *Anti Status Tag*\n\nCuando un miembro etiqueta este grupo en su estado, el bot elimina la notificación del grupo y lo avisa públicamente en el grupo.\n\n• *!antistatustag on* — activar\n• *!antistatustag off* — desactivar`
         }, { quoted: msg });
         return;
     }
@@ -70,7 +70,7 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
     const estado = arg === 'on' ? '🟢 Activado' : '🔴 Desactivado';
     await sock.sendMessage(chatId, {
         text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️ *Anti Status Tag ${estado}*\n\n${arg === 'on'
-            ? 'Si alguien etiqueta este grupo en su estado, la notificación será eliminada y el miembro será advertido por privado.'
+            ? 'Si alguien etiqueta este grupo en su estado, la notificación será eliminada y el miembro será avisado públicamente en el grupo.'
             : 'Ya no se eliminarán etiquetas de estado en este grupo.'}`
     }, { quoted: msg });
 }
