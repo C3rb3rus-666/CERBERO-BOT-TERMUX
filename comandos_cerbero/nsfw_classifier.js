@@ -342,6 +342,164 @@ async function clasificarConXenova(imageBuffer) {
   }
 }
 
+// ─── SEÑAL 3: Densidad de bordes en zonas de piel (Sobel simplificado) ─────────
+// Piel sin textura/bordes = superficie lisa expuesta (desnudo probable).
+// Piel con muchos bordes = ropa con patrón, pelo, objetos → falso positivo.
+// Opera a 96x96 en dos passes con sharp (RGB para piel, greyscale para Sobel).
+async function analizarBordesEnPiel(imageBuffer) {
+  try {
+    const SIZE = 96;
+    const [{ data: rgbData }, greyRaw] = await Promise.all([
+      sharp(imageBuffer).resize(SIZE, SIZE, { fit: 'cover' }).removeAlpha().raw().toBuffer({ resolveWithObject: true }),
+      sharp(imageBuffer).resize(SIZE, SIZE, { fit: 'cover' }).greyscale().raw().toBuffer()
+    ]);
+    const rgb  = new Uint8Array(rgbData);
+    const grey = new Uint8Array(greyRaw);
+    let skinCount = 0, skinEdgeSum = 0;
+    for (let y = 1; y < SIZE - 1; y++) {
+      for (let x = 1; x < SIZE - 1; x++) {
+        const i = (y * SIZE + x) * 3;
+        const Y  =  0.299 * rgb[i] + 0.587 * rgb[i+1] + 0.114 * rgb[i+2];
+        const Cb = -0.169 * rgb[i] - 0.331 * rgb[i+1] + 0.500 * rgb[i+2] + 128;
+        const Cr =  0.500 * rgb[i] - 0.419 * rgb[i+1] - 0.081 * rgb[i+2] + 128;
+        if (!(Y > 80 && Cb >= 85 && Cb <= 135 && Cr >= 135 && Cr <= 180)) continue;
+        skinCount++;
+        // Operador Sobel 3x3
+        const gi = y * SIZE + x;
+        const gx = -grey[gi-SIZE-1] + grey[gi-SIZE+1] - 2*grey[gi-1] + 2*grey[gi+1] - grey[gi+SIZE-1] + grey[gi+SIZE+1];
+        const gy = -grey[gi-SIZE-1] - 2*grey[gi-SIZE] - grey[gi-SIZE+1] + grey[gi+SIZE-1] + 2*grey[gi+SIZE] + grey[gi+SIZE+1];
+        skinEdgeSum += Math.sqrt(gx*gx + gy*gy);
+      }
+    }
+    if (skinCount < 40) return { meanEdge: 1.0, smoothSkin: false, skinCount };
+    const meanEdge  = skinEdgeSum / (skinCount * 255);
+    // < 0.10 = piel lisa (desnudo probable) | > 0.22 = textura/ropa
+    const smoothSkin = meanEdge < 0.10;
+    const textureSkin = meanEdge > 0.22;   // señal de NO desnudo
+    console.log(`[NSFW] Bordes-piel: meanEdge=${meanEdge.toFixed(3)} smooth=${smoothSkin} texture=${textureSkin}`);
+    return { meanEdge, smoothSkin, textureSkin, skinCount };
+  } catch (err) {
+    console.warn('[NSFW] BordesEnPiel error:', err.message);
+    return { meanEdge: 1.0, smoothSkin: false, textureSkin: false, skinCount: 0 };
+  }
+}
+
+// ─── SEÑAL 4: Concentración de piel en zona central (3x3 grid) ─────────────────
+// Contenido explícito tiende a tener piel concentrada en el tercio central
+// (torso, pelvis). Fotos inocentes (playa, retrato) tienen piel en bordes (cara,
+// manos, hombros). Esto corta muchos falsos positivos de fotos de playa.
+async function analizarConcentracionPiel(imageBuffer) {
+  try {
+    const SIZE = 96;
+    const T = Math.floor(SIZE / 3);
+    const { data } = await sharp(imageBuffer)
+      .resize(SIZE, SIZE, { fit: 'cover' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const pixels = new Uint8Array(data);
+    // Contar piel en 9 celdas de la cuadrícula 3x3
+    const cells = Array.from({ length: 9 }, () => ({ skin: 0, total: 0 }));
+    for (let y = 0; y < SIZE; y++) {
+      for (let x = 0; x < SIZE; x++) {
+        const col  = Math.min(2, Math.floor(x / T));
+        const row  = Math.min(2, Math.floor(y / T));
+        const cell = cells[row * 3 + col];
+        cell.total++;
+        const i = (y * SIZE + x) * 3;
+        const Y  =  0.299 * pixels[i] + 0.587 * pixels[i+1] + 0.114 * pixels[i+2];
+        const Cb = -0.169 * pixels[i] - 0.331 * pixels[i+1] + 0.500 * pixels[i+2] + 128;
+        const Cr =  0.500 * pixels[i] - 0.419 * pixels[i+1] - 0.081 * pixels[i+2] + 128;
+        if (Y > 80 && Cb >= 85 && Cb <= 135 && Cr >= 135 && Cr <= 180) cell.skin++;
+      }
+    }
+    const ratios = cells.map(c => c.total > 0 ? c.skin / c.total : 0);
+    const centerRatio = ratios[4];                       // celda [1,1] = centro
+    const borderAvg   = (ratios.reduce((s,v) => s+v, 0) - centerRatio) / 8;
+    // Concentrada si el centro tiene >2x más piel que el promedio de bordes y >30%
+    const concentrated = centerRatio > 0.30 && centerRatio > borderAvg * 2.0;
+    console.log(`[NSFW] Zona-central: center=${centerRatio.toFixed(2)} borderAvg=${borderAvg.toFixed(2)} concentrated=${concentrated}`);
+    return { centerRatio, borderAvg, concentrated };
+  } catch (err) {
+    console.warn('[NSFW] ConcentracionPiel error:', err.message);
+    return { centerRatio: 0, borderAvg: 0, concentrated: false };
+  }
+}
+
+// ─── SEÑAL 5: Saturación anime (HSV) ────────────────────────────────────────────
+// Anime y hentai usan cel-shading: colores muy saturados y uniformes (baja varianza).
+// Fotos reales tienen saturación más heterogénea. Complementa el detector cartoon.
+async function analizarSaturacionAnime(imageBuffer) {
+  try {
+    const SIZE = 64;
+    const { data } = await sharp(imageBuffer)
+      .resize(SIZE, SIZE, { fit: 'cover' }).removeAlpha().raw().toBuffer({ resolveWithObject: true });
+    const pixels = new Uint8Array(data);
+    const total = SIZE * SIZE;
+    let satSum = 0, satSumSq = 0, flatZones = 0;
+    for (let i = 0; i < pixels.length; i += 3) {
+      const r = pixels[i]/255, g = pixels[i+1]/255, b = pixels[i+2]/255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      const sat = max === 0 ? 0 : (max - min) / max; // saturación HSV
+      satSum   += sat;
+      satSumSq += sat * sat;
+      // Zona plana: diferencia r/g/b < 0.05 → cel-shading
+      if ((max - min) < 0.05) flatZones++;
+    }
+    const meanSat  = satSum / total;
+    const varSat   = Math.max(0, (satSumSq / total) - (meanSat * meanSat));
+    const flatRatio = flatZones / total;
+    // Anime: alta saturación + baja varianza + muchas zonas planas
+    const animeStyle = meanSat > 0.48 && varSat < 0.065 && flatRatio > 0.30;
+    console.log(`[NSFW] Sat-anime: mean=${meanSat.toFixed(3)} var=${varSat.toFixed(3)} flat=${flatRatio.toFixed(2)} anime=${animeStyle}`);
+    return { meanSat, varSat, flatRatio, animeStyle };
+  } catch (err) {
+    console.warn('[NSFW] SaturacionAnime error:', err.message);
+    return { meanSat: 0, varSat: 1, flatRatio: 0, animeStyle: false };
+  }
+}
+
+// ─── Sistema de puntuación de señales de píxeles ──────────────────────────────
+// Cada señal analítica aporta puntos de "sospecha" (0-5 total).
+// Los puntos ajustan dinámicamente los umbrales del consenso ML:
+//   0-1:   ultra conservador (imagen parece inocente)
+//   1-2:   normal
+//   2-3.5: evidencia moderada → umbral ML más bajo
+//   3.5+:  evidencia fuerte → umbral ML mucho más bajo
+function calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona }) {
+  let score = 0;
+  const razones = [];
+
+  // Piel real + alta cantidad
+  if (!cartoon.isDrawing && skin.skinRatio > 0.50) {
+    score += 1.5; razones.push(`piel_alta(${skin.skinRatio.toFixed(2)})`);
+  } else if (!cartoon.isDrawing && skin.skinRatio > 0.35) {
+    score += 0.8; razones.push(`piel_media(${skin.skinRatio.toFixed(2)})`);
+  }
+
+  // Piel lisa (poca textura) → superficie expuesta probable
+  if (bordes.smoothSkin && skin.skinRatio > 0.25) {
+    score += 1.5; razones.push(`piel_lisa`);
+  }
+  // Piel con textura → ropa/pelo, restar puntos (señal negativa)
+  if (bordes.textureSkin) {
+    score -= 1.0; razones.push(`textura_ropa(-)`);
+  }
+
+  // Piel concentrada en zona central
+  if (zona.concentrated) {
+    score += 1.0; razones.push(`zona_central`);
+  }
+
+  // Señal anime/hentai: cartoon + saturación de anime
+  if (cartoon.isDrawing && saturacion.animeStyle) {
+    score += 1.5; razones.push(`hentai_palette`);
+  } else if (cartoon.isDrawing && saturacion.meanSat > 0.55) {
+    score += 0.8; razones.push(`anime_sat`);
+  }
+
+  score = Math.max(0, Math.min(5, score));
+  console.log(`[NSFW] Score sospecha: ${score.toFixed(2)} [${razones.join(', ')}]`);
+  return score;
+}
+
 // ─── Voting ponderado: nsfwjs 60% + Xenova 40% ───────────────────────────────
 function fusionarPredicciones(predsA, predsB) {
   const merged = new Map();
@@ -381,21 +539,51 @@ export async function classifyImage(imageBuffer) {
     return safe;
   }
 
-  // ── Cartoon detector (solo contexto, no decide) ────────────────────────────
-  const cartoon = await detectarCartoon(imageBuffer);
+  // ── FASE 1: 5 señales de píxeles en PARALELO (sin red, sin ML) ─────────────
+  // Matemática pura sobre el buffer. Se ejecutan simultáneamente.
+  const [cartoon, skin, bordes, zona, saturacion] = await Promise.all([
+    detectarCartoon(imageBuffer),          // señal 1: dibujo vs foto real
+    skinToneYCbCr(imageBuffer),            // señal 2: cantidad de piel YCbCr BT.601
+    analizarBordesEnPiel(imageBuffer),     // señal 3: textura en zonas de piel (Sobel)
+    analizarConcentracionPiel(imageBuffer),// señal 4: piel en zona central vs bordes
+    analizarSaturacionAnime(imageBuffer),  // señal 5: paleta HSV tipo anime/cel-shading
+  ]);
+
   if (cartoon.isDrawing) {
-    console.log(`[NSFW] Cartoon detectado (${cartoon.confidence.toFixed(2)}), pasa por ML igual.`);
+    console.log(`[NSFW] Cartoon detectado (conf=${cartoon.confidence.toFixed(2)}), pasa por ML igual.`);
   }
 
-  // ── YCbCr skin (solo logging, no dispara acción sola) ─────────────────────
-  // Umbral subido a 0.50 para ignorar falsos positivos (playa, ropa, comida)
-  const skin = await skinToneYCbCr(imageBuffer);
-  const highSkin = !cartoon.isDrawing && skin.skinRatio > 0.50;
-  if (highSkin) {
-    console.log(`[NSFW] YCbCr señal alta: skinRatio=${skin.skinRatio.toFixed(3)}`);
+  // ── FASE 2: Score acumulado de señales de píxeles ──────────────────────────
+  // Ajusta dinámicamente los umbrales del consenso ML:
+  //   0-1:   ultra conservador → Xenova > 0.90 Y nsfwjs > 0.70
+  //   1-2:   normal            → Xenova > 0.75 Y nsfwjs > 0.55
+  //   2-3.5: evidencia media   → Xenova > 0.60 Y nsfwjs > 0.45
+  //   3.5+:  evidencia fuerte  → Xenova > 0.50 Y nsfwjs > 0.38
+  const suspectScore = calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona });
+
+  let thX, thN;
+  if (suspectScore >= 3.5) {
+    thX = 0.50; thN = 0.38;
+    console.log(`[NSFW] Score fuerte (${suspectScore.toFixed(2)}) → umbrales agresivos (X>${thX} N>${thN})`);
+  } else if (suspectScore >= 2.0) {
+    thX = 0.60; thN = 0.45;
+    console.log(`[NSFW] Score moderado (${suspectScore.toFixed(2)}) → umbrales medios (X>${thX} N>${thN})`);
+  } else if (suspectScore >= 1.0) {
+    thX = 0.75; thN = 0.55;
+    console.log(`[NSFW] Score bajo (${suspectScore.toFixed(2)}) → umbrales normales (X>${thX} N>${thN})`);
+  } else {
+    thX = 0.90; thN = 0.70;
+    console.log(`[NSFW] Score mínimo (${suspectScore.toFixed(2)}) → umbrales conservadores (X>${thX} N>${thN})`);
   }
 
-  // ── ML dual: Xenova primero ────────────────────────────────────────────────
+  // Señal negativa: piel con textura (ropa/pelo) → aumentar umbrales
+  if (bordes.textureSkin && suspectScore < 2.0) {
+    thX = Math.min(0.93, thX + 0.10);
+    thN = Math.min(0.78, thN + 0.10);
+    console.log(`[NSFW] Textura detectada → umbrales +0.10 (X>${thX.toFixed(2)} N>${thN.toFixed(2)})`);
+  }
+
+  // ── FASE 3: ML dual con umbrales dinámicos ─────────────────────────────────
   const predsXenova = await clasificarConXenova(imageBuffer);
   let result;
 
@@ -404,39 +592,16 @@ export async function classifyImage(imageBuffer) {
     const xNsfw = predsXenova.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
     console.log(`[NSFW] Xenova: safe=${xSafe.toFixed(2)} nsfw=${xNsfw.toFixed(2)}`);
 
-    // ── Fast-safe: Xenova muy seguro → no gastar nsfwjs ───────────────────────
-    if (xSafe > 0.72 && xNsfw < 0.35) {
-      console.log(`[NSFW] Xenova: seguro claro → safe`);
+    // Fast-safe: Xenova muy seguro + score pixel bajo → no gastar nsfwjs
+    if (xSafe > 0.72 && xNsfw < 0.30 && suspectScore < 1.5) {
+      console.log(`[NSFW] Xenova+pixel: seguro claro → SAFE`);
       result = [predsXenova[0]];
       cacheSet(hash, result);
       return result;
     }
 
-    // ── Fast-NSFW: Xenova abrumadoramente NSFW → confirmar con nsfwjs ─────────
-    // Umbral alto (0.93) porque sin Gemini no hay red de seguridad.
-    // Además nsfwjs debe coincidir (>0.50) para evitar falsos positivos.
-    if (xNsfw > 0.93 && xSafe < 0.10) {
-      console.log(`[NSFW] Xenova: NSFW muy alto (${xNsfw.toFixed(2)}) → verificando con nsfwjs...`);
-      const predsNsfwjsQuick = await clasificarConNsfwjs(imageBuffer);
-      if (predsNsfwjsQuick) {
-        const nNsfwQ = predsNsfwjsQuick.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
-        if (nNsfwQ > 0.45) {
-          // Ambos confirman → NSFW
-          if (pHash) addToNsfwBlacklist(pHash);
-          const top = predsXenova.filter(p => NSFW_LABELS.has(p.label)).sort((a, b) => b.score - a.score)[0];
-          console.log(`[NSFW] Consenso rápido NSFW (Xenova=${xNsfw.toFixed(2)} nsfwjs=${nNsfwQ.toFixed(2)})`);
-          result = [top];
-          cacheSet(hash, result);
-          return result;
-        }
-        // nsfwjs no coincide → borderline, seguir
-        console.log(`[NSFW] nsfwjs discrepa (${nNsfwQ.toFixed(2)}) → tratando como borderline`);
-      }
-    }
-
-    // ── Borderline: consenso obligatorio entre ambos modelos ──────────────────
-    // Política anti-falsos-positivos: si los modelos no se ponen de acuerdo → SAFE
-    console.log(`[NSFW] Borderline, activando nsfwjs para consenso...`);
+    // Activar nsfwjs para consenso (en todos los demás casos)
+    console.log(`[NSFW] Activando nsfwjs para consenso...`);
     const predsNsfwjs = await clasificarConNsfwjs(imageBuffer);
 
     if (predsNsfwjs) {
@@ -444,41 +609,43 @@ export async function classifyImage(imageBuffer) {
       const nNsfw = predsNsfwjs.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
       console.log(`[NSFW] nsfwjs: safe=${nSafe.toFixed(2)} nsfw=${nNsfw.toFixed(2)}`);
 
-      // Umbral de consenso: ambos deben superar 0.55 en NSFW
-      // highSkin rebaja ligeramente el umbral de nsfwjs (0.45) ya que la señal de piel refuerza
-      const nsfwjsThreshold = highSkin ? 0.45 : 0.55;
-
-      if (xNsfw > 0.55 && nNsfw > nsfwjsThreshold) {
-        // Consenso NSFW ✓
+      if (xNsfw >= thX && nNsfw >= thN) {
+        // Consenso NSFW con umbrales dinámicos ✓
         const fused = fusionarPredicciones(predsXenova, predsNsfwjs);
         if (pHash) addToNsfwBlacklist(pHash);
-        console.log(`[NSFW] Consenso NSFW (X=${xNsfw.toFixed(2)} N=${nNsfw.toFixed(2)}) → NSFW`);
+        console.log(`[NSFW] ✓ NSFW (X=${xNsfw.toFixed(2)}≥${thX} N=${nNsfw.toFixed(2)}≥${thN} score=${suspectScore.toFixed(2)})`);
         result = fused;
+      } else if (xNsfw < (thX - 0.25) && nNsfw < (thN - 0.20)) {
+        // Ambos bastante por debajo → seguro
+        console.log(`[NSFW] ✓ SAFE claro (X=${xNsfw.toFixed(2)} N=${nNsfw.toFixed(2)})`);
+        result = [{ label: 'neutral', score: Math.max(xSafe, nSafe) }];
       } else {
-        // Sin consenso → SAFE (evitar falso positivo)
-        const safeFused = Math.max(xSafe, nSafe);
-        console.log(`[NSFW] Sin consenso → SAFE (X_nsfw=${xNsfw.toFixed(2)} N_nsfw=${nNsfw.toFixed(2)})`);
-        result = [{ label: 'neutral', score: safeFused }];
+        // Discrepancia → beneficio de la duda → SAFE
+        console.log(`[NSFW] Discrepancia sin consenso → SAFE (X=${xNsfw.toFixed(2)} N=${nNsfw.toFixed(2)})`);
+        result = [{ label: 'neutral', score: Math.max(xSafe, nSafe) }];
       }
     } else {
-      // nsfwjs no disponible → solo Xenova, umbral alto para no hacer falso positivo
-      if (xNsfw > 0.88) {
+      // nsfwjs no disponible → solo Xenova, umbral elevado + score pixel como apoyo
+      const xOnlyTh = Math.min(0.93, thX + 0.15);
+      if (xNsfw >= xOnlyTh && suspectScore >= 1.5) {
         const top = predsXenova.filter(p => NSFW_LABELS.has(p.label)).sort((a, b) => b.score - a.score)[0];
-        console.log(`[NSFW] Solo Xenova disponible, NSFW alto (${xNsfw.toFixed(2)}) → NSFW`);
+        console.log(`[NSFW] Solo Xenova + score pixel (${suspectScore.toFixed(2)}) → NSFW`);
         result = [top];
       } else {
-        console.log(`[NSFW] Solo Xenova disponible, no hay certeza → SAFE`);
+        console.log(`[NSFW] Solo Xenova sin respaldo → SAFE conservador`);
         result = [predsXenova[0]];
       }
     }
   } else {
-    // Xenova no disponible → nsfwjs como único modelo, umbral alto
-    console.warn('[NSFW] Xenova no disponible, usando nsfwjs directo...');
+    // Xenova no disponible → nsfwjs con score de píxeles como apoyo
+    console.warn('[NSFW] Xenova no disponible, usando nsfwjs con score pixel...');
     const predsNsfwjs = await clasificarConNsfwjs(imageBuffer);
     if (predsNsfwjs) {
       const nNsfw = predsNsfwjs.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
-      // Sin segundo modelo de respaldo, exigir alta confianza
-      result = nNsfw > 0.85 ? [predsNsfwjs[0]] : [{ label: 'neutral', score: 1 - nNsfw }];
+      const nsfwOnlyTh = suspectScore >= 2.0 ? 0.78 : 0.90;
+      result = nNsfw >= nsfwOnlyTh
+        ? [predsNsfwjs[0]]
+        : [{ label: 'neutral', score: 1 - nNsfw }];
     } else {
       console.warn('[NSFW] Ambos modelos ML no disponibles. Fail-safe: imagen segura.');
       result = [{ label: 'neutral', score: 0.5 }];
