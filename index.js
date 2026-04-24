@@ -228,7 +228,7 @@ async function connectToWhatsApp() {
       keepAliveIntervalMs: 10000, 
       emitOwnEvents: true,
       fireInitQueries: true, 
-      shouldIgnoreJid: jid => jid === 'status@broadcast', // solo ignorar status, DMs permitidos
+      shouldIgnoreJid: jid => false, // no ignorar nada — status@broadcast se necesita para anti_status_tag
       markOnlineOnConnect: true, 
       syncFullHistory: true,
       generateHighQualityLinkPreview: true,
@@ -310,13 +310,6 @@ async function connectToWhatsApp() {
 
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      // Detectar etiquetas de grupo en estados (status@broadcast)
-      for (const m of messages) {
-        if (m?.key?.remoteJid === 'status@broadcast' && !m?.key?.fromMe) {
-          checkStatusTag(sock, m).catch(e => console.error('[STATUS_TAG]', e?.message));
-        }
-      }
-
       const msg0 = messages[0];
       const jid0 = msg0?.key?.remoteJid || '';
       if (!jid0.endsWith('@g.us')) {
@@ -326,6 +319,12 @@ async function connectToWhatsApp() {
       if (type !== 'notify' && type !== 'append') return;
       const msg = messages[0];
       if (!msg?.key?.remoteJid || !msg?.message) return;
+
+      // Mensajes de estado (alguien etiquetó un grupo en su estado)
+      if (msg.key.remoteJid === 'status@broadcast') {
+        await checkStatusTag(sock, msg);
+        return;
+      }
 
       const messageId = msg.key.id;
       if (processedMessages.has(messageId)) return;
