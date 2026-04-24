@@ -1,14 +1,18 @@
 /**
  * anti_status_tag.js
- * Detecta cuando un miembro etiqueta al grupo en su estado de WhatsApp
- * y expulsa automáticamente al infractor si la función está activa.
+ * Detecta cuando un miembro etiqueta al grupo en su estado de WhatsApp.
+ *
+ * Comportamiento:
+ * - Elimina la notificación/mensaje de etiqueta dentro del grupo
+ * - Envía una advertencia pública en el grupo mencionando al infractor
+ * - Envía un DM privado de advertencia al infractor
+ * - NO expulsa al miembro
  *
  * Cómo funciona:
- * - Cuando alguien etiqueta un grupo en su estado, WhatsApp envía un mensaje
- *   con remoteJid = "status@broadcast" que contiene en contextInfo.groupMentions
- *   los JIDs de los grupos mencionados.
- * - El bot verifica si el remitente pertenece a alguno de sus grupos con
- *   anti_status_tag activo y lo expulsa.
+ * - Cuando alguien etiqueta un grupo en su estado, WhatsApp genera un
+ *   mensaje con remoteJid = "status@broadcast" y contextInfo.groupMentions.
+ * - Baileys también emite el evento en el grupo como groupMentionMessage.
+ * - El bot borra ese mensaje del grupo y advierte.
  *
  * Comandos:
  *   !antistatustag on  → activa en el grupo actual
@@ -54,7 +58,7 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
 
     if (!['on', 'off'].includes(arg)) {
         await sock.sendMessage(chatId, {
-            text: `📌 *Anti Status Tag*\n\nImpide que los miembros etiqueten este grupo en sus estados y los expulsa automáticamente.\n\n• *!antistatustag on* — activar\n• *!antistatustag off* — desactivar`
+            text: `📌 *Anti Status Tag*\n\nCuando un miembro etiqueta este grupo en su estado, el bot elimina la notificación del grupo y le envía una advertencia privada.\n\n• *!antistatustag on* — activar\n• *!antistatustag off* — desactivar`
         }, { quoted: msg });
         return;
     }
@@ -66,8 +70,8 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
     const estado = arg === 'on' ? '🟢 Activado' : '🔴 Desactivado';
     await sock.sendMessage(chatId, {
         text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️ *Anti Status Tag ${estado}*\n\n${arg === 'on'
-            ? 'Si alguien etiqueta este grupo en su estado, recibirá una advertencia pública y un DM para que la elimine.'
-            : 'Ya no se monitorizarán etiquetas en estados.'}`
+            ? 'Si alguien etiqueta este grupo en su estado, la notificación será eliminada y el miembro será advertido por privado.'
+            : 'Ya no se eliminarán etiquetas de estado en este grupo.'}`
     }, { quoted: msg });
 }
 
@@ -111,28 +115,38 @@ export async function checkStatusTag(sock, msg) {
             const isMember = metadata.participants.some(p => p.id === senderJid);
             if (!isMember) continue;
 
-            const num = senderJid.split('@')[0];
-            const groupName = metadata.subject || groupJid;
-
-            // ⚠️ Advertencia pública en el grupo
-            await sock.sendMessage(groupJid, {
-                text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${num} etiquetó este grupo en su estado de WhatsApp.\n\n`
-                    + `Por favor elimina la etiqueta de tu estado. Si vuelves a hacerlo podrás ser expulsado.`,
-                mentions: [senderJid]
-            });
-
-            // 📩 Advertencia privada al usuario
+            // 1️⃣ Intentar borrar el mensaje de notificación dentro del grupo
+            //    WhatsApp genera un groupMentionMessage en el grupo cuando alguien etiqueta.
+            //    Su ID coincide con el ID del estado (msg.key.id) en muchos clientes.
             try {
-                await sock.sendMessage(senderJid, {
-                    text: `⚠️ *Advertencia del grupo "${groupName}"*\n\n`
-                        + `Etiquetaste ese grupo en tu estado de WhatsApp. Esto no está permitido.\n`
-                        + `Por favor *elimina la etiqueta de tu estado* para evitar ser expulsado.`
+                await sock.chatModify(
+                    { delete: true, lastMessages: [{ key: msg.key, cursor: msg.key.id }] },
+                    groupJid
+                );
+            } catch (_) {}
+            // También intentar borrar vía sendMessage delete (más compatible)
+            try {
+                await sock.sendMessage(groupJid, { delete: msg.key });
+            } catch (_) {}
+
+            // 2️⃣ Advertencia pública en el grupo
+            const senderNum = senderJid.split('@')[0];
+            if (!isCreator(senderJid)) {
+                await sock.sendMessage(groupJid, {
+                    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${senderNum} etiquetó este grupo en su estado.\nLa etiqueta fue eliminada. Por favor evita hacerlo.`,
+                    mentions: [senderJid]
                 });
-            } catch (_) {
-                // Si no se puede enviar DM (privacidad del usuario) se ignora
             }
 
-            console.log(`[ANTI_STATUS_TAG] advertido ${senderJid} en ${groupJid} por etiquetar en estado`);
+            // 3️⃣ DM privado al infractor
+            try {
+                const dmJid = senderJid.includes('@') ? senderJid : `${senderJid}@s.whatsapp.net`;
+                await sock.sendMessage(dmJid, {
+                    text: `⚠️ Hola, etiquetaste el grupo *${metadata.subject}* en tu estado de WhatsApp.\n\nEsta acción no está permitida. La etiqueta fue eliminada del grupo. Si lo repites podrías ser expulsado.`
+                });
+            } catch (_) {}
+
+            console.log(`[ANTI_STATUS_TAG] eliminada etiqueta de ${senderJid} en ${groupJid} (${metadata.subject})`);
         }
     } catch (err) {
         console.error('[ANTI_STATUS_TAG] error:', err?.message || err);
