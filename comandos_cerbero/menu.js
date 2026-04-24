@@ -80,6 +80,7 @@ export async function menuCommand(sock, msg) {
   ▪ Anti-Gore — ${estados.antiGore}
   ▪ AEGIS (Filtro Región) — ${estados.aegis}
   ▪ Anti-Flood — 🟢 Activo (Global)
+  ▪ K3RB·0xEY3 (Anti-NSFW) — 🟢 Activo (Global)
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  👑 *OWNER: C3RB3RUS-666*      ┃
@@ -244,6 +245,17 @@ export async function menuCommand(sock, msg) {
   ℹ️ Blacklist: bloqueo permanente por número
   ℹ️ Whitelist: números de confianza (nunca expulsados)
   ℹ️ Editar listas: _antinumbers_config.json_
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  💀 *K3RB·0xEY3 · ANTI-NSFW* ┃
+┃  _Motor de visión autónomo_    ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ℹ️ Escanea cada imagen enviada al grupo
+  ℹ️ 6 señales de análisis pixel en paralelo
+  ℹ️ Consenso dual de modelos ML locales
+  ℹ️ Elimina imagen + expulsa al infractor
+  ℹ️ Siempre activo · Sin configuración manual
+  ℹ️ Clasificación: [CLASSIFIED]
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🌊 *ANTI-FLOOD*              ┃
