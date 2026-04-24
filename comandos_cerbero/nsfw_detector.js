@@ -227,13 +227,13 @@ async function processImageEntry(entry, context, entryIndex) {
             .join('\n');
 
           const safeText =
-            `🛡️ *CERBERO NSFW SCAN* — Imagen verificada\n` +
+            `⛓️ *C3RBERUS·SIGHT* — Escaneo de imagen\n` +
             `👤 Usuario: @${userId.split('@')[0]}\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
             `${scoreLines}\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
             `✅ Resultado: *SEGURA* (${(topScore * 100).toFixed(1)}% confianza)\n` +
-            `🔍 Motor: Xenova ONNX · nsfwjs · YCbCr · Sobel · Anime HSV · Python LBP+GLCM`;
+            `🔍 C3RBERUS·SIGHT v1.0 — Xenova·ONNX · nsfwjs · YCbCr·BT601 · Sobel · HSV·Anime · LBP·GLCM·Entropy`;
 
           const safeImg = getRandomMenuImage();
           if (safeImg) {
