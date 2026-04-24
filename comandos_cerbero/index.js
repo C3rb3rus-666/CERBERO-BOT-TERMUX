@@ -25,6 +25,7 @@ import { toggleWelcome } from './welcome.js';
 import { playMusicCommand } from './music.js';
 import { handleCpruebaCommand, handleCplaydSelection, handleCplay2Selection } from './music_cplay2.js';
 import { toggleGroupPrivacy } from './group_config.js';
+import { handleAntiStatusTagCmd } from './anti_status_tag.js';
 import { top5Maricones } from './maricones.js';
 import { cerberoSimiBot } from "./cerbero_simi.js";
 import { youtubeCommand } from './youtube.js';
@@ -414,6 +415,11 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'grupo':
       await humanDelay(sock, message, 1, 3);
       await toggleGroupPrivacy(sock, message, isAdmin, groupMetadata);
+      break;
+
+    case 'antistatustag':
+      await humanDelay(sock, message, 1, 2);
+      await handleAntiStatusTagCmd(sock, message, isAdmin);
       break;
 
     case 'autonomo':

@@ -32,6 +32,7 @@ import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
 import { checkFlood, mutedTimeLeft } from './utils/antiFlood.js';
+import { checkStatusTag } from './comandos_cerbero/anti_status_tag.js';
 
 // ==========================================
 // 💀 THEME: C3RB3RUS-666 (DARK MODE EXTENDED)
@@ -309,6 +310,13 @@ async function connectToWhatsApp() {
 
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      // Detectar etiquetas de grupo en estados (status@broadcast)
+      for (const m of messages) {
+        if (m?.key?.remoteJid === 'status@broadcast' && !m?.key?.fromMe) {
+          checkStatusTag(sock, m).catch(e => console.error('[STATUS_TAG]', e?.message));
+        }
+      }
+
       const msg0 = messages[0];
       const jid0 = msg0?.key?.remoteJid || '';
       if (!jid0.endsWith('@g.us')) {
