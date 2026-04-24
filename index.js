@@ -81,6 +81,8 @@ let reconnectDelay = 100;
 let bannerInterval;
 const reconnectThrottler = new ReconnectThrottler(1000, 15000);
 let allTimers = [];
+let lastMessageTimestamp = Date.now(); // watchdog: último mensaje recibido
+let watchdogTimer = null;             // timer del watchdog de silencio
 
 // Variable global para mensajes procesados
 const processedMessages = new Set();
@@ -307,9 +309,37 @@ async function connectToWhatsApp() {
       await saveCredsWithLog(creds);
     });
 
+    // ── STREAM ERROR HANDLER ──────────────────────────────────────────────────
+    // Baileys a veces emite stream:error sin disparar connection.update:close
+    // ("ghost connection"). Capturamos el error del WS subyacente y forzamos
+    // reconexión limpia.
+    try {
+      sock.ws?.on('error', (err) => {
+        console.warn(paint.warn(` [WATCHDOG] WebSocket error: ${err?.message || err} — forzando reconexión`));
+        lastMessageTimestamp = Date.now(); // evitar que el watchdog se dispare también
+        handleConnectionClose({ error: { output: { statusCode: 428 } } });
+      });
+    } catch(e) {}
+
+    // ── WATCHDOG DE SILENCIO ──────────────────────────────────────────────────
+    // Si pasan más de 8 minutos sin recibir ningún mensaje (ni de grupo ni DM),
+    // asumimos ghost connection y reconectamos automáticamente.
+    const WATCHDOG_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutos
+    if (watchdogTimer) clearInterval(watchdogTimer);
+    watchdogTimer = setInterval(() => {
+      const silencioMs = Date.now() - lastMessageTimestamp;
+      if (silencioMs > WATCHDOG_TIMEOUT_MS) {
+        console.warn(paint.warn(` [WATCHDOG] ${Math.round(silencioMs/60000)} min sin mensajes — posible ghost connection. Reconectando...`));
+        lastMessageTimestamp = Date.now(); // reset para no disparar en bucle mientras reconecta
+        handleConnectionClose({ error: { output: { statusCode: 428 } } });
+      }
+    }, 60 * 1000); // revisar cada minuto
+    allTimers.push(watchdogTimer);
+
 
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+      lastMessageTimestamp = Date.now(); // watchdog: resetear contador de silencio
       const msg0 = messages[0];
       const jid0 = msg0?.key?.remoteJid || '';
       if (!jid0.endsWith('@g.us')) {
