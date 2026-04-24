@@ -38,10 +38,6 @@ const _nsfwQueue = [];
 const OVERLAY_COOLDOWN_MS = 30 * 1000;
 const _overlayTimestamps = new Map();
 
-// Cooldown por usuario para el aviso de imagen segura (90 segundos)
-const SAFE_NOTICE_COOLDOWN_MS = 90 * 1000;
-const _safeNoticeTimestamps = new Map();
-
 function _acquireNsfwSlot() {
   return new Promise((resolve) => {
     if (_nsfwProcessingCount < NSFW_MAX_CONCURRENCY) {
@@ -85,7 +81,10 @@ function bufferToHex(input) {
 
 function getViewOnceContainer(message) {
   if (!message) return null;
-  return message.viewOnceMessage?.message || message.viewOnceMessageV2?.message || null;
+  return message.viewOnceMessage?.message
+    || message.viewOnceMessageV2?.message
+    || message.viewOnceMessageV2Extension?.message
+    || null;
 }
 
 function getMediaSignature(mediaMessage) {
@@ -112,9 +111,17 @@ function collectMediaEntries(msg) {
   push(root);
   push(getViewOnceContainer(root));
 
+  // Mensajes efímeros
   const ephemeral = root?.ephemeralMessage?.message;
   push(ephemeral);
   push(getViewOnceContainer(ephemeral));
+
+  // Mensaje citado (quoted) — alguien puede reenviar una imagen NSFW en un reply
+  const quoted = root?.extendedTextMessage?.contextInfo?.quotedMessage
+    || root?.imageMessage?.contextInfo?.quotedMessage
+    || root?.videoMessage?.contextInfo?.quotedMessage;
+  push(quoted);
+  push(getViewOnceContainer(quoted));
 
   return entries;
 }
@@ -199,49 +206,8 @@ async function processImageEntry(entry, context, entryIndex) {
 
       console.log(`[NSFW] Imagen NSFW (${topLabel}) procesada (${isAdmin ? 'admin, sin expulsión' : 'usuario expulsado'}).`);
     } else {
-      // Imagen segura: notificar en el grupo (con cooldown por usuario para no spamear)
-      console.log(`[NSFW] Imagen segura (${topLabel}: ${(topScore * 100).toFixed(1)}%). Sin acción.`);
-      const now = Date.now();
-      const lastSafe = _safeNoticeTimestamps.get(userId) || 0;
-      if (now - lastSafe >= SAFE_NOTICE_COOLDOWN_MS) {
-        _safeNoticeTimestamps.set(userId, now);
-        try {
-          // Construir desglose de scores para mostrar
-          const scoreLines = predictions
-            .slice(0, 5)
-            .map(p => {
-              const pct = (p.score * 100).toFixed(1);
-              const bar = '█'.repeat(Math.round(p.score * 10)) + '░'.repeat(10 - Math.round(p.score * 10));
-              return `  ${bar} ${pct}% — ${mapFriendlyLabel(p.label)}`;
-            })
-            .join('\n');
-
-          const safeText =
-            `🛡️ *CERBERO NSFW SCAN* — Imagen verificada\n` +
-            `👤 Usuario: @${userId.split('@')[0]}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `${scoreLines}\n` +
-            `━━━━━━━━━━━━━━━━━━━━\n` +
-            `✅ Resultado: *SEGURA* (${(topScore * 100).toFixed(1)}% confianza)\n` +
-            `🔍 Motor: nsfwjs + TensorFlow`;
-
-          const safeImg = getRandomMenuImage();
-          if (safeImg) {
-            await sock.sendMessage(groupId, {
-              image: fs.readFileSync(safeImg),
-              caption: safeText,
-              mentions: [userId],
-            }, { quoted: entry.fullMessage });
-          } else {
-            await sock.sendMessage(groupId, {
-              text: safeText,
-              mentions: [userId],
-            }, { quoted: entry.fullMessage });
-          }
-        } catch (noticeErr) {
-          console.error('[NSFW] Error enviando aviso seguro:', noticeErr.message || noticeErr);
-        }
-      }
+      // Imagen segura — solo log, sin mensajes en el grupo
+      console.log(`[NSFW] ✅ Imagen segura (${topLabel}: ${(topScore * 100).toFixed(1)}%). Sin acción.`);
     }
   } catch (error) {
     console.error(`[NSFW] Error procesando imagen ${entryIndex}/${context.totalEntries}:`, error);
