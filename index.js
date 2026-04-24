@@ -32,7 +32,7 @@ import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
 import { checkFlood, mutedTimeLeft } from './utils/antiFlood.js';
-import { checkStatusTag } from './comandos_cerbero/anti_status_tag.js';
+import { checkStatusTag, checkGroupMentionedMessage } from './comandos_cerbero/anti_status_tag.js';
 
 // ==========================================
 // 💀 THEME: C3RB3RUS-666 (DARK MODE EXTENDED)
@@ -350,9 +350,8 @@ async function connectToWhatsApp() {
       const msg = messages[0];
       if (!msg?.key?.remoteJid || !msg?.message) return;
 
-      // Mensajes de estado (alguien etiquetó un grupo en su estado)
+      // Mensajes de estado → ya no se procesan aquí (groupMentionedMessage llega al grupo)
       if (msg.key.remoteJid === 'status@broadcast') {
-        await checkStatusTag(sock, msg);
         return;
       }
 
@@ -389,6 +388,9 @@ async function connectToWhatsApp() {
         if (!isGroup && (msg.key.fromMe || type === 'append')) return;
 
         if (isGroup) {
+          // Detectar etiqueta de grupo en estado (groupMentionedMessage llega al grupo)
+          await checkGroupMentionedMessage(sock, msg);
+
           try {
             groupMetadata = await sock.groupMetadata(chatId);
             groupName = groupMetadata.subject || 'UNKNOWN_NET';

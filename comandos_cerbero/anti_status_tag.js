@@ -84,73 +84,61 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
  * @param {object} msg  - mensaje recibido
  */
 export async function checkStatusTag(sock, msg) {
+    // Este handler ya no se usa — la detección real ocurre en checkGroupMentionedMessage
+    // WhatsApp NO incluye groupMentions en status@broadcast; la notificación llega
+    // directamente al grupo como groupMentionedMessage.
+}
+
+/**
+ * Detecta groupMentionedMessage que llega al grupo cuando alguien etiqueta
+ * ese grupo en su estado de WhatsApp.
+ *
+ * Llamar desde messages.upsert cuando remoteJid termina en @g.us.
+ *
+ * @param {object} sock - instancia Baileys
+ * @param {object} msg  - mensaje recibido
+ */
+export async function checkGroupMentionedMessage(sock, msg) {
     try {
         if (msg.key.fromMe) return;
 
-        const senderJid = msg.key.participant || msg.key.remoteJid;
-        if (!senderJid) return;
-
         const msgContent = msg.message || {};
-        const msgType = Object.keys(msgContent)[0];
 
-        // Filtrar rápido: reacciones, audios, imágenes simples sin mención de grupo → ignorar
-        if (msgType === 'reactionMessage' || msgType === 'audioMessage') return;
-
-        // Buscar groupMentions en todos los wrappers posibles
-        const contextInfo = msgContent.extendedTextMessage?.contextInfo
-            || msgContent.imageMessage?.contextInfo
-            || msgContent.videoMessage?.contextInfo
-            || msgContent.documentMessage?.contextInfo
-            || msgContent.groupMentionedMessage?.contextInfo
-            || msgContent.groupMentionMessage?.contextInfo
-            || msgContent.stickerMessage?.contextInfo
+        // WhatsApp envía la notificación de etiqueta de estado como groupMentionedMessage
+        // (a veces también dentro de ephemeralMessage o viewOnceMessage)
+        const inner = msgContent.groupMentionedMessage
+            || msgContent.ephemeralMessage?.message?.groupMentionedMessage
+            || msgContent.viewOnceMessage?.message?.groupMentionedMessage
             || null;
 
-        const groupMentions = contextInfo?.groupMentions || [];
+        if (!inner) return; // no es una etiqueta de estado
 
-        // Log solo cuando hay mención real (reduce spam en consola)
-        if (groupMentions.length) {
-            console.log(`[ANTI_STATUS_TAG] 🏷️ Mención de grupo detectada de ${senderJid} → grupos: ${groupMentions.map(g => g.groupJid || g).join(', ')}`);
-        } else {
-            // Sin mención de grupo → no nos interesa
-            return;
-        }
+        const groupJid = msg.key.remoteJid; // el grupo que fue etiquetado
+        const senderJid = msg.key.participant || msg.key.remoteJid;
+
+        console.log(`[ANTI_STATUS_TAG] 🏷️ groupMentionedMessage detectado en ${groupJid} de ${senderJid}`);
 
         const cfg = loadConfig();
+        if (!cfg[groupJid]) return; // anti_status_tag no activo en este grupo
 
-        for (const mention of groupMentions) {
-            const groupJid = mention.groupJid || mention;
-            if (!cfg[groupJid]) continue; // anti_status_tag no activo en ese grupo
-
-            // Verificar que el remitente realmente es miembro del grupo
-            let metadata;
-            try { metadata = await sock.groupMetadata(groupJid); } catch (_) { continue; }
-
-            const isMember = metadata.participants.some(p => p.id === senderJid);
-            if (!isMember) continue;
-
-            // 1️⃣ Intentar borrar el mensaje de notificación dentro del grupo
-            //    La key del groupMentionMessage en el grupo usa remoteJid=groupJid
-            //    pero el ID puede ser el mismo que el del estado.
-            const groupMsgKey = { ...msg.key, remoteJid: groupJid };
-            console.log('[ANTI_STATUS_TAG] 🗑️ intentando borrar con key:', JSON.stringify(groupMsgKey));
-            try {
-                await sock.sendMessage(groupJid, { delete: groupMsgKey });
-            } catch (e) {
-                console.log('[ANTI_STATUS_TAG] ⚠️ delete falló:', e?.message);
-            }
-
-            // 2️⃣ Advertencia pública en el grupo
-            const senderNum = senderJid.split('@')[0];
-            if (!isCreator(senderJid)) {
-                await sock.sendMessage(groupJid, {
-                    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${senderNum} etiquetó este grupo en su estado.\nPor favor evita hacerlo.`,
-                    mentions: [senderJid]
-                });
-            }
-
-            console.log(`[ANTI_STATUS_TAG] ✅ procesado: ${senderJid} en ${groupJid} (${metadata.subject})`);
+        // 1️⃣ Borrar el mensaje de notificación del grupo
+        try {
+            await sock.sendMessage(groupJid, { delete: msg.key });
+            console.log('[ANTI_STATUS_TAG] 🗑️ mensaje borrado del grupo');
+        } catch (e) {
+            console.log('[ANTI_STATUS_TAG] ⚠️ delete falló:', e?.message);
         }
+
+        // 2️⃣ Advertencia pública en el grupo
+        if (!isCreator(senderJid)) {
+            const senderNum = senderJid.split('@')[0];
+            await sock.sendMessage(groupJid, {
+                text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${senderNum} etiquetó este grupo en su estado.\nPor favor evita hacerlo.`,
+                mentions: [senderJid]
+            });
+        }
+
+        console.log(`[ANTI_STATUS_TAG] ✅ procesado: ${senderJid} en ${groupJid}`);
     } catch (err) {
         console.error('[ANTI_STATUS_TAG] error:', err?.message || err);
     }
