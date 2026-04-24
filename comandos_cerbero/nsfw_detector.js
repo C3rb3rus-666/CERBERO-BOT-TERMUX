@@ -233,7 +233,7 @@ async function processImageEntry(entry, context, entryIndex) {
             `${scoreLines}\n` +
             `━━━━━━━━━━━━━━━━━━━━\n` +
             `✅ Resultado: *SEGURA* (${(topScore * 100).toFixed(1)}% confianza)\n` +
-            `🔍 Motor: nsfwjs + TensorFlow`;
+            `🔍 Motor: Xenova ONNX · nsfwjs · YCbCr · Sobel · Anime HSV`;
 
           const safeImg = getRandomMenuImage();
           if (safeImg) {
