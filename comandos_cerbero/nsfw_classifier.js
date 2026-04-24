@@ -67,11 +67,11 @@ const SAFE_LABELS = new Set(['neutral', 'drawing', 'safe', 'sfw_fallback']);
 const NSFW_LABELS = new Set(['porn', 'pornography', 'sexy', 'hentai', 'nsfw_fallback']);
 
 const THRESHOLDS = {
-  porn:          0.78,
-  pornography:   0.78,
-  hentai:        0.80,
-  sexy:          0.93,   // alto: evita cosplay, bikinis, playa, arte
-  nsfw_fallback: 0.85
+  porn:          0.72,  // bajado: mejor recall en pornografía real
+  pornography:   0.72,
+  hentai:        0.70,  // bajado: hentai/anime NSFW es común en grupos
+  sexy:          0.88,  // bajado levemente: reduce falsos negativos
+  nsfw_fallback: 0.78   // bajado: YCbCr + fallback más agresivo
 };
 
 // ─── Blacklist pHash perceptual ──────────────────────────────────────────────────────
@@ -119,25 +119,33 @@ export function addToNsfwBlacklist(imageHash) {
 }
 
 // ─── Juez Gemini Vision (sólo para borderline extremo) ───────────────────────
-async function juzgarConGemini(imageBuffer) {
+async function juzgarConGemini(imageBuffer, isDrawing = false) {
   if (!_gemini) return null;
   try {
     const base64 = imageBuffer.toString('base64');
-    const prompt = [
-      'Analyze this image ONLY for content moderation. Answer with ONE word: NSFW or SAFE.',
-      'NSFW = explicit nudity, pornography, graphic sexual content.',
-      'SAFE = everything else: drawings, cartoons, clothed people, memes, nature, food, etc.',
-      'Do NOT explain. Only reply: NSFW or SAFE'
-    ].join(' ');
+    const prompt = isDrawing
+      ? [
+          'You are a strict content moderation AI for anime/cartoon images. Reply with ONE word only: NSFW or SAFE.',
+          'NSFW = hentai, drawn nudity, explicit anime sexual content, genitals in cartoon form, sexual acts between drawn characters.',
+          'SAFE = clothed anime characters, non-sexual cartoons, cute drawings, fully dressed characters, memes.',
+          'Be strict: partial nudity in anime counts as NSFW. When in doubt choose NSFW. Only reply the single word.'
+        ].join(' ')
+      : [
+          'You are a strict content moderation AI. Analyze this image and reply with ONE word only: NSFW or SAFE.',
+          'NSFW = any of: explicit nudity, genitals, pornography, sexual acts, hentai with nudity, anime nudity, extreme sexual content.',
+          'SAFE = clothed people, cartoons without nudity, memes, food, nature, animals, art without explicit content.',
+          'Be strict: when in doubt choose NSFW. Only reply the single word.'
+        ].join(' ');
     const result = await _gemini.generateContent([
       { inlineData: { mimeType: 'image/jpeg', data: base64 } },
       prompt
     ]);
     const text = result.response.text().trim().toUpperCase();
     const isNsfw = text.startsWith('NSFW');
-    console.log(`[NSFW] Gemini judge: ${text} → ${isNsfw ? 'NSFW' : 'SAFE'}`);
+    const nsfwLabel = isDrawing ? 'hentai' : 'porn';
+    console.log(`[NSFW] Gemini judge (${isDrawing ? 'anime' : 'real'}): ${text} → ${isNsfw ? nsfwLabel.toUpperCase() : 'SAFE'}`);
     return isNsfw
-      ? [{ label: 'porn', score: 0.95 }]
+      ? [{ label: nsfwLabel, score: 0.95 }]
       : [{ label: 'neutral', score: 0.95 }];
   } catch (err) {
     console.error('[NSFW] Gemini error:', err.message);
@@ -373,28 +381,20 @@ export async function classifyImage(imageBuffer) {
 
   // ── Capa 2A: Cartoon detector ──────────────────────────────────────────────
   const cartoon = await detectarCartoon(imageBuffer);
-  if (cartoon.isDrawing && cartoon.confidence > 0.70) {
-    console.log(`[NSFW] Cartoon confirmado (${cartoon.confidence.toFixed(2)}), seguro.`);
-    const safe = [{ label: 'drawing', score: cartoon.confidence }];
-    cacheSet(hash, safe);
-    return safe;
+  // IMPORTANTE: aunque sea un dibujo, NO se devuelve seguro sin pasar por ML.
+  // Hentai y anime NSFW son dibujos y el detector cartoon no los discrimina.
+  // Se usa como señal de contexto para el motor ML, no como decisor.
+  if (cartoon.isDrawing) {
+    console.log(`[NSFW] Cartoon detectado (${cartoon.confidence.toFixed(2)}), pero igual pasa por ML para detectar hentai.`);
   }
 
   // ── Capa 2B: YCbCr skin ────────────────────────────────────────────────────
   const skin = await skinToneYCbCr(imageBuffer);
-
-  // Dibujo + poca piel real → definitivamente seguro
-  if (cartoon.isDrawing && skin.skinRatio < 0.20) {
-    const safe = [{ label: 'drawing', score: 0.85 }];
-    cacheSet(hash, safe);
-    return safe;
+  // Alta piel real en imagen no-cartoon → señal fuerte, se la pasamos al ML
+  const highSkin = !cartoon.isDrawing && skin.skinRatio > 0.35;
+  if (highSkin) {
+    console.log(`[NSFW] YCbCr señal ALTA: skinRatio=${skin.skinRatio.toFixed(3)} → ML con alerta.`);
   }
-
-  // YCbCr es solo una SEÑAL para los modelos ML, NUNCA actuía solo.
-  // Fotos normales con cara/brazos visibles alcanzan 35%+ de piel YCbCr
-  // y disparan falsos positivos si se usan como único criterio.
-  // Se pasa skin como contexto informativo a la capa ML.
-  console.log(`[NSFW] YCbCr señal: skinRatio=${skin.skinRatio.toFixed(3)}, pasando a ML...`);
 
   // ── Capa 3: ML dual — Xenova (ONNX) primero, nsfwjs si borderline ──────────
   // Xenova usa ONNX runtime (~2-3x más rápido que TF.js puro sin AVX)
@@ -406,15 +406,16 @@ export async function classifyImage(imageBuffer) {
     const xNsfw = predsXenova.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
 
     // Xenova concluyentemente seguro → listo, sin activar nsfwjs
-    if (xSafe > 0.72 && xNsfw < 0.70) {
-      console.log(`[NSFW] Xenova: seguro (safe=${xSafe.toFixed(2)})`);
+    // Requisito más estricto: xNsfw debe ser bajo (<0.35) para evitar falsos negativos
+    if (xSafe > 0.72 && xNsfw < 0.35 && !highSkin) {
+      console.log(`[NSFW] Xenova: seguro (safe=${xSafe.toFixed(2)} nsfw=${xNsfw.toFixed(2)})`);
       result = [predsXenova[0]];
       cacheSet(hash, result);
       return result;
     }
 
-    // Xenova concluyentemente NSFW → actuar sin nsfwjs
-    if (xNsfw > 0.90 && xSafe < 0.20) {
+    // Xenova concluyentemente NSFW → actuar sin nsfwjs (umbral bajado a 0.80)
+    if (xNsfw > 0.80 && xSafe < 0.25) {
       console.log(`[NSFW] Xenova: NSFW claro (${xNsfw.toFixed(2)})`);
       const top = predsXenova.filter(p => NSFW_LABELS.has(p.label)).sort((a, b) => b.score - a.score)[0];
       result = [top];
@@ -422,7 +423,33 @@ export async function classifyImage(imageBuffer) {
       return result;
     }
 
-    // Borderline → activar nsfwjs como árbitro (ya pre-cargado en warmup)
+    // Dibujo/hentai + Xenova detecta NSFW → Gemini directo (nsfwjs malo con anime)
+    if (cartoon.isDrawing && xNsfw > 0.45) {
+      console.log(`[NSFW] Dibujo + Xenova NSFW alto (${xNsfw.toFixed(2)}) → Gemini directo para hentai...`);
+      const geminiResult = await juzgarConGemini(imageBuffer, true);
+      if (geminiResult) {
+        const isGeminiNsfw = NSFW_LABELS.has(geminiResult[0]?.label);
+        if (isGeminiNsfw && pHash) addToNsfwBlacklist(pHash);
+        result = geminiResult;
+        cacheSet(hash, result);
+        return result;
+      }
+    }
+
+    // Alta piel real + Xenova borderline → Gemini directo (más rápido que nsfwjs)
+    if (highSkin && xNsfw > 0.30) {
+      console.log(`[NSFW] Alta piel + Xenova borderline → Gemini directo...`);
+      const geminiResult = await juzgarConGemini(imageBuffer, false);
+      if (geminiResult) {
+        const isGeminiNsfw = NSFW_LABELS.has(geminiResult[0]?.label);
+        if (isGeminiNsfw && pHash) addToNsfwBlacklist(pHash);
+        result = geminiResult;
+        cacheSet(hash, result);
+        return result;
+      }
+    }
+
+    // Borderline → activar nsfwjs como árbitro
     console.log(`[NSFW] Borderline Xenova (safe=${xSafe.toFixed(2)} nsfw=${xNsfw.toFixed(2)}), activando nsfwjs...`);
     const predsNsfwjs = await clasificarConNsfwjs(imageBuffer);
 
@@ -431,16 +458,16 @@ export async function classifyImage(imageBuffer) {
       const fSafe = fused.filter(p => SAFE_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
       const fNsfw = fused.filter(p => NSFW_LABELS.has(p.label)).reduce((m, p) => Math.max(m, p.score), 0);
 
-      if (fSafe > 0.35 && fNsfw < 0.90) {
+      if (fSafe > 0.50 && fNsfw < 0.60) {
         result = [{ label: 'neutral', score: fSafe }];
-      } else if (fNsfw >= 0.90) {
+      } else if (fNsfw >= 0.60) {
         if (pHash) addToNsfwBlacklist(pHash);
-        console.log(`[NSFW] Fusión confirmó NSFW, pHash añadido a blacklist.`);
+        console.log(`[NSFW] Fusión confirmó NSFW (fNsfw=${fNsfw.toFixed(2)}), pHash añadido a blacklist.`);
         result = fused;
       } else {
         // Aún borderline: Gemini como juez supremo
         console.log(`[NSFW] Aún borderline después de fusión, invocando Gemini...`);
-        const geminiResult = await juzgarConGemini(imageBuffer);
+        const geminiResult = await juzgarConGemini(imageBuffer, cartoon.isDrawing);
         if (geminiResult) {
           const isGeminiNsfw = NSFW_LABELS.has(geminiResult[0]?.label);
           if (isGeminiNsfw && pHash) addToNsfwBlacklist(pHash);
@@ -451,7 +478,7 @@ export async function classifyImage(imageBuffer) {
       }
     } else {
       // nsfwjs no disponible → Gemini directo
-      const geminiResult = await juzgarConGemini(imageBuffer);
+      const geminiResult = await juzgarConGemini(imageBuffer, cartoon.isDrawing);
       result = geminiResult || [{ label: 'neutral', score: 0.5 }];
     }
   } else {
