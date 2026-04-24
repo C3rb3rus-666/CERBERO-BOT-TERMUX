@@ -49,23 +49,6 @@ try {
   console.warn('[NSFW] jimp no disponible (pHash desactivado):', err.message);
 }
 
-// Google Gemini Vision — desactivado del pipeline automático para evitar:
-// 1. Falsos positivos por criterio externo (Google puede ser más estricto)
-// 2. Dependencia de API externa (rate limits, privacidad de imágenes)
-// 3. Latencia adicional en casos borderline
-// Para reactivar manualmente: descomentar el bloque y agregar llamadas a juzgarConGemini()
-let _gemini = null;
-// try {
-//   const { GoogleGenerativeAI } = _require('@google/generative-ai');
-//   const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_KEY || '';
-//   if (apiKey) {
-//     const client = new GoogleGenerativeAI(apiKey);
-//     _gemini = client.getGenerativeModel({ model: 'gemini-1.5-flash' });
-//     console.log('[NSFW] Gemini Vision disponible como juez supremo.');
-//   }
-// } catch (err) {
-//   console.warn('[NSFW] @google/generative-ai no disponible:', err.message);
-// }
 
 // ─── Etiquetas globales ───────────────────────────────────────────────────────
 const SAFE_LABELS = new Set(['neutral', 'drawing', 'safe', 'sfw_fallback']);
@@ -121,41 +104,6 @@ function isInPHashBlacklist(hash) {
 
 export function addToNsfwBlacklist(imageHash) {
   if (imageHash) _nsfwPHashBlacklist.add(imageHash);
-}
-
-// ─── Juez Gemini Vision (sólo para borderline extremo) ───────────────────────
-async function juzgarConGemini(imageBuffer, isDrawing = false) {
-  if (!_gemini) return null;
-  try {
-    const base64 = imageBuffer.toString('base64');
-    const prompt = isDrawing
-      ? [
-          'You are a strict content moderation AI for anime/cartoon images. Reply with ONE word only: NSFW or SAFE.',
-          'NSFW = hentai, drawn nudity, explicit anime sexual content, genitals in cartoon form, sexual acts between drawn characters.',
-          'SAFE = clothed anime characters, non-sexual cartoons, cute drawings, fully dressed characters, memes.',
-          'Be strict: partial nudity in anime counts as NSFW. When in doubt choose NSFW. Only reply the single word.'
-        ].join(' ')
-      : [
-          'You are a strict content moderation AI. Analyze this image and reply with ONE word only: NSFW or SAFE.',
-          'NSFW = any of: explicit nudity, genitals, pornography, sexual acts, hentai with nudity, anime nudity, extreme sexual content.',
-          'SAFE = clothed people, cartoons without nudity, memes, food, nature, animals, art without explicit content.',
-          'Be strict: when in doubt choose NSFW. Only reply the single word.'
-        ].join(' ');
-    const result = await _gemini.generateContent([
-      { inlineData: { mimeType: 'image/jpeg', data: base64 } },
-      prompt
-    ]);
-    const text = result.response.text().trim().toUpperCase();
-    const isNsfw = text.startsWith('NSFW');
-    const nsfwLabel = isDrawing ? 'hentai' : 'porn';
-    console.log(`[NSFW] Gemini judge (${isDrawing ? 'anime' : 'real'}): ${text} → ${isNsfw ? nsfwLabel.toUpperCase() : 'SAFE'}`);
-    return isNsfw
-      ? [{ label: nsfwLabel, score: 0.95 }]
-      : [{ label: 'neutral', score: 0.95 }];
-  } catch (err) {
-    console.error('[NSFW] Gemini error:', err.message);
-    return null;
-  }
 }
 
 // ─── Caché MD5 (evita re-clasificar la misma imagen) ─────────────────────────
