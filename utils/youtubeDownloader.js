@@ -80,9 +80,16 @@ async function runYtDlp(url, outPrefix) {
         const cookiesStat = fs.statSync(COOKIES_FILE);
         if (cookiesStat.size > 100) cookiesArgs.push('--cookies', COOKIES_FILE);
     } catch (_) {}
+    // User-Agent de Chrome real para que las peticiones parezcan un navegador legítimo
+    // Esto reduce el riesgo de que YouTube detecte y bloquee la cuenta
+    const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
     const args = (baseArgs || []).concat([
-        '--js-runtimes', 'nodejs', // usar Node.js ya instalado como runtime JS
+        '--js-runtimes', 'nodejs',
         ...cookiesArgs,
+        '--user-agent', USER_AGENT,
+        '--add-header', `Accept-Language:es-MX,es;q=0.9,en;q=0.8`,
+        '--sleep-interval', '2',      // esperar 2s entre peticiones (menos agresivo)
+        '--max-sleep-interval', '5',  // hasta 5s aleatorio
         '-f', 'bestaudio',
         '--extract-audio',
         '--audio-format', 'mp3',

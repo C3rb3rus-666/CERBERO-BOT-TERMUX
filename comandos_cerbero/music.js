@@ -33,7 +33,11 @@ async function downloadMusic(query, requesterId) {
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
   // Descargar el audio como MP3
-  const command = `yt-dlp --extractor-args "youtube:player_client=android" -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
+  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+  const cookiesFlag = fs.existsSync(path.resolve('./config/youtube_cookies.txt')) && fs.statSync(path.resolve('./config/youtube_cookies.txt')).size > 100
+    ? `--cookies "${path.resolve('./config/youtube_cookies.txt')}"`
+    : '';
+  const command = `yt-dlp --extractor-args "youtube:player_client=android" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
 
   await execAsync(command);
 
