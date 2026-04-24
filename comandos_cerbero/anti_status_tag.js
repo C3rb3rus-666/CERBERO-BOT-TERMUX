@@ -91,14 +91,34 @@ export async function checkStatusTag(sock, msg) {
         const senderJid = msg.key.participant || msg.key.remoteJid;
         if (!senderJid) return;
 
-        // Extraer grupos mencionados del contextInfo
-        const contextInfo = msg.message?.extendedTextMessage?.contextInfo
-            || msg.message?.imageMessage?.contextInfo
-            || msg.message?.videoMessage?.contextInfo
-            || msg.message?.documentMessage?.contextInfo
+        // ─── LOG DE DEBUG: volcar estructura completa para identificar el mensaje ───
+        // Esto nos permite ver qué campos trae el mensaje de etiqueta de estado
+        // y cómo construir la key correcta para borrarlo del grupo.
+        console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.key:', JSON.stringify(msg.key, null, 2));
+        console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.message keys:', Object.keys(msg.message || {}));
+        try {
+            // Imprimir el mensaje completo sin buffers (pueden romper JSON.stringify)
+            const sanitized = JSON.parse(JSON.stringify(msg.message, (k, v) =>
+                v instanceof Uint8Array || Buffer.isBuffer(v) ? `<Buffer len=${v.length}>` : v
+            ));
+            console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.message:', JSON.stringify(sanitized, null, 2));
+        } catch (e) {
+            console.log('[ANTI_STATUS_TAG] 🔍 msg.message (no serializable):', String(msg.message));
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
+        // Extraer grupos mencionados del contextInfo (buscar en todos los tipos de mensaje)
+        const msgContent = msg.message || {};
+        const contextInfo = msgContent.extendedTextMessage?.contextInfo
+            || msgContent.imageMessage?.contextInfo
+            || msgContent.videoMessage?.contextInfo
+            || msgContent.documentMessage?.contextInfo
+            || msgContent.groupMentionMessage?.contextInfo
+            || msgContent.stickerMessage?.contextInfo
             || null;
 
-        // groupMentions es un array de { groupJid, subject } en versiones nuevas de WA
+        console.log('[ANTI_STATUS_TAG] 🔍 contextInfo.groupMentions:', JSON.stringify(contextInfo?.groupMentions));
+
         const groupMentions = contextInfo?.groupMentions || [];
         if (!groupMentions.length) return;
 
@@ -116,37 +136,26 @@ export async function checkStatusTag(sock, msg) {
             if (!isMember) continue;
 
             // 1️⃣ Intentar borrar el mensaje de notificación dentro del grupo
-            //    WhatsApp genera un groupMentionMessage en el grupo cuando alguien etiqueta.
-            //    Su ID coincide con el ID del estado (msg.key.id) en muchos clientes.
+            //    La key del groupMentionMessage en el grupo usa remoteJid=groupJid
+            //    pero el ID puede ser el mismo que el del estado.
+            const groupMsgKey = { ...msg.key, remoteJid: groupJid };
+            console.log('[ANTI_STATUS_TAG] 🗑️ intentando borrar con key:', JSON.stringify(groupMsgKey));
             try {
-                await sock.chatModify(
-                    { delete: true, lastMessages: [{ key: msg.key, cursor: msg.key.id }] },
-                    groupJid
-                );
-            } catch (_) {}
-            // También intentar borrar vía sendMessage delete (más compatible)
-            try {
-                await sock.sendMessage(groupJid, { delete: msg.key });
-            } catch (_) {}
+                await sock.sendMessage(groupJid, { delete: groupMsgKey });
+            } catch (e) {
+                console.log('[ANTI_STATUS_TAG] ⚠️ delete falló:', e?.message);
+            }
 
             // 2️⃣ Advertencia pública en el grupo
             const senderNum = senderJid.split('@')[0];
             if (!isCreator(senderJid)) {
                 await sock.sendMessage(groupJid, {
-                    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${senderNum} etiquetó este grupo en su estado.\nLa etiqueta fue eliminada. Por favor evita hacerlo.`,
+                    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🏷️⚠️ @${senderNum} etiquetó este grupo en su estado.\nPor favor evita hacerlo.`,
                     mentions: [senderJid]
                 });
             }
 
-            // 3️⃣ DM privado al infractor
-            try {
-                const dmJid = senderJid.includes('@') ? senderJid : `${senderJid}@s.whatsapp.net`;
-                await sock.sendMessage(dmJid, {
-                    text: `⚠️ Hola, etiquetaste el grupo *${metadata.subject}* en tu estado de WhatsApp.\n\nEsta acción no está permitida. La etiqueta fue eliminada del grupo. Si lo repites podrías ser expulsado.`
-                });
-            } catch (_) {}
-
-            console.log(`[ANTI_STATUS_TAG] eliminada etiqueta de ${senderJid} en ${groupJid} (${metadata.subject})`);
+            console.log(`[ANTI_STATUS_TAG] ✅ procesado: ${senderJid} en ${groupJid} (${metadata.subject})`);
         }
     } catch (err) {
         console.error('[ANTI_STATUS_TAG] error:', err?.message || err);
