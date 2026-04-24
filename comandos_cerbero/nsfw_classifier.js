@@ -1,10 +1,13 @@
-// nsfw_classifier.js — Pipeline anti-NSFW de 3 capas + Gemini judge
+// nsfw_classifier.js — Pipeline anti-NSFW: 6 señales pixel (JS+Python) + consenso dual ML
 // Coded by C3rb3rus-666
 
 import { pipeline, env as xenovaEnv } from '@xenova/transformers';
 import sharp from 'sharp';
 import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs';
+import os from 'os';
+import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { createCanvas, loadImage } from 'canvas';
 import { createRequire } from 'module';
@@ -500,6 +503,64 @@ function calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona }) {
   return score;
 }
 
+// ─── Señal 6: Motor Python (LBP + GLCM + Blob Shape + Shannon Entropy) ────────
+// Llama a nsfw_py_signals.py vía subprocess, pasa la imagen por archivo temporal.
+// Si Python no está disponible o tarda más de 6s, devuelve contribución 0 (fail-safe).
+async function analizarConPython(imageBuffer) {
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      console.warn('[NSFW-PY] Timeout (6s), se omite contribución Python.');
+      resolve({ contribution: 0, signals: [], error: 'timeout' });
+    }, 6000);
+
+    (async () => {
+      let tmpPath = null;
+      try {
+        // Escribir buffer a archivo temporal
+        tmpPath = path.join(os.tmpdir(), `cnsfw_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
+        await fs.promises.writeFile(tmpPath, imageBuffer);
+
+        // Buscar Python del venv primero
+        const venvPy  = path.join(__dirname, '..', '.venv', 'bin', 'python');
+        const script  = path.join(__dirname, 'nsfw_py_signals.py');
+        const pyCmd   = fs.existsSync(venvPy) ? venvPy : 'python3';
+
+        let output = '';
+        const proc = spawn(pyCmd, [script, tmpPath]);
+        proc.stdout.on('data', d => { output += d.toString(); });
+        proc.stderr.on('data', d => { console.warn('[NSFW-PY]', d.toString().trim()); });
+
+        proc.on('close', async () => {
+          clearTimeout(timeout);
+          if (tmpPath) { try { await fs.promises.unlink(tmpPath); } catch {} }
+          try {
+            const r = JSON.parse(output.trim());
+            if (r.error && !r.signals?.length) {
+              resolve({ contribution: 0, signals: [], error: r.error });
+            } else {
+              console.log(`[NSFW-PY] contrib=${r.suspect_score_contribution} signals=[${(r.signals||[]).join(', ')}]`);
+              resolve({ contribution: r.suspect_score_contribution || 0, signals: r.signals || [], raw: r });
+            }
+          } catch {
+            resolve({ contribution: 0, signals: [], error: 'parse_error' });
+          }
+        });
+
+        proc.on('error', (err) => {
+          clearTimeout(timeout);
+          console.warn('[NSFW-PY] Spawn error:', err.message);
+          if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
+          resolve({ contribution: 0, signals: [], error: err.message });
+        });
+      } catch (err) {
+        clearTimeout(timeout);
+        if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
+        resolve({ contribution: 0, signals: [], error: err.message });
+      }
+    })();
+  });
+}
+
 // ─── Voting ponderado: nsfwjs 60% + Xenova 40% ───────────────────────────────
 function fusionarPredicciones(predsA, predsB) {
   const merged = new Map();
@@ -539,27 +600,31 @@ export async function classifyImage(imageBuffer) {
     return safe;
   }
 
-  // ── FASE 1: 5 señales de píxeles en PARALELO (sin red, sin ML) ─────────────
-  // Matemática pura sobre el buffer. Se ejecutan simultáneamente.
-  const [cartoon, skin, bordes, zona, saturacion] = await Promise.all([
+  // ── FASE 1: 6 señales en PARALELO (5 JS puras + 1 motor Python) ───────────
+  // JS   : cartoon, YCbCr, Sobel bordes, concentración zona, saturación anime
+  // Python: LBP micro-textura, GLCM energy, blob shape, Shannon entropy
+  // Todas corren en paralelo para minimizar latencia total.
+  const [cartoon, skin, bordes, zona, saturacion, pySignals] = await Promise.all([
     detectarCartoon(imageBuffer),          // señal 1: dibujo vs foto real
     skinToneYCbCr(imageBuffer),            // señal 2: cantidad de piel YCbCr BT.601
     analizarBordesEnPiel(imageBuffer),     // señal 3: textura en zonas de piel (Sobel)
     analizarConcentracionPiel(imageBuffer),// señal 4: piel en zona central vs bordes
     analizarSaturacionAnime(imageBuffer),  // señal 5: paleta HSV tipo anime/cel-shading
+    analizarConPython(imageBuffer),        // señal 6: LBP + GLCM + blob + entropy (Python)
   ]);
 
   if (cartoon.isDrawing) {
     console.log(`[NSFW] Cartoon detectado (conf=${cartoon.confidence.toFixed(2)}), pasa por ML igual.`);
   }
 
-  // ── FASE 2: Score acumulado de señales de píxeles ──────────────────────────
-  // Ajusta dinámicamente los umbrales del consenso ML:
+  // ── FASE 2: Score acumulado JS + Python ────────────────────────────────────
+  // JS (0-5) + Python (0-2.5) → total máximo 7.5, caps en 3.5+ para umbrales
   //   0-1:   ultra conservador → Xenova > 0.90 Y nsfwjs > 0.70
   //   1-2:   normal            → Xenova > 0.75 Y nsfwjs > 0.55
   //   2-3.5: evidencia media   → Xenova > 0.60 Y nsfwjs > 0.45
   //   3.5+:  evidencia fuerte  → Xenova > 0.50 Y nsfwjs > 0.38
-  const suspectScore = calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona });
+  const suspectScore = calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona })
+                     + (pySignals.contribution || 0);
 
   let thX, thN;
   if (suspectScore >= 3.5) {

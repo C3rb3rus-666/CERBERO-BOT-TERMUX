@@ -1,5 +1,6 @@
 yt-dlp==2026.3.17
 colorama
 numpy
+Pillow
 # tensorflow no soporta Python 3.14 aún (solo hasta 3.12)
 # spam_model.py quedará deshabilitado hasta que tensorflow soporte 3.14
