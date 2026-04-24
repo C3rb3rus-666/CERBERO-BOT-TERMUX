@@ -43,7 +43,9 @@ async function downloadMusic(query, requesterId) {
     } catch (_) { return false; }
   })();
   const cookiesFlag = _cookiesValid ? `--cookies "${_cookiesPath}"` : '';
-  const command = `yt-dlp --extractor-args "youtube:player_client=android" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
+  // android no soporta cookies → usar web cuando hay cookies, android cuando no
+  const playerClient = _cookiesValid ? 'web' : 'android';
+  const command = `yt-dlp --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
 
   await execAsync(command);
 
