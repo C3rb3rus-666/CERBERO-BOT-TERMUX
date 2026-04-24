@@ -478,7 +478,8 @@ async function connectToWhatsApp() {
         }
         // =======================================================
 
-        if (!text && !['imageMessage', 'stickerMessage', 'videoMessage', 'audioMessage'].includes(msgType)) return;
+        if (!text && !['imageMessage', 'stickerMessage', 'videoMessage', 'audioMessage',
+            'viewOnceMessage', 'viewOnceMessageV2', 'viewOnceMessageV2Extension'].includes(msgType)) return;
 
         const isCommand = text.startsWith('!');
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
