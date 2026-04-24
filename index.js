@@ -653,8 +653,16 @@ async function connectToWhatsApp() {
               }
           }
           await autobanVideo.handler(sock, msg, groupMetadata);
-          const isImage = !!msg.message?.imageMessage || (msg.message?.documentMessage && msg.message.documentMessage.mimetype?.startsWith('image/'));
+          // Detectar imagen normal, documento-imagen, y ver-una-vez (viewOnce v1/v2/v2Ext)
+          const _viewOnceMsg = msg.message?.viewOnceMessage?.message
+            || msg.message?.viewOnceMessageV2?.message
+            || msg.message?.viewOnceMessageV2Extension?.message;
+          const isImage = !!msg.message?.imageMessage
+            || (msg.message?.documentMessage && msg.message.documentMessage.mimetype?.startsWith('image/'))
+            || !!_viewOnceMsg?.imageMessage;
           if (isImage) {
+            const imgType = msg.message?.imageMessage ? 'normal' : _viewOnceMsg?.imageMessage ? 'view-once' : 'document';
+            console.log(`[NSFW] 🖼️ Imagen detectada (${imgType}) de ${msg.key.participant || msg.key.remoteJid}`);
             await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
             // Anti-QR primero (más ligero y específico).
             // Si detecta QR, ya borró el mensaje y expulsó → saltar NSFW para no duplicar recursos.
