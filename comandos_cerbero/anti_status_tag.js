@@ -85,42 +85,36 @@ export async function handleAntiStatusTagCmd(sock, msg, isAdmin) {
  */
 export async function checkStatusTag(sock, msg) {
     try {
-        // Solo mensajes de estados ajenos
         if (msg.key.fromMe) return;
 
         const senderJid = msg.key.participant || msg.key.remoteJid;
         if (!senderJid) return;
 
-        // ─── LOG DE DEBUG: volcar estructura completa para identificar el mensaje ───
-        // Esto nos permite ver qué campos trae el mensaje de etiqueta de estado
-        // y cómo construir la key correcta para borrarlo del grupo.
-        console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.key:', JSON.stringify(msg.key, null, 2));
-        console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.message keys:', Object.keys(msg.message || {}));
-        try {
-            // Imprimir el mensaje completo sin buffers (pueden romper JSON.stringify)
-            const sanitized = JSON.parse(JSON.stringify(msg.message, (k, v) =>
-                v instanceof Uint8Array || Buffer.isBuffer(v) ? `<Buffer len=${v.length}>` : v
-            ));
-            console.log('[ANTI_STATUS_TAG] 🔍 RAW msg.message:', JSON.stringify(sanitized, null, 2));
-        } catch (e) {
-            console.log('[ANTI_STATUS_TAG] 🔍 msg.message (no serializable):', String(msg.message));
-        }
-        // ─────────────────────────────────────────────────────────────────────────
-
-        // Extraer grupos mencionados del contextInfo (buscar en todos los tipos de mensaje)
         const msgContent = msg.message || {};
+        const msgType = Object.keys(msgContent)[0];
+
+        // Filtrar rápido: reacciones, audios, imágenes simples sin mención de grupo → ignorar
+        if (msgType === 'reactionMessage' || msgType === 'audioMessage') return;
+
+        // Buscar groupMentions en todos los wrappers posibles
         const contextInfo = msgContent.extendedTextMessage?.contextInfo
             || msgContent.imageMessage?.contextInfo
             || msgContent.videoMessage?.contextInfo
             || msgContent.documentMessage?.contextInfo
+            || msgContent.groupMentionedMessage?.contextInfo
             || msgContent.groupMentionMessage?.contextInfo
             || msgContent.stickerMessage?.contextInfo
             || null;
 
-        console.log('[ANTI_STATUS_TAG] 🔍 contextInfo.groupMentions:', JSON.stringify(contextInfo?.groupMentions));
-
         const groupMentions = contextInfo?.groupMentions || [];
-        if (!groupMentions.length) return;
+
+        // Log solo cuando hay mención real (reduce spam en consola)
+        if (groupMentions.length) {
+            console.log(`[ANTI_STATUS_TAG] 🏷️ Mención de grupo detectada de ${senderJid} → grupos: ${groupMentions.map(g => g.groupJid || g).join(', ')}`);
+        } else {
+            // Sin mención de grupo → no nos interesa
+            return;
+        }
 
         const cfg = loadConfig();
 
