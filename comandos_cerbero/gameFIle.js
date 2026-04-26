@@ -82,6 +82,39 @@ function formatMoney(amount) {
   return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD`;
 }
 
+/**
+ * Parsea una cantidad ingresada por el usuario aceptando:
+ *   - Enteros simples:        "1000"
+ *   - Con punto de miles:     "1.000"  → 1000
+ *   - Con coma de miles:      "1,000"  → 1000
+ *   - Con punto decimal real: "1000.5" → 1000  (trunca decimales)
+ *   - Mixto:                  "1.000.000" → 1000000
+ * Devuelve NaN si el string no es un número válido.
+ */
+export function parseAmount(str) {
+  if (str === null || str === undefined) return NaN;
+  let s = String(str).trim();
+  // Si solo tiene puntos (separador de miles estilo es-AR/es-CO): "1.000" → "1000"
+  // Si tiene coma al final de un grupo de 3: "1,000" → "1000"
+  // Detectar si el punto/coma es separador de miles o decimal:
+  //   - más de un separador del mismo tipo → es de miles
+  //   - un solo punto con exactamente 3 dígitos después → miles (ej "1.000")
+  //   - un solo punto con ≠3 dígitos después → decimal (ej "10.5")
+
+  // Eliminar comas que actúan como separador de miles (ej: "1,000,000" o "1,000")
+  // Heurística: si hay coma(s) y cada segmento tras la coma tiene 3 dígitos → miles
+  if (/^[\d.,]+$/.test(s)) {
+    // Reemplazar comas si actúan como miles
+    s = s.replace(/,(?=\d{3}(?:[.,]|$))/g, '');
+    // Reemplazar puntos si actúan como miles (están seguidos de exactamente 3 dígitos y otro separador o fin)
+    s = s.replace(/\.(?=\d{3}(?:\.|$))/g, '');
+    // Ahora puede quedar un punto decimal legítimo (ej "1000.5") — truncar a entero
+    s = s.replace(/\.\d+$/, '');
+  }
+  const n = parseInt(s, 10);
+  return n;
+}
+
 // Función para chequear y aplicar level up
 function checkLevelUp(user) {
   const xpNeeded = user.level * 500;
@@ -742,7 +775,7 @@ export async function commandDrogas(sock, msg, args) {
   user.bank = parseInt(user.bank) || 0;
   user.safe = parseInt(user.safe) || 0;
 
-  const inversion = parseInt(args[0]) || 0;
+  const inversion = parseAmount(args[0]) || 0;
 
   if (inversion <= 0 || isNaN(inversion)) {
     return await sock.sendMessage(msg.key.remoteJid, {
@@ -907,7 +940,7 @@ Has intentado espiar tu caja fuerte sin permiso del sistema...
 export async function commandGuardar(sock, msg, args) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const cantidad = parseInt(args[0]);
+  const cantidad = parseAmount(args[0]);
 
   if (isNaN(cantidad) || cantidad <= 0 || cantidad > user.bank) {
     return await sock.sendMessage(msg.key.remoteJid, {
@@ -965,7 +998,7 @@ export async function commandGuardar(sock, msg, args) {
 export async function commandSacar(sock, msg, args) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const cantidad = parseInt(args[0]);
+  const cantidad = parseAmount(args[0]);
 
   if (isNaN(cantidad) || cantidad <= 0 || cantidad > (user.safe || 0)) {
     return await sock.sendMessage(msg.key.remoteJid, {
@@ -1180,7 +1213,7 @@ export async function commandBanco(sock, msg) {
 export async function commandDepositar(sock, msg, amount) {
     const id = msg.key.participant || msg.key.remoteJid;
     const user = getUser(id);
-    amount = parseInt(amount);
+    amount = parseAmount(amount);
 
   // Asignar misión si no tiene
   try { assignMissionIfNone(id); } catch (e) {}
@@ -1328,7 +1361,7 @@ export async function commandDepositar(sock, msg, amount) {
 export async function commandRetirar(sock, msg, amount) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  amount = parseInt(amount);
+  amount = parseAmount(amount);
 
   if (isNaN(amount) || amount <= 0 || amount > user.bank) {
   
@@ -1800,7 +1833,7 @@ async function checkLogros(sock, msg, user) {
 export async function commandRuleta(sock, msg, apuestaStr) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const apuesta = parseInt(apuestaStr?.replace(/\D/g, ''));
+  const apuesta = parseAmount(apuestaStr);
 
   if (isNaN(apuesta) || apuesta <= 0) {
     return await sock.sendMessage(msg.key.remoteJid, {
@@ -1980,7 +2013,7 @@ function calcularMano(cartas) {
 export async function commandBlackjack(sock, msg, apuestaStr) {
   const id = msg.key.participant || msg.key.remoteJid;
   const user = getUser(id);
-  const apuesta = parseInt(apuestaStr?.replace(/\D/g, ''));
+  const apuesta = parseAmount(apuestaStr);
 
   if (isNaN(apuesta) || apuesta <= 0) {
     return await sock.sendMessage(msg.key.remoteJid, { 

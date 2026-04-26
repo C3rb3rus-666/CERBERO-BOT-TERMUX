@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption, parseAmount } from '../gameFIle.js';
 
 const precios = {
   diamante: { precio: 350, tipo: 'exp', emoji: '💎' },
@@ -25,7 +25,7 @@ const handler = async (sock, message) => {
   }
 
   const item = args[0].toLowerCase();
-  let cantidad = args[1] ? parseInt(args[1]) : 1;
+  let cantidad = args[1] ? parseAmount(args[1]) : 1;
   cantidad = Math.max(1, cantidad);
 
   if (!precios[item]) {

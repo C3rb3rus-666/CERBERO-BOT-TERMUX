@@ -1,4 +1,4 @@
-import { maybeSaqueoMaestro, sendImageWithCaption } from '../gameFIle.js';
+import { maybeSaqueoMaestro, sendImageWithCaption, parseAmount } from '../gameFIle.js';
 
 const items = ['money', 'limit'];
 
@@ -18,7 +18,7 @@ const handler = async (sock, message) => {
   }
 
   const tipo = args[0].toLowerCase();
-  const cantidad = parseInt(args[1]);
+  const cantidad = parseAmount(args[1]);
   let who = message.mentionedJid[0];
 
   if (!items.includes(tipo)) {
