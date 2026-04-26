@@ -72,6 +72,11 @@ import {
   commandBlackjack,
   commandPedir,
   commandPlantar,
+  commandDoblar,
+  commandSplit,
+  commandRendirse,
+  commandSeguro,
+  commandNoSeguro,
   commandCasinoStats,
   commandLogros,
   commandFish,
@@ -728,7 +733,32 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await humanDelay(sock, message, 1, 3);
       await commandPlantar(sock, message);
       break;
-    
+
+    case 'doblar':
+      await humanDelay(sock, message, 1, 3);
+      await commandDoblar(sock, message);
+      break;
+
+    case 'split':
+      await humanDelay(sock, message, 1, 3);
+      await commandSplit(sock, message);
+      break;
+
+    case 'rendirse':
+      await humanDelay(sock, message, 1, 3);
+      await commandRendirse(sock, message);
+      break;
+
+    case 'seguro':
+      await humanDelay(sock, message, 1, 3);
+      await commandSeguro(sock, message);
+      break;
+
+    case 'noseguro':
+      await humanDelay(sock, message, 1, 3);
+      await commandNoSeguro(sock, message);
+      break;
+
     case 'casinostats':
       await humanDelay(sock, message, 2, 4);
       await commandCasinoStats(sock, message);

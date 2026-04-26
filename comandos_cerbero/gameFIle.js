@@ -2048,8 +2048,31 @@ function esBlackjackNatural(cartas) {
   if (cartas.length !== 2) return false;
   const vals = cartas.map(c => c.valor !== undefined ? c.valor : c);
   const tieneAs = vals.includes('A');
-  const tieneValor10 = vals.some(v => ['10', '10', 'J', 'Q', 'K', 10].includes(v));
+  const tieneValor10 = vals.some(v => ['10', 'J', 'Q', 'K', 10].includes(v));
   return tieneAs && tieneValor10;
+}
+
+// Soft 17: As + 6 = 17 con el As contando como 11 → crupier DEBE pedir
+function esSoft17(cartas) {
+  const vals = cartas.map(c => c.valor !== undefined ? c.valor : c);
+  let sum = 0, ases = 0;
+  for (const v of vals) {
+    if (v === 'A') { ases++; sum += 11; }
+    else if (['J','Q','K'].includes(v)) sum += 10;
+    else sum += parseInt(v) || 0;
+  }
+  while (sum > 21 && ases > 0) { sum -= 10; ases--; }
+  return sum === 17 && ases > 0; // 17 "suave" (un As sigue valiendo 11)
+}
+
+// El crupier juega según reglas estándar (pide en soft 17, se planta en hard 17+)
+function jugarCrupier(game) {
+  while (true) {
+    const total = calcularMano(game.cartasCrupier);
+    if (total >= 18) break;
+    if (total === 17 && !esSoft17(game.cartasCrupier)) break; // hard 17: plantarse
+    game.cartasCrupier.push(robarCarta(game.mazo || crearMazo()));
+  }
 }
 
 // Timeout de abandono: 10 minutos sin acción → se cancela el juego
@@ -2109,34 +2132,97 @@ export async function commandBlackjack(sock, msg, apuestaStr) {
   const cartasJugador = [robarCarta(mazo), robarCarta(mazo)];
   const cartasCrupier = [robarCarta(mazo), robarCarta(mazo)]; // el crupier tiene 2 pero muestra 1
 
+  const crupierTieneBJ = esBlackjackNatural(cartasCrupier);
+  const cartaVisibleVal = cartasCrupier[0].valor !== undefined ? cartasCrupier[0].valor : cartasCrupier[0];
+  const crupierMuestraAs = cartaVisibleVal === 'A';
+  const crupierMuestra10 = ['10','J','Q','K'].includes(String(cartaVisibleVal));
+
   user.currentGame = {
     name: "blackjack",
     apuesta,
     cartasJugador,
     cartasCrupier,
-    mazo,       // mazo restante para esta partida
-    terminado: false
+    mazo,
+    terminado: false,
+    // Split support
+    manos: null,
+    manoActual: 0,
+    // Insurance support
+    esperandoSeguro: false,
+    seguroApuesta: 0,
   };
 
   user.casinoStats = user.casinoStats || {};
   user.casinoStats.gamesPlayed = (user.casinoStats.gamesPlayed || 0) + 1;
 
-  // Detectar Blackjack Natural del jugador
-  if (esBlackjackNatural(cartasJugador)) {
-    // Verificar si también el crupier tiene natural (empate)
-    if (esBlackjackNatural(cartasCrupier)) {
-      // Empate natural — devolver dinero
-      cancelarTimeoutBJ(id);
-      saveGameData();
-      const img = await _bjImagen(cartasJugador, cartasCrupier, true, 21, 21);
-      delete user.currentGame;
-      return await _bjEnviar(sock, msg, img,
-        `🔄 *¡AMBOS TIENEN BLACKJACK NATURAL!*\n\n` +
-        `Tú: ${cartasJugador.map(cartaStr).join(' ')} (21)\n` +
-        `Crupier: ${cartasCrupier.map(cartaStr).join(' ')} (21)\n\n` +
-        `💰 Dinero devuelto.`);
+  // ── CRUPIER PEEKING ──────────────────────────────────────────────
+  // Si el jugador tiene BJ natural
+  const jugadorTieneBJ = esBlackjackNatural(cartasJugador);
+
+  if (crupierTieneBJ) {
+    // Caso: crupier muestra 10-value → revelar de inmediato (no insurance)
+    if (crupierMuestra10) {
+      if (jugadorTieneBJ) {
+        // Empate: ambos tienen BJ
+        cancelarTimeoutBJ(id);
+        delete user.currentGame;
+        saveGameData();
+        const img = await _bjImagen(cartasJugador, cartasCrupier, true, 21, 21);
+        return await _bjEnviar(sock, msg, img,
+          `🔄 *¡AMBOS TIENEN BLACKJACK NATURAL!*\n\n` +
+          `Tú: ${cartasJugador.map(cartaStr).join(' ')} (21)\n` +
+          `Crupier: ${cartasCrupier.map(cartaStr).join(' ')} (21)\n\n` +
+          `💰 Dinero devuelto. Empate.`);
+      } else {
+        // Crupier tiene BJ con 10 visible → jugador pierde de inmediato
+        user.money -= apuesta;
+        user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+        user.casinoStats.profit = (user.casinoStats.profit || 0) - apuesta;
+        user.casinoStats.consecutiveWins = 0;
+        cancelarTimeoutBJ(id);
+        delete user.currentGame;
+        saveGameData();
+        const img = await _bjImagen(cartasJugador, cartasCrupier, true, calcularMano(cartasJugador), 21);
+        return await _bjEnviar(sock, msg, img,
+          `🎩 *¡BLACKJACK DEL CRUPIER!*\n\n` +
+          `Crupier: ${cartasCrupier.map(cartaStr).join(' ')} *(21)*\n` +
+          `Tú: ${cartasJugador.map(cartaStr).join(' ')} *(${calcularMano(cartasJugador)})*\n\n` +
+          `📉 Perdiste: ${formatMoney(apuesta)}\n💰 Saldo: ${formatMoney(user.money)}`);
+      }
     }
-    // Jugador gana con BJ natural → pago 3:2
+    // Caso: crupier muestra As → ofrecer seguro primero, luego revelar
+    if (crupierMuestraAs) {
+      if (jugadorTieneBJ) {
+        // Jugador tiene BJ también → empate inmediato (peeking rule: antes del seguro)
+        cancelarTimeoutBJ(id);
+        delete user.currentGame;
+        saveGameData();
+        const img = await _bjImagen(cartasJugador, cartasCrupier, true, 21, 21);
+        return await _bjEnviar(sock, msg, img,
+          `🔄 *¡AMBOS TIENEN BLACKJACK NATURAL!*\n\n` +
+          `Tú: ${cartasJugador.map(cartaStr).join(' ')} (21)\n` +
+          `Crupier: ${cartasCrupier.map(cartaStr).join(' ')} (21)\n\n` +
+          `💰 Dinero devuelto. Empate.`);
+      }
+      // Jugador sin BJ → ofrecer seguro
+      user.currentGame.esperandoSeguro = true;
+      const maxSeguro = Math.floor(apuesta / 2);
+      saveGameData();
+      iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+      return await sock.sendMessage(msg.key.remoteJid, {
+        text: `🎩 *CRUPIER MUESTRA As — SEGURO DISPONIBLE*\n\n` +
+          `Tus cartas: ${cartasJugador.map(cartaStr).join(' ')} *(${calcularMano(cartasJugador)})*\n` +
+          `Crupier: ${cartaStr(cartasCrupier[0])} + ?\n\n` +
+          `⚠️ El crupier podría tener Blackjack.\n` +
+          `💡 *¿Quieres asegurarte?*\n` +
+          `• \`!seguro\` — Apostar ${formatMoney(maxSeguro)} (paga 2:1 si crupier tiene BJ)\n` +
+          `• \`!noseguro\` — Continuar sin seguro`
+      }, { quoted: msg });
+    }
+  }
+
+  // ── BLACKJACK NATURAL DEL JUGADOR (sin BJ del crupier) ──────────
+  if (jugadorTieneBJ) {
     const ganancia = Math.floor(apuesta * 1.5);
     user.money += ganancia;
     user.casinoStats.wins = (user.casinoStats.wins || 0) + 1;
@@ -2145,14 +2231,31 @@ export async function commandBlackjack(sock, msg, apuestaStr) {
     user.casinoStats.consecutiveWins = (user.casinoStats.consecutiveWins || 0) + 1;
     if (ganancia > (user.casinoStats.highestWin || 0)) user.casinoStats.highestWin = ganancia;
     cancelarTimeoutBJ(id);
+    delete user.currentGame;
     saveGameData();
     const img = await _bjImagen(cartasJugador, cartasCrupier, true, 21, calcularMano(cartasCrupier));
-    delete user.currentGame;
     return await _bjEnviar(sock, msg, img,
       `🃏✨ *¡BLACKJACK NATURAL!* ✨🃏\n\n` +
       `Tus cartas: ${cartasJugador.map(cartaStr).join(' ')}\n` +
       `Crupier: ${cartasCrupier.map(cartaStr).join(' ')} (${calcularMano(cartasCrupier)})\n\n` +
       `🎉 *Ganancia: +${formatMoney(ganancia)}* (pago 3:2)\n💰 Saldo: ${formatMoney(user.money)}`);
+  }
+
+  // Si el crupier muestra As pero NO tiene BJ → aun así ofrecer seguro
+  if (!crupierTieneBJ && crupierMuestraAs) {
+    user.currentGame.esperandoSeguro = true;
+    const maxSeguro = Math.floor(apuesta / 2);
+    saveGameData();
+    iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: `🎩 *CRUPIER MUESTRA As — SEGURO DISPONIBLE*\n\n` +
+        `Tus cartas: ${cartasJugador.map(cartaStr).join(' ')} *(${calcularMano(cartasJugador)})*\n` +
+        `Crupier: ${cartaStr(cartasCrupier[0])} + ?\n\n` +
+        `⚠️ El crupier podría tener Blackjack.\n` +
+        `💡 *¿Quieres asegurarte?*\n` +
+        `• \`!seguro\` — Apostar ${formatMoney(maxSeguro)} (paga 2:1 si crupier tiene BJ)\n` +
+        `• \`!noseguro\` — Continuar sin seguro`
+    }, { quoted: msg });
   }
 
   saveGameData();
@@ -2170,53 +2273,74 @@ export async function commandDoblar(sock, msg) {
       text: "❌ No tienes un juego activo de Blackjack para doblar."
     }, { quoted: msg });
   }
-
-  if (game.cartasJugador.length !== 2) {
+  if (game.esperandoSeguro) {
     return await sock.sendMessage(msg.key.remoteJid, {
-      text: "❌ Solo puedes doblar al inicio (con 2 cartas)."
+      text: "⚠️ Responde primero: `!seguro` o `!noseguro`."
     }, { quoted: msg });
   }
 
-  if (user.money < game.apuesta) {
+  // Obtener mano activa (split o normal)
+  const cartas = game.manos ? game.manos[game.manoActual].cartas : game.cartasJugador;
+  const apuestaMano = game.manos ? game.manos[game.manoActual].apuesta : game.apuesta;
+
+  if (cartas.length !== 2) {
     return await sock.sendMessage(msg.key.remoteJid, {
-      text: `❌ No tienes fondos para doblar. Necesitas ${formatMoney(game.apuesta)} adicionales.`
+      text: "❌ Solo puedes doblar al inicio de cada mano (con 2 cartas)."
+    }, { quoted: msg });
+  }
+  if (user.money < apuestaMano) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: `❌ No tienes fondos para doblar. Necesitas ${formatMoney(apuestaMano)} adicionales.`
     }, { quoted: msg });
   }
 
   cancelarTimeoutBJ(id);
-
-  // Bloquear apuesta adicional y doblar
-  user.money -= game.apuesta;
-  const apuestaOriginal = game.apuesta;
-  game.apuesta *= 2;
+  user.money -= apuestaMano;
+  const apuestaOriginal = apuestaMano;
+  const apuestaDoble = apuestaMano * 2;
+  if (game.manos) {
+    game.manos[game.manoActual].apuesta = apuestaDoble;
+  } else {
+    game.apuesta = apuestaDoble;
+  }
 
   // Solo UNA carta más
   const nuevaCarta = robarCarta(game.mazo || crearMazo());
-  game.cartasJugador.push(nuevaCarta);
-  const total = calcularMano(game.cartasJugador);
+  cartas.push(nuevaCarta);
+  const total = calcularMano(cartas);
+
+  // Con manos (split), simplemente marcar terminada y avanzar
+  if (game.manos) {
+    game.manos[game.manoActual].terminada = true;
+    if (total > 21) game.manos[game.manoActual].bust = true;
+    game.manoActual++;
+    if (game.manoActual < game.manos.length) {
+      saveGameData();
+      iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+      return await mostrarMano(sock, msg, user);
+    }
+    // Todas las manos terminadas → crupier juega y resolver
+    jugarCrupier(game);
+    game.terminado = true;
+    return await _resolverSplit(sock, msg, user, game);
+  }
+
+  // Sin split: crupier siempre juega después del doblar
+  jugarCrupier(game);
+  const totalCrupier = calcularMano(game.cartasCrupier);
   game.terminado = true;
 
   let resultado = '';
-  let ganoPerdo = 0;
-
-  // Siempre juega el crupier
-  while (calcularMano(game.cartasCrupier) < 17) {
-    game.cartasCrupier.push(robarCarta(game.mazo || crearMazo()));
-  }
-  const totalCrupier = calcularMano(game.cartasCrupier);
-
   if (total > 21) {
-    // Pierde: ya descontamos apuesta adicional; la apuesta base se descuenta aquí
     user.money -= apuestaOriginal;
-    ganoPerdo = -game.apuesta;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
-    user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta;
+    user.casinoStats.profit = (user.casinoStats.profit || 0) - apuestaDoble;
     user.casinoStats.consecutiveWins = 0;
-    resultado = `💥 *¡Te pasaste con ${total}!*\n📉 Perdiste: ${formatMoney(game.apuesta)}`;
+    resultado = `💥 *¡Te pasaste con ${total}!*\n📉 Perdiste: ${formatMoney(apuestaDoble)}`;
   } else if (totalCrupier > 21 || total > totalCrupier) {
-    // Gana: devuelve la apuesta total + misma cantidad (pago 1:1 sobre apuesta total)
-    user.money += game.apuesta; // recupera lo apostado total (ya se descontó apuesta adicional)
-    ganoPerdo = apuestaOriginal; // ganancia neta = apuesta original
+    user.money += apuestaOriginal;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.wins = (user.casinoStats.wins || 0) + 1;
     user.casinoStats.profit = (user.casinoStats.profit || 0) + apuestaOriginal;
     user.casinoStats.blackjackWins = (user.casinoStats.blackjackWins || 0) + 1;
@@ -2224,47 +2348,72 @@ export async function commandDoblar(sock, msg) {
     if (apuestaOriginal > (user.casinoStats.highestWin || 0)) user.casinoStats.highestWin = apuestaOriginal;
     resultado = `🎉 *¡Ganaste con ${total}!*\n💰 Ganancia: +${formatMoney(apuestaOriginal)}`;
   } else if (total === totalCrupier) {
-    // Empate: devolver solo la apuesta adicional (se recupera lo que se dobló)
     user.money += apuestaOriginal;
     resultado = `🔁 *Empate (${total}).* Se devuelve la apuesta adicional.`;
   } else {
-    // Pierde (crupier mejor)
     user.money -= apuestaOriginal;
-    ganoPerdo = -game.apuesta;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
-    user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta;
+    user.casinoStats.profit = (user.casinoStats.profit || 0) - apuestaDoble;
     user.casinoStats.consecutiveWins = 0;
-    resultado = `💔 *Perdiste con ${total} frente al crupier (${totalCrupier})*\n📉 Perdiste: ${formatMoney(game.apuesta)}`;
+    resultado = `💔 *Perdiste con ${total} frente al crupier (${totalCrupier})*\n📉 Perdiste: ${formatMoney(apuestaDoble)}`;
   }
 
   saveGameData();
-  const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, true, total, totalCrupier);
+  const img = await _bjImagen(cartas, game.cartasCrupier, true, total, totalCrupier);
   delete user.currentGame;
   await _bjEnviar(sock, msg, img,
     `💸 *DOBLE — BLACKJACK*\n\n` +
     `${resultado}\n\n` +
-    `🃏 Tus cartas: ${game.cartasJugador.map(cartaStr).join(' ')} (${total})\n` +
+    `🃏 Tus cartas: ${cartas.map(cartaStr).join(' ')} (${total})\n` +
     `🎩 Crupier: ${game.cartasCrupier.map(cartaStr).join(' ')} (${totalCrupier})\n\n` +
     `💰 Saldo actual: ${formatMoney(user.money)}`);
 }
 
 async function mostrarMano(sock, msg, user) {
   const game = user.currentGame;
-  const total = calcularMano(game.cartasJugador);
+  const cartas = game.manos ? game.manos[game.manoActual].cartas : game.cartasJugador;
+  const apuestaMano = game.manos ? game.manos[game.manoActual].apuesta : game.apuesta;
+  const total = calcularMano(cartas);
   const cartaVisibleCrupier = calcularMano([game.cartasCrupier[0]]);
 
-  const doblarDisponible = game.cartasJugador.length === 2 ? '\n💸 `!doblar` — Doblar apuesta (solo ahora)' : '';
+  const puedeRendirse = cartas.length === 2 && !game.manos; // no en split
+  const puedeSplit = !game.manos && game.cartasJugador.length === 2 && (() => {
+    const v1 = game.cartasJugador[0].valor !== undefined ? game.cartasJugador[0].valor : game.cartasJugador[0];
+    const v2 = game.cartasJugador[1].valor !== undefined ? game.cartasJugador[1].valor : game.cartasJugador[1];
+    const norm = v => ['J','Q','K'].includes(v) ? '10' : String(v);
+    return norm(v1) === norm(v2) && user.money >= game.apuesta;
+  })();
+
+  const doblarDisponible = cartas.length === 2 && user.money >= apuestaMano
+    ? `\n💸 \`!doblar\` — Doblar apuesta (solo ahora)` : '';
+  const rendirseDisponible = puedeRendirse
+    ? `\n🏳️ \`!rendirse\` — Rendirse (recuperar 50%)` : '';
+  const splitDisponible = puedeSplit
+    ? `\n✂️ \`!split\` — Dividir mano` : '';
+
+  let header = `♠️ *BLACKJACK* ♣️\n💰 Apuesta: ${formatMoney(apuestaMano)}\n\n`;
+  if (game.manos) {
+    header = `♠️ *BLACKJACK — SPLIT* ♣️\n`;
+    for (let i = 0; i < game.manos.length; i++) {
+      const m = game.manos[i];
+      const t = calcularMano(m.cartas);
+      const activo = i === game.manoActual ? ' ◄ JUGANDO' : (m.terminada ? ' ✓' : '');
+      header += `🃏 Mano ${i + 1}${activo}: ${m.cartas.map(cartaStr).join(' ')} *(${t})*  [${formatMoney(m.apuesta)}]\n`;
+    }
+    header += '\n';
+  } else {
+    header += `🃏 *Tus cartas:* ${cartas.map(cartaStr).join(' ')}  *(${total})*\n`;
+  }
 
   const caption =
-    `♠️ *BLACKJACK* ♣️\n` +
-    `💰 Apuesta: ${formatMoney(game.apuesta)}\n\n` +
-    `🃏 *Tus cartas:* ${game.cartasJugador.map(cartaStr).join(' ')}  *(${total})*\n` +
+    header +
     `🎩 *Crupier:* ${cartaStr(game.cartasCrupier[0])} + ?  *(${cartaVisibleCrupier}+?)*\n\n` +
     `📌 ¿Qué haces?\n` +
     `✋ \`!pedir\` — Carta nueva\n` +
-    `🛑 \`!plantar\` — Me planto${doblarDisponible}`;
+    `🛑 \`!plantar\` — Me planto${doblarDisponible}${splitDisponible}${rendirseDisponible}`;
 
-  const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, false, total, 0);
+  const img = await _bjImagen(cartas, game.cartasCrupier, false, total, 0);
   await _bjEnviar(sock, msg, img, caption);
 }
 
@@ -2295,30 +2444,60 @@ export async function commandPedir(sock, msg) {
       text: "❌ No tienes un juego activo de Blackjack."
     }, { quoted: msg });
   }
+  if (user.currentGame.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "⚠️ Responde primero: `!seguro` o `!noseguro`."
+    }, { quoted: msg });
+  }
 
   cancelarTimeoutBJ(id);
   const game = user.currentGame;
+  const cartas = game.manos ? game.manos[game.manoActual].cartas : game.cartasJugador;
+
   const nuevaCarta = robarCarta(game.mazo || crearMazo());
-  game.cartasJugador.push(nuevaCarta);
-  const total = calcularMano(game.cartasJugador);
+  cartas.push(nuevaCarta);
+  const total = calcularMano(cartas);
 
   if (total > 21) {
+    // Bust en esta mano
+    if (game.manos) {
+      // En split: marcar mano como bust, avanzar
+      user.casinoStats = user.casinoStats || {};
+      game.manos[game.manoActual].bust = true;
+      game.manos[game.manoActual].terminada = true;
+      game.manoActual++;
+      const img = await _bjImagen(cartas, game.cartasCrupier, false, total, 0);
+      if (game.manoActual < game.manos.length) {
+        saveGameData();
+        iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+        await _bjEnviar(sock, msg, img,
+          `💥 *¡Mano ${game.manoActual} se pasó! (${total})*\n` +
+          `Continuando con la Mano ${game.manoActual + 1}...`);
+        return await mostrarMano(sock, msg, user);
+      }
+      // Todas bust o terminadas → crupier juega
+      jugarCrupier(game);
+      game.terminado = true;
+      return await _resolverSplit(sock, msg, user, game);
+    }
+    // Sin split: perder
     game.terminado = true;
     user.money -= game.apuesta;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
     user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta;
     user.casinoStats.consecutiveWins = 0;
     saveGameData();
-    const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, true, total, calcularMano(game.cartasCrupier));
+    const img = await _bjImagen(cartas, game.cartasCrupier, true, total, calcularMano(game.cartasCrupier));
     delete user.currentGame;
     return await _bjEnviar(sock, msg, img,
       `💥 *¡TE PASASTE!* (${total})\n\n` +
-      `🃏 Tus cartas: ${game.cartasJugador.map(cartaStr).join(' ')}\n` +
+      `🃏 Tus cartas: ${cartas.map(cartaStr).join(' ')}\n` +
       `🎩 Crupier: ${game.cartasCrupier.map(cartaStr).join(' ')} (${calcularMano(game.cartasCrupier)})\n\n` +
       `📉 Perdiste: ${formatMoney(game.apuesta)}\n💰 Saldo: ${formatMoney(user.money)}`);
   }
 
-  // Si llegó a 21 justo → plantar automáticamente
+  // Si llegó a 21 justo → sugerir plantar
   if (total === 21) {
     saveGameData();
     iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
@@ -2341,24 +2520,45 @@ export async function commandPlantar(sock, msg) {
       text: "❌ No tienes un juego activo de Blackjack."
     }, { quoted: msg });
   }
+  if (user.currentGame.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "⚠️ Responde primero: `!seguro` o `!noseguro`."
+    }, { quoted: msg });
+  }
 
   cancelarTimeoutBJ(id);
   const game = user.currentGame;
-  game.terminado = true;
 
-  // Crupier juega: debe llegar a 17+ (regla estándar: plantarse en soft 17)
-  while (calcularMano(game.cartasCrupier) < 17) {
-    game.cartasCrupier.push(robarCarta(game.mazo || crearMazo()));
+  // Modo split: marcar mano actual como terminada, avanzar
+  if (game.manos) {
+    game.manos[game.manoActual].terminada = true;
+    game.manoActual++;
+    if (game.manoActual < game.manos.length) {
+      saveGameData();
+      iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+      await sock.sendMessage(msg.key.remoteJid, {
+        text: `✅ Mano ${game.manoActual} plantada. Ahora jugando *Mano ${game.manoActual + 1}*:`
+      }, { quoted: msg });
+      return await mostrarMano(sock, msg, user);
+    }
+    // Todas las manos terminadas → crupier juega
+    jugarCrupier(game);
+    game.terminado = true;
+    return await _resolverSplit(sock, msg, user, game);
   }
+
+  // Modo normal
+  game.terminado = true;
+  jugarCrupier(game);
 
   const totalJugador = calcularMano(game.cartasJugador);
   const totalCrupier = calcularMano(game.cartasCrupier);
   let resultado = '';
 
   if (totalCrupier > 21 || totalJugador > totalCrupier) {
-    // GANA: pago 1:1 (recibe apuesta de vuelta + misma cantidad)
     const ganancia = game.apuesta;
     user.money += ganancia;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.wins = (user.casinoStats.wins || 0) + 1;
     user.casinoStats.profit = (user.casinoStats.profit || 0) + ganancia;
     user.casinoStats.blackjackWins = (user.casinoStats.blackjackWins || 0) + 1;
@@ -2368,11 +2568,10 @@ export async function commandPlantar(sock, msg) {
     const razon = totalCrupier > 21 ? `¡El crupier se pasó con ${totalCrupier}!` : `${totalJugador} > ${totalCrupier}`;
     resultado = `🎉 *¡GANASTE!* ${razon}\n💰 +${formatMoney(ganancia)}`;
   } else if (totalJugador === totalCrupier) {
-    // EMPATE: devolver apuesta
     resultado = `🔄 *Empate (${totalJugador}).* Tu dinero fue devuelto.`;
   } else {
-    // PIERDE
     user.money -= game.apuesta;
+    user.casinoStats = user.casinoStats || {};
     user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
     user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta;
     user.casinoStats.consecutiveWins = 0;
@@ -2390,6 +2589,281 @@ export async function commandPlantar(sock, msg) {
 
   await checkLogros(sock, msg, user);
   delete user.currentGame;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// HELPER INTERNO: resolver partida Split (crupier ya jugó)
+// ─────────────────────────────────────────────────────────────────
+async function _resolverSplit(sock, msg, user, game) {
+  const totalCrupier = calcularMano(game.cartasCrupier);
+  user.casinoStats = user.casinoStats || {};
+  let texto = `✂️ *RESULTADO — BLACKJACK SPLIT*\n\n`;
+  texto += `🎩 *Crupier:* ${game.cartasCrupier.map(cartaStr).join(' ')} *(${totalCrupier})*\n\n`;
+
+  for (let i = 0; i < game.manos.length; i++) {
+    const mano = game.manos[i];
+    const totalMano = calcularMano(mano.cartas);
+    texto += `🃏 *Mano ${i + 1}:* ${mano.cartas.map(cartaStr).join(' ')} *(${totalMano})*\n`;
+
+    if (mano.bust || totalMano > 21) {
+      user.money -= mano.apuesta;
+      user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+      user.casinoStats.profit = (user.casinoStats.profit || 0) - mano.apuesta;
+      texto += `   💥 Bust — Perdiste ${formatMoney(mano.apuesta)}\n`;
+    } else if (totalCrupier > 21 || totalMano > totalCrupier) {
+      user.money += mano.apuesta;
+      user.casinoStats.wins = (user.casinoStats.wins || 0) + 1;
+      user.casinoStats.profit = (user.casinoStats.profit || 0) + mano.apuesta;
+      user.casinoStats.consecutiveWins = (user.casinoStats.consecutiveWins || 0) + 1;
+      texto += `   🎉 ¡Ganaste! +${formatMoney(mano.apuesta)}\n`;
+    } else if (totalMano === totalCrupier) {
+      texto += `   🔄 Empate — Dinero devuelto\n`;
+    } else {
+      user.money -= mano.apuesta;
+      user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+      user.casinoStats.profit = (user.casinoStats.profit || 0) - mano.apuesta;
+      user.casinoStats.consecutiveWins = 0;
+      texto += `   💔 Perdiste — ${formatMoney(mano.apuesta)}\n`;
+    }
+    texto += '\n';
+  }
+  texto += `💰 *Saldo final: ${formatMoney(user.money)}*`;
+  saveGameData();
+  const allCartas = game.manos.flatMap(m => m.cartas);
+  const img = await _bjImagen(allCartas, game.cartasCrupier, true, 0, totalCrupier);
+  await _bjEnviar(sock, msg, img, texto);
+  await checkLogros(sock, msg, user);
+  delete user.currentGame;
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SPLIT: dividir dos cartas del mismo valor en 2 manos
+// ─────────────────────────────────────────────────────────────────
+export async function commandSplit(sock, msg) {
+  const id = msg.key.participant || msg.key.remoteJid;
+  const user = getUser(id);
+  const game = user.currentGame;
+
+  if (!game || game.name !== "blackjack" || game.terminado) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ No tienes un juego activo de Blackjack."
+    }, { quoted: msg });
+  }
+  if (game.manos) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ Ya hiciste split. No puedes dividir de nuevo."
+    }, { quoted: msg });
+  }
+  if (game.cartasJugador.length !== 2) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ Solo puedes hacer split con exactamente 2 cartas."
+    }, { quoted: msg });
+  }
+  if (game.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "⚠️ Responde primero: `!seguro` o `!noseguro`."
+    }, { quoted: msg });
+  }
+
+  const c1 = game.cartasJugador[0];
+  const c2 = game.cartasJugador[1];
+  const norm = c => {
+    const v = c.valor !== undefined ? c.valor : c;
+    return ['J','Q','K'].includes(v) ? '10' : String(v);
+  };
+  if (norm(c1) !== norm(c2)) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: `❌ Solo puedes dividir cartas del mismo valor.\nTienes: ${cartaStr(c1)} y ${cartaStr(c2)}`
+    }, { quoted: msg });
+  }
+  if (user.money < game.apuesta) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: `❌ No tienes fondos para la segunda mano. Necesitas ${formatMoney(game.apuesta)} adicionales.`
+    }, { quoted: msg });
+  }
+
+  cancelarTimeoutBJ(id);
+  // Cobrar la segunda apuesta
+  user.money -= game.apuesta;
+
+  // Crear 2 manos, cada una con 1 carta + 1 nueva del mazo
+  game.manos = [
+    { cartas: [c1, robarCarta(game.mazo || crearMazo())], apuesta: game.apuesta, terminada: false, bust: false },
+    { cartas: [c2, robarCarta(game.mazo || crearMazo())], apuesta: game.apuesta, terminada: false, bust: false },
+  ];
+  game.manoActual = 0;
+
+  // Caso especial: As + As → ambas manos reciben 1 carta y se planta automáticamente (regla casino)
+  const esAs = norm(c1) === 'A';
+  if (esAs) {
+    // Revelar ambas manos con 1 carta cada una, sin opción de pedir más
+    game.manos[0].terminada = true;
+    game.manos[1].terminada = true;
+    jugarCrupier(game);
+    game.terminado = true;
+    saveGameData();
+    await sock.sendMessage(msg.key.remoteJid, {
+      text: `✂️ *Split de Ases* — Solo 1 carta por mano (regla casino).`
+    }, { quoted: msg });
+    return await _resolverSplit(sock, msg, user, game);
+  }
+
+  saveGameData();
+  iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+  await sock.sendMessage(msg.key.remoteJid, {
+    text: `✂️ *¡SPLIT!* Mano dividida en 2. Jugando *Mano 1*:`
+  }, { quoted: msg });
+  await mostrarMano(sock, msg, user);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// RENDIRSE: recuperar 50% de la apuesta (solo con 2 cartas, sin split)
+// ─────────────────────────────────────────────────────────────────
+export async function commandRendirse(sock, msg) {
+  const id = msg.key.participant || msg.key.remoteJid;
+  const user = getUser(id);
+  const game = user.currentGame;
+
+  if (!game || game.name !== "blackjack" || game.terminado) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ No tienes un juego activo de Blackjack."
+    }, { quoted: msg });
+  }
+  if (game.manos) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ No puedes rendirte durante un split."
+    }, { quoted: msg });
+  }
+  if (game.cartasJugador.length !== 2) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ Solo puedes rendirte en tu primera jugada (con 2 cartas)."
+    }, { quoted: msg });
+  }
+  if (game.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "⚠️ Responde primero: `!seguro` o `!noseguro`."
+    }, { quoted: msg });
+  }
+
+  cancelarTimeoutBJ(id);
+  const recuperado = Math.floor(game.apuesta / 2);
+  const perdido = game.apuesta - recuperado;
+  user.money -= perdido;
+  user.casinoStats = user.casinoStats || {};
+  user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+  user.casinoStats.profit = (user.casinoStats.profit || 0) - perdido;
+  user.casinoStats.consecutiveWins = 0;
+  saveGameData();
+  const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, true,
+    calcularMano(game.cartasJugador), calcularMano(game.cartasCrupier));
+  delete user.currentGame;
+  await _bjEnviar(sock, msg, img,
+    `🏳️ *RENDICIÓN — BLACKJACK*\n\n` +
+    `Recuperaste el 50% de tu apuesta.\n` +
+    `💸 Perdiste: ${formatMoney(perdido)} | Recuperado: ${formatMoney(recuperado)}\n\n` +
+    `💰 Saldo: ${formatMoney(user.money)}`);
+}
+
+// ─────────────────────────────────────────────────────────────────
+// SEGURO / NOSEGURO: insurance cuando el crupier muestra As
+// ─────────────────────────────────────────────────────────────────
+export async function commandSeguro(sock, msg) {
+  const id = msg.key.participant || msg.key.remoteJid;
+  const user = getUser(id);
+  const game = user.currentGame;
+
+  if (!game || game.name !== "blackjack" || !game.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ No hay seguro disponible en este momento."
+    }, { quoted: msg });
+  }
+
+  const maxSeguro = Math.floor(game.apuesta / 2);
+  if (user.money < maxSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: `❌ No tienes fondos para el seguro. Necesitas ${formatMoney(maxSeguro)}.`
+    }, { quoted: msg });
+  }
+
+  cancelarTimeoutBJ(id);
+  user.money -= maxSeguro;
+  game.seguroApuesta = maxSeguro;
+  game.esperandoSeguro = false;
+
+  // Verificar si el crupier tiene BJ
+  const crupierBJ = esBlackjackNatural(game.cartasCrupier);
+  if (crupierBJ) {
+    // Seguro paga 2:1 → jugador recupera el seguro + gana el mismo monto
+    const pagoSeguro = maxSeguro * 2;
+    user.money += pagoSeguro; // seguro + ganancia
+    // Pérdida de la apuesta original
+    user.money -= game.apuesta;
+    user.casinoStats = user.casinoStats || {};
+    user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+    user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta + maxSeguro;
+    user.casinoStats.consecutiveWins = 0;
+    saveGameData();
+    const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, true,
+      calcularMano(game.cartasJugador), 21);
+    delete user.currentGame;
+    return await _bjEnviar(sock, msg, img,
+      `🎩 *¡BLACKJACK DEL CRUPIER!* — Seguro activado\n\n` +
+      `Crupier: ${game.cartasCrupier.map(cartaStr).join(' ')} *(21)*\n\n` +
+      `✅ Tu seguro pagó 2:1: +${formatMoney(pagoSeguro)}\n` +
+      `❌ Apuesta perdida: -${formatMoney(game.apuesta)}\n` +
+      `💰 Neto: ${pagoSeguro - game.apuesta >= 0 ? '+' : ''}${formatMoney(pagoSeguro - game.apuesta)}\n\n` +
+      `💰 Saldo: ${formatMoney(user.money)}`);
+  }
+
+  // Crupier NO tiene BJ → seguro perdido, juego continúa
+  saveGameData();
+  iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+  await sock.sendMessage(msg.key.remoteJid, {
+    text: `❌ El crupier *no tiene Blackjack*. Seguro perdido (-${formatMoney(maxSeguro)}).\n\n🃏 El juego continúa...`
+  }, { quoted: msg });
+  await mostrarMano(sock, msg, user);
+}
+
+export async function commandNoSeguro(sock, msg) {
+  const id = msg.key.participant || msg.key.remoteJid;
+  const user = getUser(id);
+  const game = user.currentGame;
+
+  if (!game || game.name !== "blackjack" || !game.esperandoSeguro) {
+    return await sock.sendMessage(msg.key.remoteJid, {
+      text: "❌ No hay seguro disponible en este momento."
+    }, { quoted: msg });
+  }
+
+  cancelarTimeoutBJ(id);
+  game.esperandoSeguro = false;
+
+  // Si el crupier tiene BJ → jugador pierde de inmediato (no tomó el seguro)
+  const crupierBJ = esBlackjackNatural(game.cartasCrupier);
+  if (crupierBJ) {
+    user.money -= game.apuesta;
+    user.casinoStats = user.casinoStats || {};
+    user.casinoStats.losses = (user.casinoStats.losses || 0) + 1;
+    user.casinoStats.profit = (user.casinoStats.profit || 0) - game.apuesta;
+    user.casinoStats.consecutiveWins = 0;
+    saveGameData();
+    const img = await _bjImagen(game.cartasJugador, game.cartasCrupier, true,
+      calcularMano(game.cartasJugador), 21);
+    delete user.currentGame;
+    return await _bjEnviar(sock, msg, img,
+      `🎩 *¡BLACKJACK DEL CRUPIER!*\n\n` +
+      `Crupier: ${game.cartasCrupier.map(cartaStr).join(' ')} *(21)*\n` +
+      `Tú: ${game.cartasJugador.map(cartaStr).join(' ')} *(${calcularMano(game.cartasJugador)})*\n\n` +
+      `📉 Perdiste: ${formatMoney(game.apuesta)}\n💰 Saldo: ${formatMoney(user.money)}`);
+  }
+
+  // Crupier no tiene BJ → juego continúa
+  saveGameData();
+  iniciarTimeoutBJ(id, user, sock, msg.key.remoteJid);
+  await sock.sendMessage(msg.key.remoteJid, {
+    text: `✅ Sin seguro. El crupier no tiene Blackjack — ¡el juego continúa!`
+  }, { quoted: msg });
+  await mostrarMano(sock, msg, user);
 }
 
 // ========== COMANDOS ADICIONALES ========== //
