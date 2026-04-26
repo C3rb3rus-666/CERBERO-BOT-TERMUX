@@ -1,7 +1,7 @@
 {
   "name": "cerbero-bot",
   "version": "4.4.17",
-  "description": "Cerbero-bot By C3rb3rus-666 (Build 90)",
+  "description": "Cerbero-bot By C3rb3rus-666 (Build 93)",
   "type": "module",
   "main": "index.js",
   "scripts": {
