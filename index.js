@@ -224,7 +224,7 @@ async function connectToWhatsApp() {
       version: waVersion,
       logger: logger,
       printQRInTerminal: false,
-      browser: process.arch === 'arm64' ? ['Cerbero-OS Linux ARM64', 'Chrome', '23.0.0'] : ['Cerbero-OS Linux', 'Chrome', '23.0.0'], // Cerbero-OS Linux (ARM64 en proot-debian | x64 en PC)
+      browser: Browsers.ubuntu('Chrome'), // formato recomendado por Baileys para pairing code
       connectTimeoutMs: 60000, 
       defaultQueryTimeoutMs: 0,
       keepAliveIntervalMs: 10000, 
