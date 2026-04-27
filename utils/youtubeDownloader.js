@@ -85,8 +85,10 @@ async function runYtDlp(url, outPrefix) {
     // User-Agent de Chrome real para que las peticiones parezcan un navegador legítimo
     // Esto reduce el riesgo de que YouTube detecte y bloquee la cuenta
     const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    // Ruta absoluta de node para que yt-dlp pueda encontrar el runtime JS
+    const nodeBin = process.execPath; // ej: /home/carlos/.config/nvm/.../bin/node
     const args = (baseArgs || []).concat([
-        '--js-runtimes', 'node',
+        '--js-runtimes', `node:${nodeBin}`,
         ...cookiesArgs,
         '--user-agent', USER_AGENT,
         '--add-header', `Accept-Language:es-MX,es;q=0.9,en;q=0.8`,
@@ -120,45 +122,23 @@ async function runYtDlp(url, outPrefix) {
 
 export async function downloadAudioFromYoutube(url, requesterId = 'anon') {
     const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const outPath = path.join(tmpdir(), `cerbero_${requesterId}_${unique}.mp4`);
 
-    // Intentar ytdl-core primero
+    // ytdl-core está roto con YouTube moderno → usar yt-dlp directamente
+    const outPrefix = path.join(tmpdir(), `cerbero_${requesterId}_${unique}`);
+    console.log('[youtubeDownloader] usando yt-dlp para:', url);
     try {
-        console.log('[youtubeDownloader] intentando ytdl-core para:', url);
-        const stream = ytdl(url, { filter: 'audioonly', quality: 'highestaudio' });
-        const write = fs.createWriteStream(outPath);
-
-        await new Promise((resolve, reject) => {
-            stream.pipe(write);
-            write.on('finish', resolve);
-            write.on('error', reject);
-            stream.on('error', reject);
-        });
-
-        return outPath;
-    } catch (e) {
-        const ytdlErr = (e && e.message) || String(e);
-        console.warn('ytdl-core falló, usando yt-dlp como fallback:', ytdlErr);
-        // Fallback to yt-dlp (extract to mp3)
-        const outPrefix = path.join(tmpdir(), `cerbero_${requesterId}_${unique}`);
-        console.log('[youtubeDownloader] runYtDlp outPrefix:', outPrefix);
-        try {
-            const downloaded = await runYtDlp(url, outPrefix);
-            console.log('[youtubeDownloader] downloaded file from yt-dlp:', downloaded);
-            // optionally convert/rename to .mp4 for compatibility
-            const finalPath = downloaded; // mp3 by yt-dlp
-            return finalPath;
-        } catch (err) {
-            console.error('[youtubeDownloader] runYtDlp failed:', err && (err.message || err));
-            const msg = (err && err.message) || String(err);
-            // Errores con mensaje claro al usuario
-            if (msg.includes('Sign in to confirm your age') || msg.includes('age-restricted')) {
-                throw new Error('AGE_RESTRICTED');
-            }
-            if (msg.includes('Private video') || msg.includes('This video is private')) {
-                throw new Error('PRIVATE_VIDEO');
-            }
-            throw new Error(`yt-dlp fallback falló: ${msg}`);
+        const downloaded = await runYtDlp(url, outPrefix);
+        console.log('[youtubeDownloader] descargado:', downloaded);
+        return downloaded;
+    } catch (err) {
+        console.error('[youtubeDownloader] runYtDlp failed:', err && (err.message || err));
+        const msg = (err && err.message) || String(err);
+        if (msg.includes('Sign in to confirm your age') || msg.includes('age-restricted')) {
+            throw new Error('AGE_RESTRICTED');
         }
+        if (msg.includes('Private video') || msg.includes('This video is private')) {
+            throw new Error('PRIVATE_VIDEO');
+        }
+        throw new Error(`yt-dlp falló: ${msg}`);
     }
 }
