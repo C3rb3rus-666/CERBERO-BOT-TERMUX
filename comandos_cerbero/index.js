@@ -414,11 +414,15 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'cplayd':
       await humanDelay(sock, message, 2, 4);
       if (args[0] && /^[1-9]$/.test(args[0])) {
+        // Número → descargar de la sesión activa
         await handleCplaydSelection(sock, message, parseInt(args[0], 10));
+      } else if (args.length > 0) {
+        // Texto → buscar y mostrar previews (igual que !cprueba)
+        await handleCpruebaCommand(sock, message, args);
       } else {
+        // Sin args → intentar selección por respuesta
         await handleCplaydSelection(sock, message);
       }
-      break;
       break;
     
     case 'grupo':
