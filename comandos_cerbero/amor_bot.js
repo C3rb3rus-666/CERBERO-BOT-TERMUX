@@ -1,432 +1,199 @@
 import fs from 'fs';
 import path from 'path';
 import cron from 'node-cron';
-import { GoogleGenAI } from '@google/genai';
 
 // ==========================================
 // 💝 AMOR BOT — Mensajes lindos diarios
-// Usa Google Gemini SDK (@google/genai) para generar mensajes románticos
-
-//busqueda de yokary en el grupo para enviar los mensajes romanticos
+// 100% local · sin Gemini · sin saludos de hora
+// MAIN (Linux): slots 09:00 · 14:00 · 20:00
+// Pool exclusivo distinto al de TERMUX
 // ==========================================
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'amor_config.json');
 
-// Cargar API key de Gemini
-function loadGeminiKey() {
-  if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
-  const envPath = path.join(process.cwd(), '.env.local');
-  if (fs.existsSync(envPath)) {
-    const match = fs.readFileSync(envPath, 'utf-8').match(/GEMINI_API_KEY=(.+)/);
-    if (match?.[1]) return match[1].trim();
-  }
-  return 'AIzaSyD2hnvT_1dgYj4hvrg31ovjyRQjYlm_928';
-}
-
-// Modelos Gemini en orden de preferencia
-const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-pro',
-  'gemini-2.0-flash',
-  'gemini-2.0-flash-lite',
+// ──────────────────────────────────────────
+// 📚 MENSAJES LOCALES — Pool MAIN (Linux)
+// ──────────────────────────────────────────
+const MENSAJES = [
+  'Pienso mucho en ti, más de lo que crees 💙',
+  'Hay algo en ti que me tiene completamente atrapado.',
+  'No sé exactamente qué es, pero pensar en ti me cambia el día.',
+  'Eres de esas personas que uno no olvida fácilmente.',
+  'Solo quería que supieras que estás en mis pensamientos.',
+  'Me alegra haberte conocido, en serio.',
+  'Eres importante para mí, aunque a veces no lo diga.',
+  'Pienso en ti y automáticamente todo se siente mejor.',
+  'No hace falta decir mucho — solo que significas mucho.',
+  'Hay días que simplemente necesito mandarte un mensaje para sentirme bien.',
+  'Ojalá supieras cuánto pienso en ti sin decirlo.',
+  'Te valoro más de lo que imaginas.',
+  'Eres algo especial en mi vida, eso no cambia.',
+  'Solo pasaba a recordarte que eres muy importante para mí.',
+  'Me gusta saber que existes en mi mundo 💙',
+  'Pocas cosas me hacen sentir tan bien como pensar en ti.',
+  'No te lo digo suficiente, pero te pienso muchísimo.',
+  'Eres de esas personas que hacen que todo valga la pena.',
+  'Hoy, como todos los días, mis pensamientos vuelven a ti.',
+  'Contigo todo se siente diferente, de la mejor manera.',
+  'Gracias por existir y por ser como eres.',
+  'Me alegras sin hacer nada, solo siendo tú.',
+  'No te imaginas el impacto que tienes en mí.',
+  'Eres genuinamente especial, no lo olvides.',
 ];
 
-// Esperar los segundos que la API indica en retryDelay
-function parseRetryDelay(err) {
-  try {
-    const body = typeof err === 'string' ? JSON.parse(err) : err;
-    const retry = body?.error?.details?.find(d => d['@type']?.includes('RetryInfo'));
-    if (retry?.retryDelay) {
-      const secs = parseFloat(retry.retryDelay.replace('s', ''));
-      return isNaN(secs) ? 35_000 : Math.ceil(secs + 2) * 1000;
-    }
-  } catch (_) {}
-  return 35_000; // fallback 35s
+// Índice rotativo para no repetir
+function siguienteMensaje(config) {
+  const idx = (config.msgIndex || 0) % MENSAJES.length;
+  config.msgIndex = idx + 1;
+  return MENSAJES[idx];
 }
 
-// Llamar Gemini con fallback entre modelos + retry automático en 429 (SDK oficial)
-async function callOpenRouter(prompt) {
-  const apiKey = loadGeminiKey();
-  const ai = new GoogleGenAI({ apiKey });
+// ⚙️ CONFIGURACIÓN
+const OBJETIVO_NUMERO = '573209382631';
+const OBJETIVO_NOMBRE = 'mi reina';
 
-  for (const model of GEMINI_MODELS) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const response = await ai.models.generateContent({ model, contents: prompt });
-        const text = response.text?.trim();
-        if (text) {
-          console.log(`[AMOR-BOT] ✅ Mensaje generado con Gemini (${model})`);
-          return text;
-        }
-        console.warn(`[AMOR-BOT] ⚠️ ${model} sin contenido`);
-        break;
-      } catch (e) {
-        const raw = e.message || '';
-        // 429 → esperar el delay sugerido y reintentar una vez
-        if (raw.includes('429') || raw.includes('RESOURCE_EXHAUSTED')) {
-          if (attempt === 0) {
-            let parsed;
-            try { parsed = JSON.parse(raw); } catch (_) { parsed = null; }
-            const delay = parseRetryDelay(parsed);
-            console.warn(`[AMOR-BOT] ⏳ ${model} 429 — esperando ${delay/1000}s...`);
-            await new Promise(r => setTimeout(r, delay));
-            continue; // reintentar
-          }
-        }
-        // 404 u otro error → pasar al siguiente modelo
-        console.error(`[AMOR-BOT] ❌ Error con ${model}:`, raw.slice(0, 120));
-        break;
-      }
-    }
-  }
-
-  console.error('[AMOR-BOT] ❌ Todos los modelos Gemini fallaron');
-  return null;
-}
-
-// ⚙️ CONFIGURACIÓN AUTOMÁTICA HARDCODED
-const OBJETIVO_NUMERO = '573209382631';  // +57 320 9382631
-const OBJETIVO_NOMBRE = 'mi reina';          // nombre para personalizar
-
-// 🕒 3 ENVIOS DIARIOS AUTOMÁTICOS
 const HORARIOS = [
-  { hora: '09:00', momento: 'mañana' },  // Buenos días
-  { hora: '14:00', momento: 'tarde' },   // Mensaje de tarde
-  { hora: '20:00', momento: 'noche' }    // Buenas noches
+  { hora: '09:00' },
+  { hora: '14:00' },
+  { hora: '20:00' },
 ];
 
-// Cargar configuración (auto-crea con objetivo hardcoded)
 function loadConfig() {
   if (!fs.existsSync(CONFIG_PATH)) {
-    const defaultConfig = {
-      target: `${OBJETIVO_NUMERO}@s.whatsapp.net`,
-      active: true,
-      nombre: OBJETIVO_NOMBRE,
-      mensajesEnviados: 0,
-      lastSent: {  // última fecha de envío por momento
-        mañana: null,
-        tarde: null,
-        noche: null
-      }
-    };
-    saveConfig(defaultConfig);
-    return defaultConfig;
+    const d = { target: `${OBJETIVO_NUMERO}@s.whatsapp.net`, active: true, nombre: OBJETIVO_NOMBRE, mensajesEnviados: 0, msgIndex: 0, lastSent: {} };
+    saveConfig(d); return d;
   }
   try {
-    const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-    if (!config.target || config.target !== `${OBJETIVO_NUMERO}@s.whatsapp.net`) {
-      config.target = `${OBJETIVO_NUMERO}@s.whatsapp.net`;
-      config.nombre = OBJETIVO_NOMBRE;
-      saveConfig(config);
-    }
-    // Asegurar que existe lastSent
-    if (!config.lastSent) {
-      config.lastSent = { mañana: null, tarde: null, noche: null };
-      saveConfig(config);
-    }
-    return config;
+    const c = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    if (!c.target) { c.target = `${OBJETIVO_NUMERO}@s.whatsapp.net`; c.nombre = OBJETIVO_NOMBRE; }
+    if (c.msgIndex === undefined) c.msgIndex = 0;
+    if (!c.lastSent) c.lastSent = {};
+    saveConfig(c); return c;
   } catch {
-    const defaultConfig = {
-      target: `${OBJETIVO_NUMERO}@s.whatsapp.net`,
-      active: true,
-      nombre: OBJETIVO_NOMBRE,
-      mensajesEnviados: 0,
-      lastSent: { mañana: null, tarde: null, noche: null }
-    };
-    saveConfig(defaultConfig);
-    return defaultConfig;
+    const d = { target: `${OBJETIVO_NUMERO}@s.whatsapp.net`, active: true, nombre: OBJETIVO_NOMBRE, mensajesEnviados: 0, msgIndex: 0, lastSent: {} };
+    saveConfig(d); return d;
   }
 }
 
-// Guardar configuración
 function saveConfig(config) {
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
 }
 
-// Generar mensaje romántico profundo según el momento del día
-async function generarMensajeLindo(nombre, contador, momento) {
-  let contexto = '';
-  let tipoMensaje = '';
-  
-  if (momento === 'mañana') {
-    contexto = 'Buenos días. Es la mañana y quieres que ella sepa que piensas en ella al despertar.';
-    tipoMensaje = 'un mensaje de buenos días romántico expresando cuánto la piensas';
-  } else if (momento === 'tarde') {
-    contexto = 'Es la tarde. Quieres recordarle que sigue siendo importante para ti durante el día.';
-    tipoMensaje = 'un mensaje de tarde dulce sobre lo especial que es para ti';
-  } else if (momento === 'noche') {
-    contexto = 'Es la noche. Quieres desearle buenas noches de forma romántica y que piense en ti antes de dormir.';
-    tipoMensaje = 'un mensaje de buenas noches profundo expresando tus sentimientos';
-  }
-
-  const prompt = `Eres Carlos, un chico profundamente enamorado de una chica muy especial.
-Llevas ${Math.floor(contador / 3)} días enviándole mensajes diarios (mañana, tarde y noche).
-
-${contexto}
-
-Quieres enviarle ${tipoMensaje}.
-
-REGLAS ESTRICTAS:
-- Máximo 2-3 líneas (35-55 palabras)
-- Sincero y profundo, pero natural
-- Expresa cuánto la piensas y lo importante que es para ti
-- Romántico pero genuino, no cursi
-- Puedes usar: "pienso mucho en ti", "eres importante para mí", "significas mucho"
-- Sin emojis excesivos (máximo 1-2)
-- En español
-- NO uses "mi vida", "mi cielo" (aún no llegan a ese nivel)
-- ${momento === 'mañana' ? 'Incluye saludo de buenos días' : momento === 'noche' ? 'Incluye deseo de buenas noches' : 'Mensaje casual de tarde'}
-
-Escribe SOLO el mensaje, sin introducción ni explicación:`;
-
-  return await callOpenRouter(prompt);
-}
-
-// Enviar mensaje (reutilizable para cron y catch-up)
-async function enviarMensaje(sock, momento) {
+// ──────────────────────────────────────────
+// 📤 ENVÍO
+// ──────────────────────────────────────────
+async function enviarMensaje(sock, slot) {
   const config = loadConfig();
-  
   try {
-    console.log(`[AMOR-BOT] 💝 Generando mensaje de ${momento}...`);
-    
+    const mensaje = siguienteMensaje(config);
     config.mensajesEnviados = (config.mensajesEnviados || 0) + 1;
-    const mensaje = await generarMensajeLindo(config.nombre, config.mensajesEnviados, momento);
-    
-    if (!mensaje) {
-      console.error(`[AMOR-BOT] ❌ No se pudo generar mensaje de ${momento}`);
-      config.mensajesEnviados--;
-      return false;
-    }
+    config.lastSent[slot] = new Date().toISOString();
+    saveConfig(config);
 
     await sock.sendMessage(config.target, { text: mensaje });
-    
-    // 🔍 COPIA A CARLOS para verificar que funciona
+
     const CARLOS = '573233704652@s.whatsapp.net';
-    await sock.sendMessage(CARLOS, { 
-      text: `📋 COPIA (${momento}):\n\n${mensaje}\n\n✅ Enviado a +${config.target.split('@')[0]}` 
-    });
-    
-    // Registrar fecha de envío
-    config.lastSent[momento] = new Date().toISOString();
-    saveConfig(config);
-    
-    console.log(`[AMOR-BOT] ✅ Mensaje #${config.mensajesEnviados} (${momento}) enviado`);
+    await sock.sendMessage(CARLOS, { text: `�� AMOR-BOT [MAIN] slot ${slot}:\n\n${mensaje}` });
+
+    console.log(`[AMOR-BOT][MAIN] ✅ #${config.mensajesEnviados} enviado (slot ${slot})`);
     return true;
-    
-  } catch (error) {
-    console.error(`[AMOR-BOT] ❌ Error enviando mensaje de ${momento}:`, error);
+  } catch (e) {
+    console.error(`[AMOR-BOT][MAIN] ❌ Error slot ${slot}:`, e.message);
     return false;
   }
 }
 
-// Verificar y recuperar mensajes perdidos del día
-async function verificarMensajesPerdidos(sock) {
+async function verificarPerdidos(sock) {
   const config = loadConfig();
   const ahora = new Date();
-  const horaActual = ahora.getHours() * 60 + ahora.getMinutes();
-  const fechaHoy = ahora.toISOString().split('T')[0];
-  
-  for (const { hora, momento } of HORARIOS) {
+  const hoy = ahora.toISOString().split('T')[0];
+  const minActual = ahora.getHours() * 60 + ahora.getMinutes();
+  for (const { hora } of HORARIOS) {
     const [h, m] = hora.split(':').map(Number);
-    const horaProgramada = h * 60 + m;
-    
-    // Si ya pasó la hora programada
-    if (horaActual >= horaProgramada) {
-      const lastSent = config.lastSent?.[momento];
-      const fechaUltimoEnvio = lastSent ? lastSent.split('T')[0] : null;
-      
-      // Si no se envió hoy, enviar ahora (catch-up)
-      if (fechaUltimoEnvio !== fechaHoy) {
-        console.log(`[AMOR-BOT] 🔄 Recuperando mensaje perdido de ${momento} (${hora})`);
-        await enviarMensaje(sock, momento);
-        // Esperar 2 segundos entre mensajes si hay varios perdidos
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    if (minActual >= h * 60 + m) {
+      const ultimo = config.lastSent?.[hora];
+      if (!ultimo || !ultimo.startsWith(hoy)) {
+        console.log(`[AMOR-BOT][MAIN] 🔄 Recuperando slot perdido ${hora}`);
+        await enviarMensaje(sock, hora);
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
   }
 }
 
-// Enviar mensajes programados (3 diarios: mañana, tarde, noche)
+// ──────────────────────────────────────────
+// 🕒 CRON
+// ──────────────────────────────────────────
 let cronJobs = [];
 
 export async function iniciarMensajesDiarios(sock) {
   const config = loadConfig();
-  
-  if (!config.target) {
-    console.log('[AMOR-BOT] ❌ Sin objetivo configurado');
-    return;
-  }
+  if (!config.target) { console.log('[AMOR-BOT][MAIN] ❌ Sin objetivo'); return; }
 
-  // 🔄 PASO 1: Verificar si hay mensajes perdidos del día (catch-up)
-  console.log('[AMOR-BOT] 🔍 Verificando mensajes pendientes del día...');
-  await verificarMensajesPerdidos(sock);
+  console.log('[AMOR-BOT][MAIN] 🔍 Verificando pendientes...');
+  await verificarPerdidos(sock);
 
-  // Limpiar cron jobs previos
-  cronJobs.forEach(job => job.stop());
+  cronJobs.forEach(j => j.stop());
   cronJobs = [];
 
-  // 🕐 PASO 2: Crear 3 cron jobs (mañana, tarde, noche)
-  HORARIOS.forEach(({ hora, momento }) => {
+  for (const { hora } of HORARIOS) {
     const [h, m] = hora.split(':');
-    
-    const job = cron.schedule(`${m} ${h} * * *`, async () => {
-      await enviarMensaje(sock, momento);
-    }, {
-      scheduled: true,
-      timezone: 'America/Bogota'
+    const job = cron.schedule(`${m} ${h} * * *`, () => enviarMensaje(sock, hora), {
+      scheduled: true, timezone: 'America/Bogota',
     });
-
     cronJobs.push(job);
-  });
+  }
 
-  console.log(`[AMOR-BOT] 💝 Sistema activo - 3 mensajes diarios:`);
-  HORARIOS.forEach(({ hora, momento }) => {
-    console.log(`  • ${momento.toUpperCase()}: ${hora}`);
-  });
-  console.log(`[AMOR-BOT] 🎯 Objetivo: ${config.nombre} (${config.target.split('@')[0]})`);
-  console.log(`[AMOR-BOT] 📊 Mensajes enviados: ${config.mensajesEnviados || 0}`);
+  console.log(`[AMOR-BOT][MAIN] 💝 Activo — slots: ${HORARIOS.map(x => x.hora).join(' · ')}`);
+  console.log(`[AMOR-BOT][MAIN] 🎯 ${config.nombre} | enviados: ${config.mensajesEnviados}`);
 }
 
-// ⛔ COMANDO DE PRUEBA TEMPORAL — Solo para verificar funcionamiento
+// ──────────────────────────────────────────
+// 🎮 COMANDOS
+// ──────────────────────────────────────────
 export const amorCommand = async (sock, msg, args) => {
   const chatId = msg.key.remoteJid;
   const senderId = msg.key.participant || chatId;
-  
-  console.log(`[AMOR-BOT] 🔍 Comando recibido de: ${senderId}`);
-  
-  // Extraer número real (manejar LIDs de WhatsApp)
   let senderNum = senderId.split('@')[0].split(':')[0];
-  
-  // Si es un LID, obtener número real desde metadata del grupo
+
   if (senderId.includes('@lid')) {
     try {
-      const groupMetadata = await sock.groupMetadata(chatId);
-      const participant = groupMetadata.participants.find(p => p.id === senderId);
-      if (participant?.phoneNumber) {
-        senderNum = participant.phoneNumber.toString().split('@')[0].split(':')[0];
-        console.log(`[AMOR-BOT] 🔍 LID detectado, número real: ${senderNum}`);
-      }
-    } catch (e) {
-      console.error(`[AMOR-BOT] ❌ Error obteniendo metadata: ${e.message}`);
-    }
+      const meta = await sock.groupMetadata(chatId);
+      const p = meta.participants.find(x => x.id === senderId);
+      if (p?.phoneNumber) senderNum = p.phoneNumber.toString().split('@')[0].split(':')[0];
+    } catch (_) {}
   }
-  
-  // Solo Carlos
-  const CARLOS_NUM = '573233704652';
-  console.log(`[AMOR-BOT] 🔍 Número extraído: ${senderNum}, esperado: ${CARLOS_NUM}`);
-  
-  if (senderNum !== CARLOS_NUM) {
-    console.log(`[AMOR-BOT] ⛔ Acceso denegado a: ${senderNum}`);
+
+  if (senderNum !== '573233704652') return;
+
+  const sub = args[0]?.toLowerCase();
+
+  if (sub === 'test' || sub === 'now') {
+    await sock.sendMessage(chatId, { text: '⏳ Enviando...' }, { quoted: msg });
+    const ok = await enviarMensaje(sock, 'manual');
+    await sock.sendMessage(chatId, { text: ok ? '✅ Enviado' : '❌ Error' }, { quoted: msg });
     return;
   }
 
-  console.log(`[AMOR-BOT] ✅ Acceso permitido a Carlos`);
-  const subCmd = args[0]?.toLowerCase();
-  console.log(`[AMOR-BOT] 📝 Subcomando: ${subCmd || '(ninguno)'}`);
-  
-  // !amor test — enviar mensaje de prueba AHORA
-  if (subCmd === 'test') {
-    await sock.sendMessage(chatId, { text: '⏳ Generando y enviando mensaje de prueba...' }, { quoted: msg });
-    
-    try {
-      const exito = await enviarMensaje(sock, 'mañana');
-      
-      if (exito) {
-        await sock.sendMessage(chatId, { 
-          text: '✅ Mensaje de prueba enviado correctamente a +57 320 9382631' 
-        }, { quoted: msg });
-      } else {
-        await sock.sendMessage(chatId, { 
-          text: '❌ Error al enviar. Revisa los logs del bot.' 
-        }, { quoted: msg });
-      }
-    } catch (e) {
-      await sock.sendMessage(chatId, { 
-        text: `❌ Error: ${e.message}` 
-      }, { quoted: msg });
-    }
-    return;
+  // !amor status (default)
+  const config = loadConfig();
+  const ahora = new Date();
+  const horaStr = `${ahora.getHours()}:${ahora.getMinutes().toString().padStart(2, '0')}`;
+  let proximo = 'Ninguno hoy';
+  for (const { hora } of HORARIOS) {
+    const [h, m] = hora.split(':').map(Number);
+    if (ahora.getHours() * 60 + ahora.getMinutes() < h * 60 + m) { proximo = hora; break; }
   }
 
-  // !amor now — enviar mensaje según hora actual
-  if (subCmd === 'now') {
-    const ahora = new Date();
-    const horaActual = ahora.getHours();
-    
-    console.log(`[AMOR-BOT] 🕐 !amor now ejecutado - hora: ${horaActual}:${ahora.getMinutes()}`);
-    
-    let momento;
-    if (horaActual >= 5 && horaActual < 12) {
-      momento = 'mañana';
-    } else if (horaActual >= 12 && horaActual < 19) {
-      momento = 'tarde';
-    } else {
-      momento = 'noche';
-    }
-    
-    console.log(`[AMOR-BOT] 📝 Momento detectado: ${momento}`);
-    
-    await sock.sendMessage(chatId, { 
-      text: `⏳ Enviando mensaje de ${momento} (hora actual: ${horaActual}:${ahora.getMinutes().toString().padStart(2,'0')})...` 
-    }, { quoted: msg });
-    
-    try {
-      const exito = await enviarMensaje(sock, momento);
-      
-      if (exito) {
-        await sock.sendMessage(chatId, { 
-          text: `✅ Mensaje de ${momento} enviado` 
-        }, { quoted: msg });
-      } else {
-        await sock.sendMessage(chatId, { 
-          text: '❌ Error al enviar' 
-        }, { quoted: msg });
-      }
-    } catch (e) {
-      console.error('[AMOR-BOT] ❌ Error en !amor now:', e);
-      await sock.sendMessage(chatId, { 
-        text: `❌ Error: ${e.message}` 
-      }, { quoted: msg });
-    }
-    return;
-  }
-
-  // !amor status — ver estado
-  if (subCmd === 'status' || !subCmd) {
-    const config = loadConfig();
-    const ahora = new Date();
-    const horaActual = `${ahora.getHours()}:${ahora.getMinutes().toString().padStart(2,'0')}`;
-    
-    let proximoEnvio = 'Ninguno programado';
-    for (const {hora, momento} of HORARIOS) {
-      const [h,m] = hora.split(':').map(Number);
-      const horaNum = ahora.getHours() * 60 + ahora.getMinutes();
-      const horaProg = h * 60 + m;
-      if (horaNum < horaProg) {
-        proximoEnvio = `${momento} a las ${hora}`;
-        break;
-      }
-    }
-    
-    await sock.sendMessage(chatId, { 
-      text: `💝 AMOR BOT\n\n` +
-            `Estado: ✅ ACTIVO\n` +
-            `Objetivo: ${config.nombre} (+${config.target.split('@')[0]})\n` +
-            `Mensajes enviados: ${config.mensajesEnviados}\n` +
-            `Hora actual: ${horaActual}\n` +
-            `Próximo envío: ${proximoEnvio}\n\n` +
-            `Horarios automáticos:\n` +
-            `• Mañana: 09:00\n` +
-            `• Tarde: 14:00\n` +
-            `• Noche: 20:00\n\n` +
-            `Comandos:\n` +
-            `!amor test — mensaje de prueba\n` +
-            `!amor now — enviar según hora actual\n` +
-            `!amor status — ver estado`
-    }, { quoted: msg });
-    return;
-  }
-
-  // Comando no reconocido
-  return;
+  await sock.sendMessage(chatId, {
+    text: `💝 AMOR BOT [MAIN]\n\n` +
+          `Estado: ✅ ACTIVO\n` +
+          `Objetivo: ${config.nombre} (+${config.target.split('@')[0]})\n` +
+          `Mensajes enviados: ${config.mensajesEnviados}\n` +
+          `Pool: ${MENSAJES.length} mensajes · índice ${config.msgIndex % MENSAJES.length}\n` +
+          `Hora actual: ${horaStr}\n` +
+          `Próximo slot: ${proximo}\n\n` +
+          `Slots: ${HORARIOS.map(x => x.hora).join(' · ')}\n\n` +
+          `!amor test · !amor now · !amor status`
+  }, { quoted: msg });
 };
