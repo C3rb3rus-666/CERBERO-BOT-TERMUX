@@ -14,32 +14,212 @@ const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'amor_config
 // ──────────────────────────────────────────
 // 📚 MENSAJES LOCALES — Pool MAIN (Linux)
 // ──────────────────────────────────────────
-const MENSAJES = [
-  'Pienso mucho en ti, más de lo que crees 💙',
-  'Hay algo en ti que me tiene completamente atrapado.',
-  'No sé exactamente qué es, pero pensar en ti me cambia el día.',
-  'Eres de esas personas que uno no olvida fácilmente.',
-  'Solo quería que supieras que estás en mis pensamientos.',
-  'Me alegra haberte conocido, en serio.',
-  'Eres importante para mí, aunque a veces no lo diga.',
-  'Pienso en ti y automáticamente todo se siente mejor.',
-  'No hace falta decir mucho — solo que significas mucho.',
-  'Hay días que simplemente necesito mandarte un mensaje para sentirme bien.',
-  'Ojalá supieras cuánto pienso en ti sin decirlo.',
-  'Te valoro más de lo que imaginas.',
-  'Eres algo especial en mi vida, eso no cambia.',
-  'Solo pasaba a recordarte que eres muy importante para mí.',
-  'Me gusta saber que existes en mi mundo 💙',
-  'Pocas cosas me hacen sentir tan bien como pensar en ti.',
-  'No te lo digo suficiente, pero te pienso muchísimo.',
-  'Eres de esas personas que hacen que todo valga la pena.',
-  'Hoy, como todos los días, mis pensamientos vuelven a ti.',
-  'Contigo todo se siente diferente, de la mejor manera.',
-  'Gracias por existir y por ser como eres.',
-  'Me alegras sin hacer nada, solo siendo tú.',
-  'No te imaginas el impacto que tienes en mí.',
-  'Eres genuinamente especial, no lo olvides.',
-];
+const MENSAJES = buildMessagePool('main');
+
+function buildMessagePool(botType) {
+  const pools = {
+    main: {
+      subjects: [
+        'Pienso en ti',
+        'Siempre imagino tu sonrisa',
+        'Tu recuerdo aparece',
+        'Siento algo especial',
+        'Me sorprende cuánto',
+        'Te tengo presente',
+        'Tu nombre suena como una melodía',
+        'Tu esencia me inspira',
+        'Hay algo en ti que ilumina mi día',
+        'Cada vez que pienso en ti, mi pecho se abre',
+        'Me gusta imaginarte con calma',
+        'Te guardo en un rincón muy tierno de mi mente',
+        'Tu sonrisa se queda en mi pensamiento',
+        'Tu presencia imaginada me llena de paz',
+        'Tu forma de ser me inspira',
+      ],
+      verbs: [
+        'y eso me hace querer',
+        'y me invita a soñar',
+        'y me inspira a cuidar',
+        'y me recuerda lo valioso que eres',
+        'y me anima a agradecer',
+        'y me provoca una sonrisa suave',
+        'y me empuja a escribirte estas palabras',
+        'y me da ganas de ser mejor',
+        'y me hace sentir en paz',
+        'y me impulsa a valorarte más',
+        'y me regala un momento dulce',
+        'y me lleva a pensar en ti con ternura',
+        'y me recuerda cuánto importas',
+      ],
+      objects: [
+        'con la sencillez de un pensamiento verdadero',
+        'desde el centro del corazón',
+        'como un susurro amable',
+        'como un gesto de ternura',
+        'con todo el respeto que mereces',
+        'con cariño sereno',
+        'sin prisa, solo con sinceridad',
+        'como un detalle pequeño y real',
+        'con una calma muy dulce',
+        'como un abrazo de palabras',
+        'con una emoción tranquila',
+        'como una brisa suave',
+        'como un recuerdo bonito',
+        'con una intención honesta',
+        'como un regalo sencillo',
+      ],
+      closings: [
+        'sin buscar razón',
+        'desde el corazón',
+        'con calma',
+        'de verdad',
+        'sin prisa',
+        'en silencio',
+        'sin que lo notes',
+        'con sinceridad',
+        'como nunca antes',
+        'de una manera honesta',
+        'como una caricia en el pensamiento',
+        'sin esperar nada a cambio',
+        'como una luz muy suave',
+        'con la certeza de que importas',
+        'desde un lugar muy tierno',
+        'con suavidad',
+        'con todo mi respeto',
+        'como una promesa tranquila',
+      ],
+      templates: [
+        '{subject} {verb} {object} {closing}',
+        '{subject}, {verb} {object} {closing}',
+        '{subject} {verb} {object}, {closing}',
+        '{subject} {verb} {object} {closing} ❤️',
+        '{subject}, {verb} {object}, {closing} 🌟',
+        'A veces {subject} {verb} {object} {closing}',
+        'Confieso que {subject} {verb} {object} {closing}',
+        '{subject} {verb} {object} {closing} ✨',
+      ],
+    },
+    termux: {
+      subjects: [
+        'Me alegra saber que existes',
+        'Tu recuerdo hace mi día más suave',
+        'Apareces en mis pensamientos de un modo bonito',
+        'Tu presencia imaginada es un regalo',
+        'Me gusta cómo me inspiras sin palabras',
+        'Pienso en ti con una sonrisa tranquila',
+        'Tu forma de ser me hace sentir bien',
+        'Hay algo en ti que me calma y me alegra',
+        'Siento que tu energía me acompaña',
+        'Tu imagen en mi mente es luz suave',
+        'Me pregunto cómo te hace sentir este mensaje',
+        'Me parece hermoso recordar tu voz',
+        'Tu forma de hablar se queda en mi memoria',
+        'Tu mirada se siente cercana incluso lejos',
+        'Tu presencia imaginada es una calma',
+      ],
+      verbs: [
+        'y me llena el alma',
+        'y me hace querer cuidarte',
+        'y me invita a ser más atento',
+        'y me recuerda lo especial que eres',
+        'y me da una calma linda',
+        'y me hace escribirte este mensaje',
+        'y termina por alegrar mi corazón',
+        'y me provoca una emoción bonita',
+        'y me inspira a agradecerte',
+        'y me anima a valorar cada instante',
+        'y me hace sentirte cerca',
+        'y me da ganas de ser más detallista',
+        'y me hace apreciar cada gesto tuyo',
+      ],
+      objects: [
+        'con sencillez y cariño',
+        'sin grandes palabras',
+        'como un abrazo suave',
+        'desde un lugar honesto',
+        'con dulzura tranquila',
+        'como una promesa de respeto',
+        'en lo profundo del pecho',
+        'como un gesto verdadero',
+        'en el hueco de un pensamiento tierno',
+        'como una nota de afecto',
+        'sin presión, solo cuidado',
+        'como un detalle que no pesa',
+        'con una ternura real',
+        'con una emoción clara',
+        'con una intención bonita',
+      ],
+      closings: [
+        'todo el tiempo',
+        'cada vez que respiro',
+        'sin buscar nada',
+        'como algo natural',
+        'con calma y verdad',
+        'aunque estemos lejos',
+        'sin prisa, con ternura',
+        'de forma muy sincera',
+        'como algo que crece',
+        'como una luz tranquila',
+        'con todo mi respeto',
+        'porque te mereces lo mejor',
+        'dejando que fluya',
+        'mientras sigues en mi pensamiento',
+        'como un gesto hermoso',
+        'con suavidad y cuidado',
+        'con una paz muy dulce',
+        'como algo que no olvido',
+      ],
+      templates: [
+        '{subject} {verb} {object} {closing}',
+        '{subject}, {verb} {object} {closing}',
+        '{subject} {verb} {object}, {closing}',
+        '{subject} {verb} {object} {closing} 🌹',
+        '{subject}, {verb} {object}, {closing} ✨',
+        'Siento que {subject} {verb} {object} {closing}',
+        'Confieso que {subject} {verb} {object} {closing}',
+        '{subject} perdura mientras {verb} {object} {closing}',
+      ],
+    },
+  };
+
+  const selected = pools[botType] || pools.main;
+  const pool = new Set();
+  const maxPhrases = 200000;
+
+  for (const template of selected.templates) {
+    for (const subject of selected.subjects) {
+      for (const verb of selected.verbs) {
+        for (const object of selected.objects) {
+          for (const closing of selected.closings) {
+            if (pool.size >= maxPhrases) break;
+            pool.add(
+              template
+                .replace('{subject}', subject)
+                .replace('{verb}', verb)
+                .replace('{object}', object)
+                .replace('{closing}', closing)
+                .replace(/\s+/g, ' ')
+                .trim()
+            );
+          }
+          if (pool.size >= maxPhrases) break;
+        }
+        if (pool.size >= maxPhrases) break;
+      }
+      if (pool.size >= maxPhrases) break;
+    }
+    if (pool.size >= maxPhrases) break;
+  }
+
+  const array = Array.from(pool);
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+
 
 // Índice rotativo para no repetir
 function siguienteMensaje(config) {
@@ -130,8 +310,7 @@ export async function iniciarMensajesDiarios(sock) {
   const config = loadConfig();
   if (!config.target) { console.log('[AMOR-BOT][MAIN] ❌ Sin objetivo'); return; }
 
-  console.log('[AMOR-BOT][MAIN] 🔍 Verificando pendientes...');
-  await verificarPerdidos(sock);
+  console.log('[AMOR-BOT][MAIN] 🔍 Iniciando programación sin recuperar envíos pasados');
 
   cronJobs.forEach(j => j.stop());
   cronJobs = [];

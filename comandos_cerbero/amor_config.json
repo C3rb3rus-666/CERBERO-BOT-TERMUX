@@ -2,10 +2,12 @@
   "target": "573209382631@s.whatsapp.net",
   "active": true,
   "nombre": "mi reina",
-  "mensajesEnviados": 3,
+  "mensajesEnviados": 4,
   "lastSent": {
     "mañana": "2026-04-21T18:49:50.441Z",
     "tarde": "2026-04-21T19:10:05.469Z",
-    "noche": null
-  }
+    "noche": null,
+    "manual": "2026-04-27T01:27:22.512Z"
+  },
+  "msgIndex": 1
 }
