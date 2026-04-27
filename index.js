@@ -224,7 +224,7 @@ async function connectToWhatsApp() {
       version: waVersion,
       logger: logger,
       printQRInTerminal: false,
-      browser: Browsers.ubuntu('Chrome'), // formato recomendado por Baileys para pairing code
+      browser: ['Ubuntu', 'Chrome', '124.0.0.0'], // Chrome más actual compatible con WA Web
       connectTimeoutMs: 60000, 
       defaultQueryTimeoutMs: 0,
       keepAliveIntervalMs: 10000, 
