@@ -464,61 +464,173 @@ function calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona }) {
   return score;
 }
 
-// ─── Señal 6: Motor Python (LBP + GLCM + Blob Shape + Shannon Entropy) ────────
-// Llama a nsfw_py_signals.py vía subprocess, pasa la imagen por archivo temporal.
-// Si Python no está disponible o tarda más de 6s, devuelve contribución 0 (fail-safe).
-async function analizarConPython(imageBuffer) {
-  return new Promise((resolve) => {
-    const timeout = setTimeout(() => {
-      console.warn('[NSFW-PY] Timeout (10s), se omite contribución Python.');
-      resolve({ contribution: 0, signals: [], error: 'timeout' });
-    }, 10000);
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── DAEMON PYTHON PERSISTENTE ────────────────────────────────────────────────
+// Proceso Python que vive toda la sesión del bot.
+// Elimina overhead de spawn (~500ms) → cada imagen cuesta ~5-50ms.
+// Usa ThreadPoolExecutor(workers=cpu_count) → todas las imágenes en paralelo.
+// Protocolo: JSON-lines en stdin/stdout.
+// ═══════════════════════════════════════════════════════════════════════════════
 
-    (async () => {
-      let tmpPath = null;
-      try {
-        // Escribir buffer a archivo temporal
-        tmpPath = path.join(os.tmpdir(), `cnsfw_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`);
-        await fs.promises.writeFile(tmpPath, imageBuffer);
+let   _daemon      = null;         // ChildProcess del daemon
+let   _daemonReady = false;        // true cuando el daemon envió {"status":"ready"}
+let   _daemonBuf   = '';           // buffer de líneas parciales de stdout
+const _pending     = new Map();    // id → { resolve, timeoutHandle, tmpPath }
+const DAEMON_TIMEOUT_MS = 12000;   // timeout por imagen
 
-        // Buscar Python del venv primero
-        const venvPy  = path.join(__dirname, '..', '.venv', 'bin', 'python');
-        const script  = path.join(__dirname, 'nsfw_py_signals.py');
-        const pyCmd   = fs.existsSync(venvPy) ? venvPy : 'python3';
+// Busca el ejecutable Python priorizando el venv del proyecto
+function _pyCmd() {
+  const venvPy = path.join(__dirname, '..', '.venv', 'bin', 'python');
+  return fs.existsSync(venvPy) ? venvPy : 'python3';
+}
 
-        let output = '';
-        const proc = spawn(pyCmd, [script, tmpPath]);
-        proc.stdout.on('data', d => { output += d.toString(); });
-        proc.stderr.on('data', d => { console.warn('[NSFW-PY]', d.toString().trim()); });
+// Enviar línea JSON al daemon
+function _daemonWrite(obj) {
+  try {
+    if (_daemon?.stdin?.writable) {
+      _daemon.stdin.write(JSON.stringify(obj) + '\n');
+      return true;
+    }
+  } catch (_) {}
+  return false;
+}
 
-        proc.on('close', async () => {
-          clearTimeout(timeout);
-          if (tmpPath) { try { await fs.promises.unlink(tmpPath); } catch {} }
-          try {
-            const r = JSON.parse(output.trim());
-            if (r.error && !r.signals?.length) {
-              resolve({ contribution: 0, signals: [], error: r.error });
-            } else {
-              console.log(`[NSFW-PY] contrib=${r.suspect_score_contribution} signals=[${(r.signals||[]).join(', ')}]`);
-              resolve({ contribution: r.suspect_score_contribution || 0, signals: r.signals || [], raw: r });
-            }
-          } catch {
-            resolve({ contribution: 0, signals: [], error: 'parse_error' });
-          }
-        });
+// Resolver un pending (limpiar tmp + resolver promesa)
+function _resolvePending(id, result) {
+  const item = _pending.get(id);
+  if (!item) return;
+  clearTimeout(item.timeoutHandle);
+  _pending.delete(id);
+  if (item.tmpPath) fs.promises.unlink(item.tmpPath).catch(() => {});
+  const contrib = result.suspect_score_contribution ?? result.contribution ?? 0;
+  item.resolve({ contribution: contrib, signals: result.signals || [], raw: result });
+}
 
-        proc.on('error', (err) => {
-          clearTimeout(timeout);
-          console.warn('[NSFW-PY] Spawn error:', err.message);
-          if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
-          resolve({ contribution: 0, signals: [], error: err.message });
-        });
-      } catch (err) {
-        clearTimeout(timeout);
-        if (tmpPath) { try { fs.unlinkSync(tmpPath); } catch {} }
-        resolve({ contribution: 0, signals: [], error: err.message });
+// Procesar una línea de stdout del daemon
+function _daemonOnLine(line) {
+  if (!line) return;
+  let msg;
+  try { msg = JSON.parse(line); } catch (_) { return; }
+
+  if (msg.status === 'ready') {
+    _daemonReady = true;
+    console.log(`[NSFW-DAEMON] ✅ Listo — ${msg.workers} workers | cv2=${msg.has_cv2} scipy=${msg.has_scipy} pid=${msg.pid}`);
+    // Enviar peticiones que llegaron antes de que el daemon estuviera listo
+    for (const [id, item] of _pending) {
+      if (item.queued) { item.queued = false; _daemonWrite({ id, path: item.tmpPath }); }
+    }
+    return;
+  }
+  if (msg.id) _resolvePending(msg.id, msg);
+}
+
+// Iniciar daemon (llamado una vez al cargar el módulo)
+function _startDaemon() {
+  if (_daemon) return;
+  const script = path.join(__dirname, 'nsfw_daemon.py');
+  if (!fs.existsSync(script)) {
+    console.warn('[NSFW-DAEMON] nsfw_daemon.py no encontrado — usando subprocess por imagen.');
+    return;
+  }
+  try {
+    _daemon = spawn(_pyCmd(), [script], { stdio: ['pipe', 'pipe', 'pipe'] });
+    _daemon.stderr.on('data', d => {
+      const s = d.toString().trim();
+      if (s) console.log('[NSFW-DAEMON]', s);
+    });
+    _daemon.stdout.on('data', chunk => {
+      _daemonBuf += chunk.toString();
+      let nl;
+      while ((nl = _daemonBuf.indexOf('\n')) !== -1) {
+        const line = _daemonBuf.slice(0, nl).trim();
+        _daemonBuf = _daemonBuf.slice(nl + 1);
+        _daemonOnLine(line);
       }
-    })();
+    });
+    _daemon.on('exit', (code) => {
+      console.warn(`[NSFW-DAEMON] Proceso terminó (code=${code}) — se reiniciará en la próxima imagen.`);
+      _daemon = null; _daemonReady = false;
+      // Resolver todas las peticiones pendientes con error
+      for (const [id] of _pending) _resolvePending(id, { contribution: 0, signals: [], error: 'daemon_exit' });
+    });
+    _daemon.on('error', (err) => {
+      console.warn('[NSFW-DAEMON] Error de spawn:', err.message);
+      _daemon = null; _daemonReady = false;
+    });
+    console.log('[NSFW-DAEMON] 🚀 Iniciando daemon Python...');
+  } catch (err) {
+    console.warn('[NSFW-DAEMON] No se pudo iniciar:', err.message);
+    _daemon = null;
+  }
+}
+
+// Iniciar daemon al cargar el módulo (calentamiento anticipado)
+try { _startDaemon(); } catch (e) { console.warn('[NSFW-DAEMON] Init error:', e.message); }
+
+// ─── Señal 6: Motor Python — vía daemon persistente (o subprocess fallback) ───
+async function analizarConPython(imageBuffer) {
+  // Si el daemon no está disponible, intentar reiniciarlo
+  if (!_daemon) { try { _startDaemon(); } catch (_) {} }
+
+  return new Promise(async (resolve) => {
+    const reqId   = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    let   tmpPath = null;
+    try {
+      tmpPath = path.join(os.tmpdir(), `cnsfw_${reqId}.jpg`);
+      await fs.promises.writeFile(tmpPath, imageBuffer);
+    } catch (err) {
+      return resolve({ contribution: 0, signals: [], error: 'write_tmp_failed' });
+    }
+
+    // ── Ruta rápida: daemon persistente ──────────────────────────────────────
+    if (_daemon) {
+      const timeoutHandle = setTimeout(() => {
+        console.warn(`[NSFW-DAEMON] Timeout (${DAEMON_TIMEOUT_MS}ms) para ${reqId}`);
+        _resolvePending(reqId, { contribution: 0, signals: [], error: 'timeout' });
+      }, DAEMON_TIMEOUT_MS);
+
+      _pending.set(reqId, { resolve, timeoutHandle, tmpPath, queued: !_daemonReady });
+
+      if (_daemonReady) {
+        _daemonWrite({ id: reqId, path: tmpPath });
+      }
+      // Si no está listo aún, la petición queda en cola y se envía cuando llegue "ready"
+      return;
+    }
+
+    // ── Fallback: subprocess clásico (si el daemon no pudo iniciarse) ─────────
+    console.warn('[NSFW-PY] Daemon no disponible, usando subprocess por imagen...');
+    const venvPy  = path.join(__dirname, '..', '.venv', 'bin', 'python');
+    const script  = path.join(__dirname, 'nsfw_py_signals.py');
+    const pyCmd   = fs.existsSync(venvPy) ? venvPy : 'python3';
+    const globalTimeout = setTimeout(() => {
+      resolve({ contribution: 0, signals: [], error: 'timeout_subprocess' });
+    }, DAEMON_TIMEOUT_MS);
+
+    if (!fs.existsSync(script)) {
+      clearTimeout(globalTimeout);
+      if (tmpPath) fs.promises.unlink(tmpPath).catch(() => {});
+      return resolve({ contribution: 0, signals: [], error: 'script_not_found' });
+    }
+    let output = '';
+    const proc = spawn(pyCmd, [script, tmpPath]);
+    proc.stdout.on('data', d => { output += d.toString(); });
+    proc.stderr.on('data', d => { console.warn('[NSFW-PY-FB]', d.toString().trim()); });
+    proc.on('close', async () => {
+      clearTimeout(globalTimeout);
+      if (tmpPath) fs.promises.unlink(tmpPath).catch(() => {});
+      try {
+        const r = JSON.parse(output.trim());
+        const contrib = r.suspect_score_contribution || 0;
+        if (contrib > 0) console.log(`[NSFW-PY-FB] contrib=${contrib} signals=[${(r.signals||[]).join(', ')}]`);
+        resolve({ contribution: contrib, signals: r.signals || [], raw: r });
+      } catch { resolve({ contribution: 0, signals: [], error: 'parse_error' }); }
+    });
+    proc.on('error', (err) => {
+      clearTimeout(globalTimeout);
+      if (tmpPath) fs.promises.unlink(tmpPath).catch(() => {});
+      resolve({ contribution: 0, signals: [], error: err.message });
+    });
   });
 }
 
