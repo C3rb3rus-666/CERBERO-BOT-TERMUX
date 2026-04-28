@@ -2,15 +2,21 @@
 // Coded by C3rb3rus-666
 
 import { pipeline, env as xenovaEnv } from '@xenova/transformers';
-import sharp from 'sharp';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
 import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
-import { createCanvas, loadImage } from 'canvas';
 import { createRequire } from 'module';
+
+// sharp y canvas son dependencias nativas — cargar de forma dinámica para no crashear en ARM/Termux
+let sharp = null;
+let _canvasLib = null;
+try { sharp = (await import('sharp')).default; } catch (e) { console.warn('[NSFW] sharp no disponible (ARM/Termux):', e.message?.slice(0,60)); }
+try { _canvasLib = await import('canvas'); } catch (e) { console.warn('[NSFW] canvas no disponible (ARM/Termux):', e.message?.slice(0,60)); }
+const createCanvas = _canvasLib?.createCanvas || null;
+const loadImage    = _canvasLib?.loadImage    || null;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
@@ -174,6 +180,7 @@ async function loadNsfwjsModel() {
 
 // ─── CAPA 1: Pre-filtro por tamaño/formato ───────────────────────────────────
 async function preFiltro(imageBuffer) {
+  if (!sharp) return 'continue'; // ARM/Termux: sin sharp
   try {
     const meta = await sharp(imageBuffer).metadata();
     const { width = 0, height = 0, format } = meta;
@@ -198,6 +205,7 @@ async function preFiltro(imageBuffer) {
 // Dibujos tienen alta proporción de píxeles extremos (blanco/negro puro)
 // y varianza bimodal de luminosidad. Muy rápido (128x128 en escala de grises).
 async function detectarCartoon(imageBuffer) {
+  if (!sharp) return { isDrawing: false, confidence: 0 };
   try {
     const resized = await sharp(imageBuffer)
       .resize(128, 128, { fit: 'cover' })
@@ -230,6 +238,7 @@ async function detectarCartoon(imageBuffer) {
 // Criterio: Y > 80 && 85 ≤ Cb ≤ 135 && 135 ≤ Cr ≤ 180
 // Analiza a 96x96 para máxima velocidad.
 async function skinToneYCbCr(imageBuffer) {
+  if (!sharp) return { skinRatio: 0, score: 0, label: 'sfw_fallback' };
   try {
     const { data } = await sharp(imageBuffer)
       .resize(96, 96, { fit: 'cover' })
@@ -258,6 +267,7 @@ async function skinToneYCbCr(imageBuffer) {
 
 // ─── CAPA 3A: Clasificador nsfwjs ────────────────────────────────────────────
 async function clasificarConNsfwjs(imageBuffer) {
+  if (!loadImage || !createCanvas) return null; // ARM/Termux: sin canvas
   try {
     const model = await loadNsfwjsModel();
     if (!model) return null;
@@ -298,6 +308,7 @@ async function clasificarConXenova(imageBuffer) {
 // Piel con muchos bordes = ropa con patrón, pelo, objetos → falso positivo.
 // Opera a 96x96 en dos passes con sharp (RGB para piel, greyscale para Sobel).
 async function analizarBordesEnPiel(imageBuffer) {
+  if (!sharp) return { meanEdge: 1.0, smoothSkin: false, textureSkin: false, skinCount: 0 };
   try {
     const SIZE = 96;
     const [{ data: rgbData }, greyRaw] = await Promise.all([
@@ -340,6 +351,7 @@ async function analizarBordesEnPiel(imageBuffer) {
 // (torso, pelvis). Fotos inocentes (playa, retrato) tienen piel en bordes (cara,
 // manos, hombros). Esto corta muchos falsos positivos de fotos de playa.
 async function analizarConcentracionPiel(imageBuffer) {
+  if (!sharp) return { centerRatio: 0, borderAvg: 0, concentrated: false };
   try {
     const SIZE = 96;
     const T = Math.floor(SIZE / 3);
@@ -378,6 +390,7 @@ async function analizarConcentracionPiel(imageBuffer) {
 // Anime y hentai usan cel-shading: colores muy saturados y uniformes (baja varianza).
 // Fotos reales tienen saturación más heterogénea. Complementa el detector cartoon.
 async function analizarSaturacionAnime(imageBuffer) {
+  if (!sharp) return { meanSat: 0, varSat: 1, flatRatio: 0, animeStyle: false };
   try {
     const SIZE = 64;
     const { data } = await sharp(imageBuffer)

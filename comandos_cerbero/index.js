@@ -570,10 +570,12 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       break;
 
     case 'htb':
-    case 'hackthebox':
+    case 'hackthebox': {
       await humanDelay(sock, message, 2, 5);
-      await handleHackTheBox(sock, message);
+      const htbReply = await handleHackTheBox(sock, message);
+      if (htbReply) await sock.sendMessage(chatId, { text: htbReply }, { quoted: message });
       break;
+    }
       
     // Comandos de RPG y Economía
     case 'daily':
