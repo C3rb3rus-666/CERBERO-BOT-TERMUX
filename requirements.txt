@@ -2,5 +2,7 @@ yt-dlp==2026.3.17
 colorama
 numpy
 Pillow
+opencv-python-headless  # señales NSFW: DCT, Haar face detection, Gabor texture
+scipy                   # señales NSFW: varianza local (uniform_filter)
 # tensorflow no soporta Python 3.14 aún (solo hasta 3.12)
 # spam_model.py quedará deshabilitado hasta que tensorflow soporte 3.14

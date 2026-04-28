@@ -470,9 +470,9 @@ function calcularScoreSospecha({ skin, cartoon, saturacion, bordes, zona }) {
 async function analizarConPython(imageBuffer) {
   return new Promise((resolve) => {
     const timeout = setTimeout(() => {
-      console.warn('[NSFW-PY] Timeout (6s), se omite contribución Python.');
+      console.warn('[NSFW-PY] Timeout (10s), se omite contribución Python.');
       resolve({ contribution: 0, signals: [], error: 'timeout' });
-    }, 6000);
+    }, 10000);
 
     (async () => {
       let tmpPath = null;
@@ -563,7 +563,7 @@ export async function classifyImage(imageBuffer) {
 
   // ── FASE 1: 6 señales en PARALELO (5 JS puras + 1 motor Python) ───────────
   // JS   : cartoon, YCbCr, Sobel bordes, concentración zona, saturación anime
-  // Python: LBP micro-textura, GLCM energy, blob shape, Shannon entropy
+  // Python: LBP, GLCM, blob, entropy, DCT, face detection, Gabor, local variance (v2.0)
   // Todas corren en paralelo para minimizar latencia total.
   const [cartoon, skin, bordes, zona, saturacion, pySignals] = await Promise.all([
     detectarCartoon(imageBuffer),          // señal 1: dibujo vs foto real
@@ -579,7 +579,7 @@ export async function classifyImage(imageBuffer) {
   }
 
   // ── FASE 2: Score acumulado JS + Python ────────────────────────────────────
-  // JS (0-5) + Python (0-2.5) → total máximo 7.5, caps en 3.5+ para umbrales
+  // JS (0-5) + Python (0-3.5 v2.0: LBP+GLCM+blob+entropy+DCT+face+Gabor+localvar)
   //   0-1:   ultra conservador → Xenova > 0.90 Y nsfwjs > 0.70
   //   1-2:   normal            → Xenova > 0.75 Y nsfwjs > 0.55
   //   2-3.5: evidencia media   → Xenova > 0.60 Y nsfwjs > 0.45

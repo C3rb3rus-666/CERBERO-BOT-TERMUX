@@ -1,25 +1,20 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║         CERBERO NSFW — Python Signal Engine  v1.0                          ║
-║         Señales avanzadas de análisis de imagen (100% local, sin red)       ║
+║         CERBERO NSFW — Python Signal Engine  v2.0                          ║
+║         8 señales avanzadas de análisis de imagen (100% local, sin red)     ║
 ║                                                                              ║
 ║  Señal 1 — LBP  (Local Binary Pattern): micro-textura en zonas de piel      ║
-║             Piel desnuda → alta uniformidad (superficie lisa)                ║
-║             Ropa / pelo  → baja uniformidad (textura compleja)               ║
-║                                                                              ║
 ║  Señal 2 — GLCM (Gray-Level Co-occurrence Matrix): energía de textura       ║
-║             Alta energía en piel → uniforme → desnudo probable              ║
-║             Baja energía         → heterogéneo → ropa / patrón              ║
-║                                                                              ║
-║  Señal 3 — Blob Shape: forma del blob de piel (bounding box + fill)         ║
-║             Elongación vertical > 1.8 + alta cobertura → silueta corporal   ║
-║                                                                              ║
-║  Señal 4 — Shannon Entropy en piel: diversidad de luminosidad               ║
-║             Entropía baja en zona de piel → superficie uniforme → desnudo   ║
+║  Señal 3 — Blob Shape: elongación vertical de la silueta de piel            ║
+║  Señal 4 — Shannon Entropy: diversidad de luminosidad en piel               ║
+║  Señal 5 — DCT ratio: energía DCT concentrada en bajas frecuencias          ║
+║  Señal 6 — Face detection (OpenCV Haar): cara presente reduce sospecha      ║
+║  Señal 7 — Gabor texture: 12 filtros orientación/escala en piel             ║
+║  Señal 8 — Local variance map: zonas lisas bordeadas por bordes             ║
 ║                                                                              ║
 ║  Entrada : ruta de imagen como sys.argv[1]                                  ║
-║  Salida  : JSON por stdout con scores y contribución al suspectScore de JS   ║
+║  Salida  : JSON por stdout                                                   ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 """
 
@@ -30,217 +25,229 @@ from PIL import Image
 import warnings
 warnings.filterwarnings('ignore')
 
-SIZE = 96  # resolución de trabajo (mismo que JS para coherencia)
+try:
+    import cv2
+    HAS_CV2 = True
+except ImportError:
+    HAS_CV2 = False
 
+try:
+    from scipy.ndimage import uniform_filter
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
 
-# ─── Carga y preprocesamiento ─────────────────────────────────────────────────
+SIZE = 96
+
 def load_image(path):
     img = Image.open(path).convert('RGB')
     img = img.resize((SIZE, SIZE), Image.LANCZOS)
     return np.array(img, dtype=np.uint8)
 
-
 def to_gray(rgb):
-    return (0.299 * rgb[:, :, 0] + 0.587 * rgb[:, :, 1] + 0.114 * rgb[:, :, 2]).astype(np.uint8)
+    return (0.299*rgb[:,:,0] + 0.587*rgb[:,:,1] + 0.114*rgb[:,:,2]).astype(np.uint8)
 
-
-# ─── Máscara de piel YCbCr BT.601 (mismo criterio que JS) ────────────────────
 def ycbcr_skin_mask(rgb):
-    r = rgb[:, :, 0].astype(float)
-    g = rgb[:, :, 1].astype(float)
-    b = rgb[:, :, 2].astype(float)
-    Y  =  0.299 * r + 0.587 * g + 0.114 * b
-    Cb = -0.169 * r - 0.331 * g + 0.500 * b + 128
-    Cr =  0.500 * r - 0.419 * g - 0.081 * b + 128
-    return (Y > 80) & (Cb >= 85) & (Cb <= 135) & (Cr >= 135) & (Cr <= 180)
+    r,g,b = rgb[:,:,0].astype(float), rgb[:,:,1].astype(float), rgb[:,:,2].astype(float)
+    Y  =  0.299*r + 0.587*g + 0.114*b
+    Cb = -0.169*r - 0.331*g + 0.500*b + 128
+    Cr =  0.500*r - 0.419*g - 0.081*b + 128
+    return (Y>80)&(Cb>=85)&(Cb<=135)&(Cr>=135)&(Cr<=180)
 
-
-# ─── Señal 1: LBP uniformidad en zonas de piel ───────────────────────────────
-# Local Binary Pattern: compara cada píxel con sus 8 vecinos.
-# Patrón "uniforme" (≤2 transiciones binarias) = textura regular = piel lisa.
-# Ropa y pelo tienen patrones no-uniformes (muchas transiciones).
 def lbp_uniformity(gray, skin_mask=None):
-    h, w = gray.shape
-    n_points = 8
-    radius = 1
-    angles = [2 * np.pi * p / n_points for p in range(n_points)]
-    offsets = [(int(round(radius * np.sin(a))), int(round(radius * np.cos(a)))) for a in angles]
+    h,w = gray.shape
+    angles = [2*np.pi*p/8 for p in range(8)]
+    offsets = [(int(round(np.sin(a))), int(round(np.cos(a)))) for a in angles]
+    padded = np.pad(gray, 1, mode='reflect').astype(np.int16)
+    center = padded[1:1+h, 1:1+w]
+    lbp = np.zeros((h,w), dtype=np.uint8)
+    for bit,(dy,dx) in enumerate(offsets):
+        neighbor = padded[1+dy:1+dy+h, 1+dx:1+dx+w]
+        lbp |= ((neighbor>=center).astype(np.uint8) << bit)
+    def count_t(code):
+        bits = [(code>>i)&1 for i in range(8)]
+        return sum(bits[i]!=bits[(i+1)%8] for i in range(8))
+    uniform = set(c for c in range(256) if count_t(c)<=2)
+    mask = skin_mask if (skin_mask is not None and skin_mask.any()) else np.ones((h,w),bool)
+    ml = lbp[mask]
+    if len(ml)==0: return 0.5
+    return float(np.isin(ml, list(uniform)).sum()) / len(ml)
 
-    pad = radius
-    padded = np.pad(gray, pad, mode='reflect').astype(np.int16)
-    center = padded[pad:pad + h, pad:pad + w]
-
-    lbp = np.zeros((h, w), dtype=np.uint8)
-    for bit, (dy, dx) in enumerate(offsets):
-        neighbor = padded[pad + dy:pad + dy + h, pad + dx:pad + dx + w]
-        lbp |= ((neighbor >= center).astype(np.uint8) << bit)
-
-    # Códigos uniformes: ≤2 transiciones circulares 0→1 o 1→0
-    def count_transitions(code):
-        bits = [(code >> i) & 1 for i in range(8)]
-        return sum(bits[i] != bits[(i + 1) % 8] for i in range(8))
-
-    uniform_codes = set(c for c in range(256) if count_transitions(c) <= 2)
-
-    mask = skin_mask if (skin_mask is not None and skin_mask.any()) else np.ones((h, w), dtype=bool)
-    masked_lbp = lbp[mask]
-    if len(masked_lbp) == 0:
-        return 0.5
-    uniform = np.isin(masked_lbp, list(uniform_codes)).sum()
-    return float(uniform) / len(masked_lbp)
-
-
-# ─── Señal 2: GLCM energy en zona de piel ────────────────────────────────────
-# Gray-Level Co-occurrence Matrix a 16 niveles.
-# Energy = Σ p(i,j)² → alta energía = textura repetitiva uniforme = piel lisa.
 def glcm_energy(gray, skin_mask=None):
-    quantized = (gray // 16).astype(np.uint8)  # 16 niveles
-
+    q = (gray//16).astype(np.uint8)
     if skin_mask is not None and skin_mask.any():
-        rows, cols = np.where(skin_mask)
-        pairs = [(int(quantized[r, c]), int(quantized[r, c + 1]))
-                 for r, c in zip(rows, cols) if c + 1 < SIZE]
+        rows,cols = np.where(skin_mask)
+        pairs = [(int(q[r,c]),int(q[r,c+1])) for r,c in zip(rows,cols) if c+1<SIZE]
     else:
-        h, w = quantized.shape
-        pairs = [(int(quantized[y, x]), int(quantized[y, x + 1]))
-                 for y in range(h) for x in range(w - 1)]
+        pairs = [(int(q[y,x]),int(q[y,x+1])) for y in range(SIZE) for x in range(SIZE-1)]
+    if not pairs: return 0.05
+    glcm = np.zeros((16,16),float)
+    for a,b in pairs: glcm[a,b]+=1
+    t = glcm.sum()
+    if t>0: glcm/=t
+    return float(np.sum(glcm**2))
 
-    if not pairs:
-        return 0.05
-
-    glcm = np.zeros((16, 16), dtype=float)
-    for a, b in pairs:
-        glcm[a, b] += 1
-
-    total = glcm.sum()
-    if total > 0:
-        glcm /= total
-
-    return float(np.sum(glcm ** 2))
-
-
-# ─── Señal 3: Forma del blob de piel ─────────────────────────────────────────
-# Bounding box de la región de piel.
-# Elongación vertical > 1.8 + alta densidad de piel → silueta corporal típica
-# de contenido explícito (cuerpo de pie, acostado, etc.)
 def skin_blob_shape(skin_mask):
-    if not skin_mask.any():
-        return 1.0, 0.0
+    if not skin_mask.any(): return 1.0, 0.0
+    rows = np.any(skin_mask, axis=1); cols = np.any(skin_mask, axis=0)
+    rmin,rmax = int(np.where(rows)[0][0]), int(np.where(rows)[0][-1])
+    cmin,cmax = int(np.where(cols)[0][0]), int(np.where(cols)[0][-1])
+    h,w = rmax-rmin+1, cmax-cmin+1
+    return h/max(w,1), float(np.sum(skin_mask))/max(h*w,1)
 
-    rows = np.any(skin_mask, axis=1)
-    cols = np.any(skin_mask, axis=0)
-    rmin, rmax = int(np.where(rows)[0][0]),  int(np.where(rows)[0][-1])
-    cmin, cmax = int(np.where(cols)[0][0]),  int(np.where(cols)[0][-1])
-
-    height = rmax - rmin + 1
-    width  = cmax - cmin + 1
-    elongation = height / max(width, 1)
-    fill_ratio = float(np.sum(skin_mask)) / max(height * width, 1)
-
-    return elongation, fill_ratio
-
-
-# ─── Señal 4: Entropía de Shannon en zona de piel ────────────────────────────
-# Diversidad de luminosidad en los píxeles de piel.
-# Entropía baja = píxeles muy similares entre sí = superficie homogénea = desnudo.
-# Entropía alta = mucha variación = patrón de ropa, pelo, sombras complejas.
 def shannon_entropy_skin(gray, skin_mask):
-    if not skin_mask.any():
-        return 4.0  # valor neutro
+    if not skin_mask.any(): return 4.0
+    sp = gray[skin_mask]
+    hist,_ = np.histogram(sp, bins=32, range=(0,256))
+    hist = hist/max(hist.sum(),1); hist = hist[hist>0]
+    return float(-np.sum(hist*np.log2(hist)))
 
-    skin_pixels = gray[skin_mask]
-    hist, _ = np.histogram(skin_pixels, bins=32, range=(0, 256))
-    hist = hist / max(hist.sum(), 1)
-    hist = hist[hist > 0]
-    return float(-np.sum(hist * np.log2(hist)))
+def dct_low_freq_ratio(gray, skin_mask):
+    if not HAS_CV2 or not skin_mask.any(): return 0.5
+    block = 8; ratios = []
+    for r in range(0, SIZE-block, block):
+        for c in range(0, SIZE-block, block):
+            pm = skin_mask[r:r+block, c:c+block]
+            if pm.sum() < block*block*0.6: continue
+            patch = gray[r:r+block, c:c+block].astype(np.float32)
+            d = cv2.dct(patch)
+            total = float(np.sum(d**2))
+            if total < 1e-6: continue
+            ratios.append(float(np.sum(d[:4,:4]**2)) / total)
+    return float(np.mean(ratios)) if ratios else 0.5
 
+def detect_faces(rgb):
+    if not HAS_CV2: return {'found': False, 'count': 0}
+    try:
+        gray_big = cv2.cvtColor(
+            np.array(Image.fromarray(rgb).resize((224,224))), cv2.COLOR_RGB2GRAY
+        )
+        cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        if cascade.empty(): return {'found': False, 'count': 0}
+        faces = cascade.detectMultiScale(gray_big, scaleFactor=1.1, minNeighbors=4, minSize=(20,20))
+        count = len(faces) if len(faces)>0 else 0
+        return {'found': count>0, 'count': count}
+    except Exception:
+        return {'found': False, 'count': 0}
 
-# ─── Motor principal ──────────────────────────────────────────────────────────
+def gabor_texture_variance(gray, skin_mask):
+    if not HAS_CV2 or not skin_mask.any(): return 0.0
+    orientations = [0, np.pi/4, np.pi/2, 3*np.pi/4]
+    wavelengths  = [4, 8, 12]
+    responses = []
+    gf = gray.astype(np.float32)/255.0
+    for theta in orientations:
+        rw = []
+        for lam in wavelengths:
+            try:
+                kern = cv2.getGaborKernel((11,11), lam/(2*np.pi), theta, lam, 0.5, 0, cv2.CV_32F)
+                filt = cv2.filter2D(gf, cv2.CV_32F, kern)
+                sr = filt[skin_mask]
+                if len(sr)>0: rw.append(float(np.mean(np.abs(sr))))
+            except Exception:
+                rw.append(0.0)
+        responses.append(np.mean(rw) if rw else 0.0)
+    return float(np.var(responses))
+
+def local_variance_in_skin(gray, skin_mask):
+    if not skin_mask.any(): return 1.0
+    gf = gray.astype(np.float32)
+    if HAS_SCIPY:
+        mean_f  = uniform_filter(gf, size=7)
+        mean_sq = uniform_filter(gf**2, size=7)
+        lv = np.maximum(mean_sq - mean_f**2, 0)
+        sv = lv[skin_mask]
+    else:
+        sv = (gray[skin_mask].astype(float) - gray[skin_mask].mean())**2
+    return min(1.0, float(np.mean(sv))/16384.0) if len(sv)>0 else 1.0
+
 def analyze(image_path):
     rgb       = load_image(image_path)
     gray      = to_gray(rgb)
     skin_mask = ycbcr_skin_mask(rgb)
-    skin_ratio = float(np.sum(skin_mask)) / (SIZE * SIZE)
+    skin_ratio = float(np.sum(skin_mask))/(SIZE*SIZE)
 
-    # ── Señal 1: LBP ─────────────────────────────────────────────────────────
-    lbp_unif = lbp_uniformity(gray, skin_mask if skin_mask.any() else None)
-    # Piel desnuda: uniformidad LBP alta (>0.65). Con piel escasa, no puntúa.
-    if skin_ratio > 0.15:
-        lbp_suspect = max(0.0, (lbp_unif - 0.55) / 0.40)
-    else:
-        lbp_suspect = 0.0
+    lbp_unif   = lbp_uniformity(gray, skin_mask if skin_mask.any() else None)
+    lbp_s      = max(0.0,(lbp_unif-0.55)/0.40) if skin_ratio>0.15 else 0.0
 
-    # ── Señal 2: GLCM energy ──────────────────────────────────────────────────
-    glcm_e = glcm_energy(gray, skin_mask if skin_mask.any() else None)
-    # Escalar: GLCM energía típica en piel desnuda ~0.08-0.15, ropa ~0.02-0.06
-    if skin_ratio > 0.15:
-        glcm_suspect = min(1.0, max(0.0, (glcm_e - 0.04) / 0.10))
-    else:
-        glcm_suspect = 0.0
+    glcm_e     = glcm_energy(gray, skin_mask if skin_mask.any() else None)
+    glcm_s     = min(1.0,max(0.0,(glcm_e-0.04)/0.10)) if skin_ratio>0.15 else 0.0
 
-    # ── Señal 3: Blob shape ───────────────────────────────────────────────────
-    elongation, fill_ratio = skin_blob_shape(skin_mask)
-    blob_suspect = 0.0
-    if skin_ratio > 0.20:
-        if elongation > 1.8 and fill_ratio > 0.35:
-            blob_suspect = 1.0
-        elif elongation > 1.4 and fill_ratio > 0.45:
-            blob_suspect = 0.6
+    elong, fill = skin_blob_shape(skin_mask)
+    blob_s = 0.0
+    if skin_ratio>0.20:
+        if elong>1.8 and fill>0.35: blob_s = 1.0
+        elif elong>1.4 and fill>0.45: blob_s = 0.6
 
-    # ── Señal 4: Shannon entropy ──────────────────────────────────────────────
-    entropy = shannon_entropy_skin(gray, skin_mask)
-    entropy_suspect = 0.0
-    if skin_ratio > 0.20:
-        if entropy < 2.8:
-            entropy_suspect = 1.0
-        elif entropy < 3.5:
-            entropy_suspect = (3.5 - entropy) / 0.7
+    entropy    = shannon_entropy_skin(gray, skin_mask)
+    ent_s = 0.0
+    if skin_ratio>0.20:
+        if entropy<2.8: ent_s = 1.0
+        elif entropy<3.5: ent_s = (3.5-entropy)/0.7
 
-    # ── Score de contribución final (0.0 – 2.5) ───────────────────────────────
-    # Ponderado: LBP y blob son los más confiables
-    contribution = (
-        lbp_suspect     * 0.75 +
-        glcm_suspect    * 0.50 +
-        blob_suspect    * 0.75 +
-        entropy_suspect * 0.50
-    )
-    contribution = round(min(2.5, max(0.0, contribution)), 3)
+    dct_ratio  = dct_low_freq_ratio(gray, skin_mask)
+    dct_s = 0.0
+    if skin_ratio>0.15:
+        if dct_ratio>0.78: dct_s = 1.0
+        elif dct_ratio>0.68: dct_s = (dct_ratio-0.68)/0.10
+
+    face_info  = detect_faces(rgb)
+    face_pen   = (-0.8*min(face_info['count'],2)) if face_info['found'] else (0.5 if skin_ratio>0.30 else 0.0)
+
+    gabor_var  = gabor_texture_variance(gray, skin_mask)
+    gabor_s = 0.0
+    if skin_ratio>0.15:
+        if gabor_var<0.0005: gabor_s = 1.0
+        elif gabor_var<0.002: gabor_s = (0.002-gabor_var)/0.0015
+        elif gabor_var>0.003: gabor_s = -0.5
+
+    lv_norm    = local_variance_in_skin(gray, skin_mask)
+    lv_s = 0.0
+    if skin_ratio>0.15:
+        if lv_norm<0.015: lv_s = 1.0
+        elif lv_norm<0.040: lv_s = (0.040-lv_norm)/0.025
+
+    contribution = round(min(3.5, max(0.0,
+        lbp_s*0.70 + glcm_s*0.45 + blob_s*0.70 + ent_s*0.45 +
+        dct_s*0.40 + face_pen*1.00 + gabor_s*0.35 + lv_s*0.30
+    )), 3)
 
     signals = []
-    if lbp_suspect     > 0.35: signals.append(f"lbp_smooth({lbp_unif:.2f})")
-    if glcm_suspect    > 0.35: signals.append(f"glcm_uniform({glcm_e:.4f})")
-    if blob_suspect    > 0.35: signals.append(f"blob_v({elongation:.1f}x fill={fill_ratio:.2f})")
-    if entropy_suspect > 0.35: signals.append(f"low_entropy({entropy:.2f})")
+    if lbp_s     > 0.35: signals.append(f"lbp_smooth({lbp_unif:.2f})")
+    if glcm_s    > 0.35: signals.append(f"glcm_uniform({glcm_e:.4f})")
+    if blob_s    > 0.35: signals.append(f"blob_v({elong:.1f}x fill={fill:.2f})")
+    if ent_s     > 0.35: signals.append(f"low_entropy({entropy:.2f})")
+    if dct_s     > 0.35: signals.append(f"dct_lowfreq({dct_ratio:.2f})")
+    if face_info['found']:       signals.append(f"face_found(-)")
+    elif face_pen > 0:           signals.append(f"no_face_skin(+)")
+    if abs(gabor_s) > 0.25:     signals.append(f"gabor({'low' if gabor_s>0 else 'high'}_var)")
+    if lv_s      > 0.35:        signals.append(f"smooth_local_var({lv_norm:.3f})")
 
     return {
-        "skin_ratio":                round(skin_ratio, 3),
-        "lbp_uniformity":            round(float(lbp_unif), 3),
-        "glcm_energy":               round(float(glcm_e), 5),
-        "blob_elongation":           round(float(elongation), 2),
-        "blob_fill":                 round(float(fill_ratio), 2),
-        "skin_entropy":              round(float(entropy), 3),
+        "skin_ratio": round(skin_ratio,3),
+        "lbp_uniformity": round(float(lbp_unif),3),
+        "glcm_energy": round(float(glcm_e),5),
+        "blob_elongation": round(float(elong),2),
+        "blob_fill": round(float(fill),2),
+        "skin_entropy": round(float(entropy),3),
+        "dct_low_freq_ratio": round(float(dct_ratio),3),
+        "face_detected": face_info['found'],
+        "face_count": face_info['count'],
+        "gabor_variance": round(float(gabor_var),5),
+        "local_var_normalized": round(float(lv_norm),4),
         "suspect_score_contribution": contribution,
-        "signals":                   signals,
-        "error":                     None
+        "signals": signals,
+        "has_cv2": HAS_CV2,
+        "has_scipy": HAS_SCIPY,
+        "error": None
     }
 
-
-# ─── Entrypoint ───────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print(json.dumps({
-            "error": "No image path provided",
-            "suspect_score_contribution": 0.0,
-            "signals": []
-        }))
+        print(json.dumps({"error":"No image path","suspect_score_contribution":0.0,"signals":[]}))
         sys.exit(1)
     try:
-        result = analyze(sys.argv[1])
-        print(json.dumps(result))
+        print(json.dumps(analyze(sys.argv[1])))
     except Exception as e:
-        print(json.dumps({
-            "error": str(e),
-            "suspect_score_contribution": 0.0,
-            "signals": []
-        }))
+        print(json.dumps({"error":str(e),"suspect_score_contribution":0.0,"signals":[]}))
         sys.exit(1)
