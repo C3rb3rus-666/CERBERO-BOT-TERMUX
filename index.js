@@ -710,7 +710,7 @@ async function connectToWhatsApp() {
             }
           }
           if (msg.message?.stickerMessage) {
-            await handleStickerSpam(sock, msg);
+            await handleStickerSpam(sock, msg, isAdmin);
           }
         }
       } catch (error) {

@@ -10,6 +10,7 @@ const blacklistPath = join(__dirname, '../comandos_cerbero/configuraciones/black
 const stickerSpamMap = new Map();
 const STICKER_LIMIT = 3;
 const MAX_DELAY = 3000; // 3 segundos
+const MAX_MESSAGE_AGE = 10000; // 10 segundos, evita ráfagas heredadas tras reinicio
 
 async function readBlacklist() {
   try {
@@ -52,26 +53,35 @@ export async function handleStickerSpam(sock, message, isAdmin) {
     return;
   }
 
+  const messageSeconds = Number(message.messageTimestamp ?? message.message?.messageTimestamp ?? 0);
+  const sentTime = messageSeconds > 0 ? messageSeconds * 1000 : now;
+  const messageAge = now - sentTime;
+
+  if (messageAge > MAX_MESSAGE_AGE) {
+    // Mensaje viejo / entregado después de reinicio: no contar como ráfaga.
+    stickerSpamMap.delete(senderId);
+  }
+
   const userNumber = senderId.split('@')[0];
   let userData = stickerSpamMap.get(senderId);
 
   if (!userData) {
-    userData = { count: 1, lastTime: now, warned: false };
+    userData = { count: 1, lastTime: sentTime, warned: false };
     stickerSpamMap.set(senderId, userData);
     return;
   }
 
-  const timeDiff = now - userData.lastTime;
+  const timeDiff = sentTime - userData.lastTime;
 
-  if (timeDiff > MAX_DELAY) {
+  if (timeDiff > MAX_DELAY || timeDiff < 0) {
     userData.count = 1;
-    userData.lastTime = now;
+    userData.lastTime = sentTime;
     userData.warned = false;
     return;
   }
 
   userData.count += 1;
-  userData.lastTime = now;
+  userData.lastTime = sentTime;
 
   if (userData.count === STICKER_LIMIT) {
     if (!userData.warned) {
