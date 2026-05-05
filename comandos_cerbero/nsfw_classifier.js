@@ -50,7 +50,8 @@ try {
 // jimp para pHash perceptual (blacklist de imágenes NSFW conocidas)
 let _jimp = null;
 try {
-  _jimp = _require('jimp');
+  const jimpLib = _require('jimp');
+  _jimp = jimpLib.Jimp ? jimpLib.Jimp : jimpLib;
 } catch (err) {
   console.warn('[NSFW] jimp no disponible (pHash desactivado):', err.message);
 }
