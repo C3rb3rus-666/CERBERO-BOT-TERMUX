@@ -468,9 +468,6 @@ export async function manejarDMConf(sock, senderJid, text) {
   console.log(`[CONF DM] config → grupo_id=${config.grupo_id} activo=${config.activo}`);
 
   if (!config.grupo_id || !config.activo) {
-    await sock.sendMessage(senderJid, {
-      text: `🤫 Las confesiones no están activas ahora mismo. Espera a que un admin las abra.`,
-    });
     return true;
   }
 
