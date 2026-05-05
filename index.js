@@ -232,7 +232,9 @@ async function connectToWhatsApp() {
       fireInitQueries: true, 
       shouldIgnoreJid: jid => false, // no ignorar nada — status@broadcast se necesita para anti_status_tag
       markOnlineOnConnect: true, 
-      syncFullHistory: true,
+      // Evitar que el bot procese el historial previo al reconectar o iniciar.
+      // Esto reduce spam en Termux/Linux cuando WhatsApp envía mensajes antiguos.
+      syncFullHistory: false,
       generateHighQualityLinkPreview: true,
     });
 
