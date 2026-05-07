@@ -10,7 +10,6 @@ const antilinkConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'confi
 const welcomeConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'grupo_ajustado.json');
 const monitorConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'configuraciones', 'monitor_admin_config.json');
 const aegisConfigPath  = path.join(__dirname, 'configuraciones', 'antinumbers_config.json');
-const presentacionesConfigPath = path.join(__dirname, '..', 'comandos_cerbero', 'presentaciones_config.json');
 
 // Función para seleccionar una imagen aleatoria
 export async function menuCommand(sock, msg) {
@@ -21,7 +20,6 @@ export async function menuCommand(sock, msg) {
     antilink: '🔴 Desconocido',
     bienvenida: '🔴 Desconocido',
     vigilar: '🔴 Desactivado',
-    presentaciones: '🔴 Desactivado',
     qrKill: '🟢 Activado (Global)',
     antiTraba: '🟢 Activado (Global)',
     antiSticker: '🟢 Activado (Global)',
@@ -41,12 +39,6 @@ export async function menuCommand(sock, msg) {
     // Estado del monitor de admins
     const monitorConfig = JSON.parse(fs.readFileSync(monitorConfigPath, 'utf8'));
         estados.vigilar = monitorConfig.enabled_groups[chatId] ? '🟢 Activado' : '🔴 Desactivado';
-
-    // Estado de presentaciones por privado
-    try {
-      const presentacionesConfig = JSON.parse(fs.readFileSync(presentacionesConfigPath, 'utf8'));
-      estados.presentaciones = presentacionesConfig.enabled_groups?.[chatId]?.activo ? '🟢 Activado' : '🔴 Desactivado';
-    } catch (_) { /* usa valor por defecto */ }
 
     // Estado AEGIS — filtro de región
     try {
@@ -81,7 +73,6 @@ export async function menuCommand(sock, msg) {
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
   ▪ Antilink — ${estados.antilink}
   ▪ Bienvenida — ${estados.bienvenida}
-  ▪ Presentaciones — ${estados.presentaciones}
   ▪ Vigilar Admins — ${estados.vigilar}
   ▪ QR-KILL — ${estados.qrKill}
   ▪ Anti-TRABA — ${estados.antiTraba}
@@ -138,6 +129,12 @@ export async function menuCommand(sock, msg) {
   ▸ !infieles — Ranking de infieles 👀
   ▸ !maricones — Ranking 🌈
   ▸ !pajeros — Ranking 🍆
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎭 *DINÁMICAS DE GRUPO*      ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+  ▸ !confesiones [abrir|cerrar|estado] — Confesiones anónimas
+  ▸ !presentaciones [activar|desactivar|estado] — Fotos privadas + encuesta
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🎮 *MINIJUEGOS*               ┃
@@ -224,7 +221,6 @@ export async function menuCommand(sock, msg) {
   ⚡ !demote @user — Quitar admin a usuario
   ⚡ !antilink [activar|desactivar] — Control de enlaces
   ⚡ !bienvenida [activar|desactivar] — Mensajes de bienvenida
-  ⚡ !presentaciones [activar|desactivar|estado] — Fotos privadas + encuesta
   ⚡ !vigilar [activar|desactivar] — Monitorear cambios de admin
   ⚡ !todos — Etiquetar a todos los miembros
   ⚡ !tag_group — Etiquetar grupo completo
