@@ -3,17 +3,14 @@ import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
-import { pipeline, env as xenovaEnv } from '@xenova/transformers';
 import { analyzeImageBufferForSafety } from './nsfw_detector.js';
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
 const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
 const POLL_OPTIONS = ['le doy', 'no le doy', 'que asco'];
-
-xenovaEnv.cacheDir = path.resolve(process.cwd(), 'models_cache');
-xenovaEnv.allowLocalModels = true;
-xenovaEnv.allowRemoteModels = true;
-xenovaEnv.backends = { onnx: { wasm: { numThreads: 1 } } };
+const NSFW_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_NSFW_TIMEOUT_MS || 60_000);
+const CLIP_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_CLIP_TIMEOUT_MS || 45_000);
+const CLIP_ENABLED = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_CLIP || '');
 
 let sharp = null;
 try {
@@ -158,9 +155,31 @@ function buildPresentationCaption(senderJid, originalCaption, safety) {
   );
 }
 
+function withTimeout(promise, ms, label) {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label} timeout ${ms}ms`)), ms);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
 async function loadClipModel() {
+  if (!CLIP_ENABLED) {
+    throw new Error('CLIP desactivado. Usa PRESENTACIONES_CLIP=1 para activarlo.');
+  }
   if (!clipModelPromise) {
-    clipModelPromise = pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32')
+    clipModelPromise = import('@xenova/transformers')
+      .then(({ pipeline, env: xenovaEnv }) => {
+        xenovaEnv.cacheDir = path.resolve(process.cwd(), 'models_cache');
+        xenovaEnv.allowLocalModels = true;
+        xenovaEnv.allowRemoteModels = true;
+        xenovaEnv.backends = { onnx: { wasm: { numThreads: 1 } } };
+        return pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32');
+      })
       .catch(err => {
         clipModelPromise = null;
         throw err;
@@ -268,11 +287,20 @@ async function analyzePresentationRelevance(buffer) {
   let predictions = [];
   let recognitionError = null;
 
-  try {
-    predictions = await recognizePresentationImage(buffer);
-  } catch (err) {
-    recognitionError = err;
-    console.error('[PRESENTACION] CLIP no disponible para reconocimiento:', err.message || err);
+  if (CLIP_ENABLED) {
+    try {
+      predictions = await withTimeout(
+        recognizePresentationImage(buffer),
+        CLIP_ANALYSIS_TIMEOUT_MS,
+        'CLIP presentaciones'
+      );
+    } catch (err) {
+      recognitionError = err;
+      console.error('[PRESENTACION] CLIP no disponible para reconocimiento:', err.message || err);
+    }
+  } else {
+    recognitionError = new Error('clip_disabled');
+    console.log('[PRESENTACION] CLIP anti-meme desactivado; usando heuristicas ligeras.');
   }
 
   const bestAccept = predictions
@@ -315,6 +343,24 @@ async function analyzePresentationRelevance(buffer) {
     bestAccept,
     bestReject,
   };
+}
+
+async function analyzePresentationSafety(sock, senderJid, buffer) {
+  try {
+    return await withTimeout(
+      analyzeImageBufferForSafety(buffer),
+      NSFW_ANALYSIS_TIMEOUT_MS,
+      'anti-NSFW presentaciones'
+    );
+  } catch (err) {
+    console.error('[PRESENTACION] Error/timeout en anti-NSFW:', err.message || err);
+    await sock.sendMessage(senderJid, {
+      text:
+        `⚠️ No pude completar el analisis de seguridad de la imagen.\n` +
+        `Intenta enviarla otra vez como foto normal.`
+    }).catch(() => {});
+    return null;
+  }
 }
 
 async function sendPresentationPoll(sock, groupId, senderJid, mentionJid, quotedMsg) {
@@ -380,7 +426,13 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return true;
   }
 
-  const safety = await analyzeImageBufferForSafety(buffer);
+  await sock.sendMessage(senderJid, {
+    text: '📸 Foto recibida. Analizando seguridad antes de publicarla...'
+  }).catch(() => {});
+
+  const safety = await analyzePresentationSafety(sock, senderJid, buffer);
+  if (!safety) return true;
+
   if (!safety.allowed) {
     await sock.sendMessage(senderJid, {
       text:
