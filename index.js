@@ -87,6 +87,9 @@ let watchdogTimer = null;             // timer del watchdog de silencio
 
 // Variable global para mensajes procesados
 const processedMessages = new Set();
+const BOT_STARTED_AT_MS = Date.now();
+const MAX_ACTIONABLE_MESSAGE_AGE_MS = Number(process.env.CERBERO_MAX_MESSAGE_AGE_MS || 2 * 60 * 1000);
+const STARTUP_MESSAGE_GRACE_MS = 30 * 1000;
 const lastCerberoTrigger = new Map(); // mapa para evitar spam por chat (cooldown por chat)
 // Configuración para el trigger abierto de Cerbero-AI
 const CERBERO_COOLDOWN_MS = 60 * 1000; // 1 minuto por chat (ajustable)
@@ -99,6 +102,54 @@ async function humanDelayWelcome(sock, groupId, minSeconds = 5, maxSeconds = 10)
   await sock.sendPresenceUpdate('composing', groupId);
   await new Promise(resolve => setTimeout(resolve, delayTime));
   await sock.sendPresenceUpdate('paused', groupId);
+}
+
+function messageTimestampToMs(timestamp) {
+  if (!timestamp) return 0;
+
+  if (typeof timestamp === 'number') {
+    return timestamp > 1e12 ? timestamp : timestamp * 1000;
+  }
+
+  if (typeof timestamp === 'bigint') {
+    const n = Number(timestamp);
+    return n > 1e12 ? n : n * 1000;
+  }
+
+  if (typeof timestamp === 'string') {
+    const n = Number(timestamp);
+    return Number.isFinite(n) ? (n > 1e12 ? n : n * 1000) : 0;
+  }
+
+  if (typeof timestamp?.toNumber === 'function') {
+    const n = timestamp.toNumber();
+    return Number.isFinite(n) ? (n > 1e12 ? n : n * 1000) : 0;
+  }
+
+  if (typeof timestamp?.low === 'number') {
+    const n = timestamp.low;
+    return n > 1e12 ? n : n * 1000;
+  }
+
+  return 0;
+}
+
+function shouldIgnoreHistoricalMessage(msg, type) {
+  if (type !== 'notify') return { ignore: true, reason: `upsert_${type}` };
+
+  const tsMs = messageTimestampToMs(msg?.messageTimestamp || msg?.message?.messageTimestamp);
+  if (!tsMs) return { ignore: false, reason: '' };
+
+  const now = Date.now();
+  if (tsMs < BOT_STARTED_AT_MS - STARTUP_MESSAGE_GRACE_MS) {
+    return { ignore: true, reason: `previo_al_arranque ${new Date(tsMs).toISOString()}` };
+  }
+
+  if (now - tsMs > MAX_ACTIONABLE_MESSAGE_AGE_MS) {
+    return { ignore: true, reason: `viejo_${Math.round((now - tsMs) / 1000)}s` };
+  }
+
+  return { ignore: false, reason: '' };
 }
 
 // ==========================================
@@ -348,10 +399,16 @@ async function connectToWhatsApp() {
       if (!jid0.endsWith('@g.us')) {
         console.log(`[RAW DM] type=${type} jid=${jid0} fromMe=${msg0?.key?.fromMe} hasMsg=${!!msg0?.message}`);
       }
-      // Aceptar 'notify' y 'append' para no perder DMs
-      if (type !== 'notify' && type !== 'append') return;
+      // Solo los notify son mensajes vivos. append suele traer historial al reconectar.
+      if (type !== 'notify') return;
       const msg = messages[0];
       if (!msg?.key?.remoteJid || !msg?.message) return;
+
+      const historical = shouldIgnoreHistoricalMessage(msg, type);
+      if (historical.ignore) {
+        console.log(`[HISTORIAL] Ignorado type=${type} jid=${msg.key.remoteJid} id=${msg.key.id} reason=${historical.reason}`);
+        return;
+      }
 
       // Mensajes de estado → ya no se procesan aquí (groupMentionedMessage llega al grupo)
       if (msg.key.remoteJid === 'status@broadcast') {
