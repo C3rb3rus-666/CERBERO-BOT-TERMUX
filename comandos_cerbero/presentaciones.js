@@ -46,6 +46,7 @@ const REJECT_LABELS = [
   'a poster advertisement',
   'a text document or quote image',
   'an AI generated artwork',
+  'a bloody gore or violent injury image',
 ];
 
 const VISUAL_LABELS = [...ACCEPT_LABELS, ...REJECT_LABELS];
@@ -195,6 +196,7 @@ async function analyzeImageLayout(buffer) {
     format: 'unknown',
     skinRatio: 0,
     edgeDensity: 0,
+    bloodRatio: 0,
     flags: [],
   };
 
@@ -224,6 +226,7 @@ async function analyzeImageLayout(buffer) {
       .toBuffer({ resolveWithObject: true });
 
     let skin = 0;
+    let blood = 0;
     let edges = 0;
     const pixels = info.width * info.height;
     const gray = new Uint8Array(pixels);
@@ -237,6 +240,9 @@ async function analyzeImageLayout(buffer) {
       const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
       gray[p] = y;
       if (y > 55 && cb >= 80 && cb <= 145 && cr >= 125 && cr <= 190) skin++;
+      const brightBlood = r > 95 && g < 115 && b < 115 && r > g * 1.55 && r > b * 1.45 && (r - g) > 45 && (r - b) > 45;
+      const darkBlood = r > 55 && r < 175 && g < 70 && b < 75 && r > g * 1.65 && r > b * 1.45;
+      if (brightBlood || darkBlood) blood++;
     }
 
     for (let y = 1; y < info.height; y++) {
@@ -250,9 +256,13 @@ async function analyzeImageLayout(buffer) {
 
     const skinRatio = pixels ? skin / pixels : 0;
     const edgeDensity = pixels ? edges / pixels : 0;
+    const bloodRatio = pixels ? blood / pixels : 0;
     if (edgeDensity > 0.28 && skinRatio < 0.06) flags.push('mucho texto/bordes tipo meme');
+    if (bloodRatio > 0.34 || (bloodRatio > 0.24 && edgeDensity > 0.08)) {
+      flags.push('posible gore/sangre');
+    }
 
-    return { width, height, format, skinRatio, edgeDensity, flags };
+    return { width, height, format, skinRatio, edgeDensity, bloodRatio, flags };
   } catch (err) {
     console.error('[PRESENTACION] Error en analisis anti-meme:', err.message || err);
     return fallback;
@@ -326,7 +336,9 @@ async function analyzePresentationRelevance(buffer) {
     flag.includes('sticker') ||
     flag.includes('meme') ||
     flag.includes('captura') ||
-    flag.includes('pequena')
+    flag.includes('pequena') ||
+    flag.includes('gore') ||
+    flag.includes('sangre')
   ));
   const modelBlock = reasons.some(reason => (
     reason.includes('parece') ||
@@ -450,7 +462,7 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
       : 'no parece una foto real de presentacion';
     await sock.sendMessage(senderJid, {
       text:
-        `🚫 No publique esa imagen porque parece meme, captura, sticker o algo ajeno a la presentacion.\n` +
+        `🚫 No publique esa imagen porque parece meme, captura, sticker, gore o algo ajeno a la presentacion.\n` +
         `▸ Motivo: ${why}\n\n` +
         `Manda una foto real donde se vea una persona.`
     });

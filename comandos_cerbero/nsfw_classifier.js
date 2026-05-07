@@ -28,6 +28,12 @@ xenovaEnv.allowLocalModels  = true;
 xenovaEnv.allowRemoteModels = true;   // permite re-descarga si se borra el cache
 xenovaEnv.backends          = { onnx: { wasm: { numThreads: 1 } } };
 
+const XENOVA_TMP_DIR = path.join(os.tmpdir(), 'cerbero_nsfw_xenova');
+const IS_ARM_RUNTIME = process.arch === 'arm' || process.arch === 'arm64';
+const FORCE_XENOVA = /^(1|true|yes|on)$/i.test(process.env.NSFW_FORCE_XENOVA || '');
+const DISABLE_XENOVA = /^(1|true|yes|on)$/i.test(process.env.NSFW_DISABLE_XENOVA || '') || (IS_ARM_RUNTIME && !FORCE_XENOVA);
+let _xenovaArmWarned = false;
+
 // ─ tfjs-node requiere AVX/AVX2 en x64. Esta CPU solo tiene SSE4.2.
 // Cargar tfjs-node causaría SIGILL (crash del proceso). Se usa backend JS puro.
 // Para activar: verificar primero con `grep avx /proc/cpuinfo`
@@ -147,6 +153,14 @@ let _nsfwjsModel  = null;
 async function loadXenovaClassifier() {
   if (_xenovaModel)  return _xenovaModel;
   if (_xenovaFailed) return null;           // ya falló antes, no reintentar
+  if (DISABLE_XENOVA) {
+    if (!_xenovaArmWarned) {
+      console.warn('[NSFW] Xenova desactivado para estabilidad en ARM/Termux. Usa NSFW_FORCE_XENOVA=1 si quieres probarlo.');
+      _xenovaArmWarned = true;
+    }
+    _xenovaFailed = true;
+    return null;
+  }
   try {
     console.log('[NSFW] Cargando Xenova (AdamCodd/vit-base-nsfw-detector) desde caché local...');
     _xenovaModel = await pipeline(
@@ -177,6 +191,27 @@ async function loadNsfwjsModel() {
     _nsfwjsModel = null;
   }
   return _nsfwjsModel;
+}
+
+async function prepareXenovaImageInput(imageBuffer) {
+  await fs.promises.mkdir(XENOVA_TMP_DIR, { recursive: true });
+  const id = crypto.randomUUID ? crypto.randomUUID() : crypto.randomBytes(8).toString('hex');
+  const tmpPath = path.join(XENOVA_TMP_DIR, `nsfw_${Date.now()}_${id}.jpg`);
+  let normalized = imageBuffer;
+
+  if (sharp) {
+    try {
+      normalized = await sharp(imageBuffer, { animated: false })
+        .resize(768, 768, { fit: 'inside', withoutEnlargement: true })
+        .jpeg({ quality: 90, mozjpeg: true })
+        .toBuffer();
+    } catch (err) {
+      console.warn('[NSFW] No se pudo normalizar imagen para Xenova, usando buffer original:', err.message);
+    }
+  }
+
+  await fs.promises.writeFile(tmpPath, normalized);
+  return tmpPath;
 }
 
 // ─── CAPA 1: Pre-filtro por tamaño/formato ───────────────────────────────────
@@ -287,10 +322,12 @@ async function clasificarConNsfwjs(imageBuffer) {
 
 // ─── CAPA 3B: Clasificador Xenova (juez borderline) ──────────────────────────
 async function clasificarConXenova(imageBuffer) {
+  let tmpPath = null;
   try {
     const cl = await loadXenovaClassifier();
     if (!cl) return null;
-    const raw = await cl(imageBuffer);
+    tmpPath = await prepareXenovaImageInput(imageBuffer);
+    const raw = await cl(tmpPath);
     // AdamCodd usa etiquetas "nsfw" / "normal" — normalizar a vocabulario interno
     return (raw || []).map(p => {
       const l = (p.label || '').toLowerCase();
@@ -301,6 +338,8 @@ async function clasificarConXenova(imageBuffer) {
   } catch (err) {
     console.error('[NSFW] Xenova error:', err.message);
     return null;
+  } finally {
+    if (tmpPath) fs.promises.unlink(tmpPath).catch(() => {});
   }
 }
 
@@ -803,7 +842,7 @@ export async function warmupModels() {
   console.log('[NSFW] 🔥 Pre-calentando modelos ML en paralelo...');
   const t0 = Date.now();
   const [xenovaOk, nsfwjsOk] = await Promise.allSettled([
-    loadXenovaClassifier(),
+    DISABLE_XENOVA ? Promise.resolve(null) : loadXenovaClassifier(),
     loadNsfwjsModel()
   ]);
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);

@@ -8,6 +8,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const menuImagesDir = path.join(__dirname, 'imagenes');
 
+let sharp = null;
+try {
+  sharp = (await import('sharp')).default;
+} catch (err) {
+  console.warn('[NSFW] sharp no disponible para señal anti-gore:', err.message?.slice(0, 80));
+}
+
 function getRandomMenuImage(preferredPrefixes = ['menu', 'ping']) {
   try {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
@@ -137,6 +144,59 @@ function collectMediaEntries(msg) {
 
   console.log(`[NSFW] collectMediaEntries: ${entries.length} entrada(s). root keys: [${Object.keys(root || {}).join(', ')}]`);
   return entries;
+}
+
+async function detectGorePixelSignal(imageBuffer) {
+  if (!sharp) return { blocked: false, score: 0, bloodRatio: 0, edgeDensity: 0 };
+
+  try {
+    const { data, info } = await sharp(imageBuffer, { animated: false })
+      .resize(128, 128, { fit: 'inside' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const pixels = info.width * info.height;
+    if (!pixels) return { blocked: false, score: 0, bloodRatio: 0, edgeDensity: 0 };
+
+    const gray = new Uint8Array(pixels);
+    let blood = 0;
+    let edges = 0;
+
+    for (let i = 0, p = 0; i < data.length; i += info.channels, p++) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      gray[p] = 0.299 * r + 0.587 * g + 0.114 * b;
+
+      const brightBlood = r > 95 && g < 115 && b < 115 && r > g * 1.55 && r > b * 1.45 && (r - g) > 45 && (r - b) > 45;
+      const darkBlood = r > 55 && r < 175 && g < 70 && b < 75 && r > g * 1.65 && r > b * 1.45;
+      if (brightBlood || darkBlood) blood++;
+    }
+
+    for (let y = 1; y < info.height; y++) {
+      for (let x = 1; x < info.width; x++) {
+        const idx = y * info.width + x;
+        const gx = Math.abs(gray[idx] - gray[idx - 1]);
+        const gy = Math.abs(gray[idx] - gray[idx - info.width]);
+        if (gx + gy > 85) edges++;
+      }
+    }
+
+    const bloodRatio = blood / pixels;
+    const edgeDensity = edges / pixels;
+    const score = Math.min(0.99, Math.max(bloodRatio * 2.4, bloodRatio + edgeDensity));
+    const blocked = bloodRatio > 0.36 || (bloodRatio > 0.25 && edgeDensity > 0.08);
+
+    if (blocked) {
+      console.warn(`[NSFW] Anti-gore pixel: blood=${bloodRatio.toFixed(3)} edge=${edgeDensity.toFixed(3)}`);
+    }
+
+    return { blocked, score, bloodRatio, edgeDensity };
+  } catch (err) {
+    console.warn('[NSFW] Anti-gore pixel error:', err.message || err);
+    return { blocked: false, score: 0, bloodRatio: 0, edgeDensity: 0 };
+  }
 }
 
 async function processImageEntry(entry, context, entryIndex) {
@@ -272,7 +332,10 @@ async function processImageEntry(entry, context, entryIndex) {
  * No borra mensajes ni expulsa usuarios: solo responde si la imagen es segura.
  */
 export async function analyzeImageBufferForSafety(imageBuffer) {
-  const predictions = await classifyImage(imageBuffer);
+  const [predictions, goreSignal] = await Promise.all([
+    classifyImage(imageBuffer),
+    detectGorePixelSignal(imageBuffer),
+  ]);
   if (!predictions?.length) {
     return {
       allowed: false,
@@ -287,16 +350,20 @@ export async function analyzeImageBufferForSafety(imageBuffer) {
   const topPrediction = predictions[0];
   const topLabel = topPrediction.label;
   const topScore = topPrediction.score;
-  const goreLike = /gore|blood|bloody|violence|violent|corpse|injur/i.test(topLabel);
+  const goreLike = goreSignal.blocked || /gore|blood|bloody|violence|violent|corpse|injur/i.test(topLabel);
   const blocked = isNSFWPrediction(topLabel, topScore) || goreLike;
+  const finalPredictions = goreSignal.blocked
+    ? [{ label: 'gore', score: goreSignal.score }, ...predictions]
+    : predictions;
 
   return {
     allowed: !blocked,
     reason: goreLike ? 'gore' : blocked ? 'nsfw' : 'safe',
-    friendlyLabel: mapFriendlyLabel(topLabel),
-    topLabel,
-    topScore,
-    predictions,
+    friendlyLabel: goreSignal.blocked ? 'gore/violencia grafica' : mapFriendlyLabel(topLabel),
+    topLabel: goreSignal.blocked ? 'gore' : topLabel,
+    topScore: goreSignal.blocked ? goreSignal.score : topScore,
+    predictions: finalPredictions,
+    goreSignal,
   };
 }
 
