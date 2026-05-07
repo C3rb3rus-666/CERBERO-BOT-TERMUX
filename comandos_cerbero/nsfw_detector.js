@@ -152,13 +152,11 @@ async function processImageEntry(entry, context, entryIndex) {
       return;
     }
 
-    const predictions = await classifyImage(buffer);
-    if (!predictions) return;
+    const safety = await analyzeImageBufferForSafety(buffer);
+    if (!safety?.predictions?.length) return;
 
-    const topPrediction = predictions[0];
-    const topLabel = topPrediction.label;
-    const topScore = topPrediction.score;
-    const isNSFW = isNSFWPrediction(topLabel, topScore);
+    const { predictions, topLabel, topScore } = safety;
+    const isNSFW = !safety.allowed;
     const entrySignature = getMediaSignature(entry.mediaMessage);
     if (isNSFW && context.alertedSignatures.has(entrySignature)) {
       console.log(`[NSFW] Aviso repetido omitido para ${entrySignature}`);
@@ -267,6 +265,39 @@ async function processImageEntry(entry, context, entryIndex) {
   } finally {
     _releaseNsfwSlot();
   }
+}
+
+/**
+ * Clasifica una imagen y devuelve una decision reutilizable por otros modulos.
+ * No borra mensajes ni expulsa usuarios: solo responde si la imagen es segura.
+ */
+export async function analyzeImageBufferForSafety(imageBuffer) {
+  const predictions = await classifyImage(imageBuffer);
+  if (!predictions?.length) {
+    return {
+      allowed: false,
+      reason: 'unclassified',
+      friendlyLabel: 'No clasificada',
+      topLabel: 'unknown',
+      topScore: 0,
+      predictions: [],
+    };
+  }
+
+  const topPrediction = predictions[0];
+  const topLabel = topPrediction.label;
+  const topScore = topPrediction.score;
+  const goreLike = /gore|blood|bloody|violence|violent|corpse|injur/i.test(topLabel);
+  const blocked = isNSFWPrediction(topLabel, topScore) || goreLike;
+
+  return {
+    allowed: !blocked,
+    reason: goreLike ? 'gore' : blocked ? 'nsfw' : 'safe',
+    friendlyLabel: mapFriendlyLabel(topLabel),
+    topLabel,
+    topScore,
+    predictions,
+  };
 }
 
 /**

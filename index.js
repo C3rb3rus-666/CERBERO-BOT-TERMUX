@@ -28,6 +28,7 @@ import * as autobanVideo from './comandos_cerbero/autobanvideo.js';
 import { verificarLealtad } from './comandos_cerbero/lealtad.js';
 import { amorCommand, iniciarMensajesDiarios } from './comandos_cerbero/amor_bot.js';
 import { manejarDMConf, manejarComandoConf } from './comandos_cerbero/confesiones.js';
+import { manejarDMPresentacion, manejarComandoPresentacion } from './comandos_cerbero/presentaciones.js';
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
@@ -372,14 +373,20 @@ async function connectToWhatsApp() {
 
         const senderJid = msg.key.participant || msg.key.remoteJid;
 
-        // Mensajes privados: revisar si es una confesión anónima
+        // Mensajes privados: revisar presentaciones y confesiones anonimas
         // Solo procesar eventos 'notify' para DMs (no 'append' que incluye mensajes propios del bot)
         if (!isGroup && !msg.key.fromMe && type === 'notify') {
           const textDM = msg.message?.conversation ||
-                         msg.message?.extendedTextMessage?.text || '';
-          // Ignorar DMs sin texto (stickers, audios, imágenes sin caption, notificaciones vacías)
+                         msg.message?.extendedTextMessage?.text ||
+                         msg.message?.imageMessage?.caption ||
+                         msg.message?.documentMessage?.caption ||
+                         '';
+          const handledPresentation = await manejarDMPresentacion(sock, senderJid, msg);
+          if (handledPresentation) return;
+
+          // Ignorar DMs sin texto despues de revisar imagenes de presentacion
           if (!textDM.trim()) {
-            console.log(`[DM RECV] ⏭️ ${senderJid} → mensaje sin texto, ignorado`);
+            console.log(`[DM RECV] ⏭️ ${senderJid} → mensaje sin texto/imagen util, ignorado`);
             return;
           }
           console.log(`[DM RECV] 📩 ${senderJid} → "${textDM?.slice(0,80)}"`);
@@ -647,6 +654,12 @@ async function connectToWhatsApp() {
             // Dinámica de confesiones anónimas
             if (command === 'confesiones') {
                 await manejarComandoConf(sock, chatId, senderJid, isAdmin, args);
+                return;
+            }
+
+            // Dinamica de presentaciones con fotos por privado
+            if (command === 'presentaciones' || command === 'presentacion') {
+                await manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args);
                 return;
             }
             

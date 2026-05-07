@@ -1,0 +1,498 @@
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
+import { randomUUID } from 'crypto';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
+import { pipeline, env as xenovaEnv } from '@xenova/transformers';
+import { analyzeImageBufferForSafety } from './nsfw_detector.js';
+
+const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
+const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
+const POLL_OPTIONS = ['le doy', 'no le doy', 'que asco'];
+
+xenovaEnv.cacheDir = path.resolve(process.cwd(), 'models_cache');
+xenovaEnv.allowLocalModels = true;
+xenovaEnv.allowRemoteModels = true;
+xenovaEnv.backends = { onnx: { wasm: { numThreads: 1 } } };
+
+let sharp = null;
+try {
+  sharp = (await import('sharp')).default;
+} catch (err) {
+  console.warn('[PRESENTACION] sharp no disponible para anti-meme:', err.message?.slice(0, 80));
+}
+
+let clipModelPromise = null;
+
+const ACCEPT_LABELS = [
+  'a casual selfie photo of a real person',
+  'a portrait photo of a real person',
+  'a mirror selfie of a real person',
+  'a full body photo of a real person',
+  'a group photo of real people',
+  'a person posing for a profile picture',
+];
+
+const REJECT_LABELS = [
+  'a funny internet meme with text',
+  'a screenshot of a chat conversation',
+  'a screenshot of a social media post',
+  'a cartoon drawing or illustration',
+  'an anime cartoon character',
+  'a sticker or emoji image',
+  'a logo or graphic design',
+  'a video game screenshot',
+  'a landscape photo with no person',
+  'a pet or animal photo',
+  'a food photo',
+  'a photo of an object with no person',
+  'a poster advertisement',
+  'a text document or quote image',
+  'an AI generated artwork',
+];
+
+const VISUAL_LABELS = [...ACCEPT_LABELS, ...REJECT_LABELS];
+const ACCEPT_SET = new Set(ACCEPT_LABELS);
+const REJECT_SET = new Set(REJECT_LABELS);
+
+function loadConfig() {
+  try {
+    const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    if (!parsed.enabled_groups) parsed.enabled_groups = {};
+    return parsed;
+  } catch (_) {
+    return { enabled_groups: {} };
+  }
+}
+
+function saveConfig(config) {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+}
+
+function normalizeNumber(jid = '') {
+  return jid.toString().split('@')[0].split(':')[0].replace(/\D/g, '');
+}
+
+function getTextFromMessage(msg) {
+  return msg.message?.conversation ||
+    msg.message?.extendedTextMessage?.text ||
+    msg.message?.imageMessage?.caption ||
+    msg.message?.documentMessage?.caption ||
+    '';
+}
+
+function getViewOnceContainer(message) {
+  return message?.viewOnceMessage?.message
+    || message?.viewOnceMessageV2?.message
+    || message?.viewOnceMessageV2Extension?.message
+    || null;
+}
+
+function getPrivateImageContainer(msg) {
+  const root = msg.message || {};
+  const candidates = [
+    root,
+    getViewOnceContainer(root),
+    root.ephemeralMessage?.message,
+    getViewOnceContainer(root.ephemeralMessage?.message),
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (candidate.imageMessage) return candidate;
+    if (candidate.documentMessage?.mimetype?.startsWith('image/')) return candidate;
+  }
+  return null;
+}
+
+function buildMediaMessage(msg, container) {
+  return { key: msg.key, message: container };
+}
+
+async function findActiveGroupsForSender(sock, senderJid) {
+  const config = loadConfig();
+  const activeGroupIds = Object.entries(config.enabled_groups || {})
+    .filter(([, value]) => value?.activo)
+    .map(([groupId]) => groupId);
+
+  if (!activeGroupIds.length) return [];
+
+  const senderNumber = normalizeNumber(senderJid);
+  const matches = [];
+
+  for (const groupId of activeGroupIds) {
+    try {
+      const meta = await sock.groupMetadata(groupId);
+      let mentionJid = senderJid;
+      const isMember = (meta.participants || []).some(participant => {
+        const ids = [
+          participant.id,
+          participant.phoneNumber,
+          participant.lid,
+        ].filter(Boolean);
+        const matched = ids.some(id => normalizeNumber(id) === senderNumber);
+        if (matched) mentionJid = participant.id || senderJid;
+        return matched;
+      });
+
+      if (isMember) matches.push({ groupId, meta, mentionJid });
+    } catch (err) {
+      console.error(`[PRESENTACION] No se pudo leer metadata de ${groupId}:`, err.message || err);
+    }
+  }
+
+  return matches;
+}
+
+function buildPresentationCaption(senderJid, originalCaption, safety) {
+  const intro = originalCaption?.trim()
+    ? `\n\n"${originalCaption.trim().slice(0, 700)}"`
+    : '';
+
+  return (
+    `📸 *PRESENTACION DE MIEMBRO*\n\n` +
+    `👤 @${senderJid.split('@')[0]}\n` +
+    `🛡️ Filtro K3RB-0xEY3: *CLEAN* (${(safety.topScore * 100).toFixed(1)}% ${safety.friendlyLabel})` +
+    intro +
+    `\n\n_Bot recibido por privado y publicado en la dinamica activa._`
+  );
+}
+
+async function loadClipModel() {
+  if (!clipModelPromise) {
+    clipModelPromise = pipeline('zero-shot-image-classification', 'Xenova/clip-vit-base-patch32')
+      .catch(err => {
+        clipModelPromise = null;
+        throw err;
+      });
+  }
+  return clipModelPromise;
+}
+
+async function analyzeImageLayout(buffer) {
+  const fallback = {
+    width: 0,
+    height: 0,
+    format: 'unknown',
+    skinRatio: 0,
+    edgeDensity: 0,
+    flags: [],
+  };
+
+  if (!sharp) return fallback;
+
+  try {
+    const image = sharp(buffer, { animated: false });
+    const meta = await image.metadata();
+    const flags = [];
+    const width = meta.width || 0;
+    const height = meta.height || 0;
+    const format = meta.format || 'unknown';
+
+    if (width && height) {
+      if (width < 260 || height < 260) flags.push('imagen muy pequena');
+      const ratio = Math.max(width / height, height / width);
+      if (ratio > 2.4) flags.push('formato raro/captura');
+    }
+    if (format === 'webp' && width <= 512 && height <= 512 && buffer.length < 160 * 1024) {
+      flags.push('sticker o meme webp');
+    }
+
+    const { data, info } = await sharp(buffer, { animated: false })
+      .resize(160, 160, { fit: 'inside' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    let skin = 0;
+    let edges = 0;
+    const pixels = info.width * info.height;
+    const gray = new Uint8Array(pixels);
+
+    for (let i = 0, p = 0; i < data.length; i += info.channels, p++) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const y = 0.299 * r + 0.587 * g + 0.114 * b;
+      const cb = -0.169 * r - 0.331 * g + 0.5 * b + 128;
+      const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
+      gray[p] = y;
+      if (y > 55 && cb >= 80 && cb <= 145 && cr >= 125 && cr <= 190) skin++;
+    }
+
+    for (let y = 1; y < info.height; y++) {
+      for (let x = 1; x < info.width; x++) {
+        const idx = y * info.width + x;
+        const gx = Math.abs(gray[idx] - gray[idx - 1]);
+        const gy = Math.abs(gray[idx] - gray[idx - info.width]);
+        if (gx + gy > 85) edges++;
+      }
+    }
+
+    const skinRatio = pixels ? skin / pixels : 0;
+    const edgeDensity = pixels ? edges / pixels : 0;
+    if (edgeDensity > 0.28 && skinRatio < 0.06) flags.push('mucho texto/bordes tipo meme');
+
+    return { width, height, format, skinRatio, edgeDensity, flags };
+  } catch (err) {
+    console.error('[PRESENTACION] Error en analisis anti-meme:', err.message || err);
+    return fallback;
+  }
+}
+
+async function recognizePresentationImage(buffer) {
+  const tmpPath = path.join(TEMP_DIR, `presentacion_${Date.now()}_${randomUUID()}.jpg`);
+  try {
+    await fs.promises.mkdir(TEMP_DIR, { recursive: true });
+    const imageForClip = sharp
+      ? await sharp(buffer, { animated: false }).jpeg({ quality: 90 }).toBuffer().catch(() => buffer)
+      : buffer;
+    await fs.promises.writeFile(tmpPath, imageForClip);
+    const model = await loadClipModel();
+    const predictions = await model(tmpPath, VISUAL_LABELS);
+    return [...predictions].sort((a, b) => b.score - a.score);
+  } finally {
+    fs.promises.unlink(tmpPath).catch(() => {});
+  }
+}
+
+function summarizeTopPredictions(predictions = []) {
+  return predictions
+    .slice(0, 3)
+    .map(p => `${p.label} ${(p.score * 100).toFixed(1)}%`)
+    .join(' | ');
+}
+
+async function analyzePresentationRelevance(buffer) {
+  const layout = await analyzeImageLayout(buffer);
+  let predictions = [];
+  let recognitionError = null;
+
+  try {
+    predictions = await recognizePresentationImage(buffer);
+  } catch (err) {
+    recognitionError = err;
+    console.error('[PRESENTACION] CLIP no disponible para reconocimiento:', err.message || err);
+  }
+
+  const bestAccept = predictions
+    .filter(p => ACCEPT_SET.has(p.label))
+    .sort((a, b) => b.score - a.score)[0] || null;
+  const bestReject = predictions
+    .filter(p => REJECT_SET.has(p.label))
+    .sort((a, b) => b.score - a.score)[0] || null;
+  const top = predictions[0] || null;
+
+  const reasons = [...layout.flags];
+  if (bestReject && (!bestAccept || bestReject.score >= bestAccept.score * 1.08) && bestReject.score >= 0.16) {
+    reasons.push(`parece ${bestReject.label}`);
+  }
+  if (top && REJECT_SET.has(top.label) && (!bestAccept || top.score >= bestAccept.score * 1.15) && top.score >= 0.20) {
+    reasons.push(`clasificacion principal: ${top.label}`);
+  }
+  if (!recognitionError && bestAccept && bestReject && bestAccept.score < 0.13 && bestReject.score > bestAccept.score) {
+    reasons.push('no parece una foto real de presentacion');
+  }
+
+  const hardLayoutBlock = layout.flags.some(flag => (
+    flag.includes('sticker') ||
+    flag.includes('meme') ||
+    flag.includes('captura') ||
+    flag.includes('pequena')
+  ));
+  const modelBlock = reasons.some(reason => (
+    reason.includes('parece') ||
+    reason.includes('clasificacion principal') ||
+    reason.includes('no parece')
+  ));
+
+  return {
+    allowed: !(hardLayoutBlock || modelBlock),
+    reasons,
+    layout,
+    predictions,
+    recognitionError,
+    bestAccept,
+    bestReject,
+  };
+}
+
+async function sendPresentationPoll(sock, groupId, senderJid, mentionJid, quotedMsg) {
+  const pollMessage = {
+    poll: {
+      name: `📊 ¿Qué opinan de @${senderJid.split('@')[0]}?`,
+      values: POLL_OPTIONS,
+      selectableCount: 1,
+    },
+    mentions: [mentionJid || senderJid],
+  };
+
+  try {
+    await sock.sendMessage(groupId, pollMessage, quotedMsg ? { quoted: quotedMsg } : undefined);
+  } catch (err) {
+    console.error(`[PRESENTACION] Error enviando encuesta en ${groupId}:`, err.message || err);
+    await sock.sendMessage(groupId, {
+      text:
+        `📊 *Encuesta de presentacion*\n\n` +
+        `${POLL_OPTIONS.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`,
+      mentions: [mentionJid || senderJid],
+    });
+  }
+}
+
+export async function manejarDMPresentacion(sock, senderJid, msg) {
+  const imageContainer = getPrivateImageContainer(msg);
+  const text = getTextFromMessage(msg).trim();
+
+  if (!imageContainer) {
+    if (/presentaci[oó]n|presentarme|me\s+presento/i.test(text)) {
+      await sock.sendMessage(senderJid, {
+        text:
+          `📸 Para presentarte, enviame una foto por privado.\n\n` +
+          `Si hay una dinamica de *presentaciones* activa en tu grupo, la reviso con anti-NSFW y la publico alla.`,
+      });
+      return true;
+    }
+    return false;
+  }
+
+  const destinations = await findActiveGroupsForSender(sock, senderJid);
+  if (!destinations.length) {
+    await sock.sendMessage(senderJid, {
+      text:
+        `⚠️ No encontre una dinamica de *presentaciones* activa en algun grupo donde estes.\n` +
+        `Pidele a un admin que use *!presentaciones activar* en el grupo.`,
+    });
+    return true;
+  }
+
+  let buffer;
+  try {
+    buffer = await downloadMediaMessage(buildMediaMessage(msg, imageContainer), 'buffer', {}, sock);
+  } catch (err) {
+    console.error('[PRESENTACION] Error descargando imagen privada:', err.message || err);
+  }
+
+  if (!buffer) {
+    await sock.sendMessage(senderJid, {
+      text: `❌ No pude descargar la imagen. Intenta enviarla de nuevo como foto normal.`,
+    });
+    return true;
+  }
+
+  const safety = await analyzeImageBufferForSafety(buffer);
+  if (!safety.allowed) {
+    await sock.sendMessage(senderJid, {
+      text:
+        `🚫 Tu foto no se publico porque el filtro anti-NSFW la marco como no segura.\n` +
+        `▸ Motivo: ${safety.friendlyLabel} (${(safety.topScore * 100).toFixed(1)}%)`,
+    });
+    console.log(`[PRESENTACION] Imagen bloqueada de ${senderJid}: ${safety.topLabel} ${(safety.topScore * 100).toFixed(1)}%`);
+    return true;
+  }
+
+  const relevance = await analyzePresentationRelevance(buffer);
+  if (!relevance.allowed) {
+    const why = relevance.reasons.length
+      ? relevance.reasons.slice(0, 3).join(', ')
+      : 'no parece una foto real de presentacion';
+    await sock.sendMessage(senderJid, {
+      text:
+        `🚫 No publique esa imagen porque parece meme, captura, sticker o algo ajeno a la presentacion.\n` +
+        `▸ Motivo: ${why}\n\n` +
+        `Manda una foto real donde se vea una persona.`
+    });
+    console.log(`[PRESENTACION] Imagen irrelevante de ${senderJid}: ${why}. CLIP=${summarizeTopPredictions(relevance.predictions) || 'sin datos'}`);
+    return true;
+  }
+
+  const caption = buildPresentationCaption(senderJid, text, safety);
+  let published = 0;
+
+  for (const { groupId, mentionJid } of destinations) {
+    try {
+      const sentImage = await sock.sendMessage(groupId, {
+        image: buffer,
+        caption,
+        mentions: [mentionJid || senderJid],
+      });
+      await sendPresentationPoll(sock, groupId, senderJid, mentionJid, sentImage);
+      published++;
+    } catch (err) {
+      console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
+    }
+  }
+
+  if (published > 0) {
+    await sock.sendMessage(senderJid, {
+      text: `✅ Presentacion publicada en ${published} grupo(s).`,
+    });
+  } else {
+    await sock.sendMessage(senderJid, {
+      text: `❌ La foto paso el filtro, pero no pude publicarla en el grupo. Revisa si el bot tiene permisos.`,
+    });
+  }
+
+  return true;
+}
+
+export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args) {
+  if (!chatId.endsWith('@g.us')) {
+    await sock.sendMessage(chatId, { text: 'Este comando debe usarse dentro de un grupo.' });
+    return;
+  }
+
+  if (!isAdmin) {
+    await sock.sendMessage(chatId, { text: '⛔ Solo administradores pueden configurar las presentaciones.' });
+    return;
+  }
+
+  const sub = (args[0] || '').toLowerCase();
+  const config = loadConfig();
+  if (!config.enabled_groups) config.enabled_groups = {};
+
+  if (['activar', 'abrir', 'grupo', 'on'].includes(sub)) {
+    config.enabled_groups[chatId] = {
+      activo: true,
+      updatedAt: Date.now(),
+      updatedBy: senderJid,
+    };
+    saveConfig(config);
+    await sock.sendMessage(chatId, {
+      text:
+        `✅ *Presentaciones activadas* en este grupo.\n\n` +
+        `Los miembros pueden enviar su foto al privado del bot. CERBERO la revisa con anti-NSFW, aplica anti-meme y la publica aqui con encuesta si esta limpia.`,
+    });
+    return;
+  }
+
+  if (['desactivar', 'cerrar', 'off'].includes(sub)) {
+    if (!config.enabled_groups[chatId]) config.enabled_groups[chatId] = {};
+    config.enabled_groups[chatId].activo = false;
+    config.enabled_groups[chatId].updatedAt = Date.now();
+    config.enabled_groups[chatId].updatedBy = senderJid;
+    saveConfig(config);
+    await sock.sendMessage(chatId, { text: '🔒 Presentaciones desactivadas en este grupo.' });
+    return;
+  }
+
+  if (['estado', 'info'].includes(sub)) {
+    const active = config.enabled_groups?.[chatId]?.activo === true;
+    await sock.sendMessage(chatId, {
+      text:
+        `📸 *Estado de presentaciones*\n\n` +
+        `▸ Grupo : ${chatId}\n` +
+        `▸ Estado: ${active ? '✅ ACTIVO' : '🔒 CERRADO'}`,
+    });
+    return;
+  }
+
+  await sock.sendMessage(chatId, {
+    text:
+      `📸 *PRESENTACIONES — comandos admin:*\n\n` +
+      `!presentaciones activar    → abrir dinamica en este grupo\n` +
+      `!presentaciones desactivar → cerrar dinamica\n` +
+      `!presentaciones estado     → ver estado\n\n` +
+      `Los miembros se presentan enviando una foto al privado del bot. Se publica con encuesta.`,
+  });
+}
