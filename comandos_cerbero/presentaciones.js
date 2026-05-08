@@ -723,8 +723,8 @@ async function analyzePresentationSafety(sock, senderJid, buffer) {
     console.error('[PRESENTACION] Error/timeout en anti-NSFW:', err.message || err);
     await sock.sendMessage(senderJid, {
       text:
-        `⚠️ No pude completar el analisis de seguridad de la imagen.\n` +
-        `Intenta enviarla otra vez como foto normal.`
+        `🚫 Imagen rechazada por seguridad.\n` +
+        `Intenta mas tarde con una foto normal.`
     }).catch(() => {});
     return null;
   }
@@ -828,8 +828,8 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
   if (flood.blocked) {
     await sock.sendMessage(senderJid, {
       text:
-        `⏳ Estas enviando demasiadas imagenes muy rapido.\n` +
-        `Espera ${flood.mutedSeconds}s antes de intentar otra presentacion.`
+        `🚫 Imagen rechazada por proteccion anti-flood.\n` +
+        `Intenta mas tarde.`
     }).catch(() => {});
     console.warn(`[PRESENTACION] Flood privado bloqueado ${senderJid}: ${flood.count} imagenes/${PRESENTATION_FLOOD_WINDOW_MS}ms`);
     return true;
@@ -839,8 +839,8 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
   if (!queued) {
     await sock.sendMessage(senderJid, {
       text:
-        `⏳ El analizador de presentaciones esta ocupado.\n` +
-        `Intenta de nuevo en unos segundos.`
+        `🚫 Imagen rechazada por proteccion anti-flood.\n` +
+        `Intenta mas tarde.`
     }).catch(() => {});
     console.warn(`[PRESENTACION] Cola saturada: pending=${presentationPendingCount}/${PRESENTATION_MAX_PENDING}`);
   }
