@@ -30,6 +30,7 @@ if (!ARM_SAFE_MODE) {
 
 let clipModelPromise = null;
 let presentationQueue = Promise.resolve();
+let jimpPromise = null;
 
 const ACCEPT_LABELS = [
   'a casual selfie photo of a real person',
@@ -190,6 +191,18 @@ function enqueuePresentation(task) {
   const run = presentationQueue.catch(() => {}).then(task);
   presentationQueue = run.catch(() => {});
   return run;
+}
+
+async function loadJimp() {
+  if (!jimpPromise) {
+    jimpPromise = import('jimp')
+      .then(mod => mod.Jimp || mod.default || mod)
+      .catch(err => {
+        jimpPromise = null;
+        throw err;
+      });
+  }
+  return jimpPromise;
 }
 
 async function findActiveGroupsForSender(sock, senderJid) {
@@ -365,9 +378,100 @@ async function analyzeImageLayout(buffer, mediaInfo = null) {
  * - Uniformidad de zonas (fake faces tienen patrones IA)
  * - Frecuencia de componentes (noise artificial)
  */
-async function detectAIOrMemeHeuristic(buffer) {
+async function detectMemeFallbackJs(buffer, mediaInfo = null, originalCaption = '') {
+  const flags = [];
+  const metadata = analyzeMediaMetadata(mediaInfo, buffer?.length || 0);
+  const caption = String(originalCaption || '').toLowerCase();
+
+  if (caption && /\b(meme|shitpost|jaja|jajaj|haha|xd|lol|bait|sticker)\b/i.test(caption)) {
+    flags.push('caption_tipo_meme');
+  }
+
+  if (metadata.width && metadata.height) {
+    const ratio = Math.max(metadata.width / metadata.height, metadata.height / metadata.width);
+    if (ratio > 1.85) flags.push('formato_panoramico_tipo_meme');
+    if (metadata.bytes && metadata.bytes < 90 * 1024 && metadata.width >= 500 && metadata.height >= 500) {
+      flags.push('imagen_muy_comprimida_tipo_meme');
+    }
+  }
+
   try {
-    if (!sharp) return { isAIOrMeme: false, confidence: 0, flags: [] };
+    const JimpLib = await loadJimp();
+    const image = await JimpLib.read(buffer);
+    const { width, height, data } = image.bitmap;
+    const totalPixels = width * height;
+    if (!totalPixels) return { isAIOrMeme: false, confidence: 0, flags };
+
+    const targetSamples = 12000;
+    const step = Math.max(1, Math.floor(totalPixels / targetSamples));
+    const xStep = Math.max(1, Math.round(Math.sqrt(step)));
+    const yStep = xStep;
+
+    let samples = 0;
+    let skin = 0;
+    let bw = 0;
+    let saturated = 0;
+    let edge = 0;
+    let flat = 0;
+    const buckets = new Set();
+
+    for (let y = 0; y < height; y += yStep) {
+      for (let x = 0; x < width; x += xStep) {
+        const idx = (y * width + x) * 4;
+        const r = data[idx];
+        const g = data[idx + 1];
+        const b = data[idx + 2];
+        const max = Math.max(r, g, b);
+        const min = Math.min(r, g, b);
+        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
+        const cb = -0.169 * r - 0.331 * g + 0.5 * b + 128;
+        const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
+
+        samples++;
+        buckets.add(`${r >> 5},${g >> 5},${b >> 5}`);
+        if (lum < 35 || lum > 220) bw++;
+        if (max > 0 && (max - min) / max > 0.55) saturated++;
+        if (max - min < 12) flat++;
+        if (lum > 55 && cb >= 80 && cb <= 145 && cr >= 125 && cr <= 190) skin++;
+
+        if (x + xStep < width) {
+          const right = (y * width + Math.min(width - 1, x + xStep)) * 4;
+          const rLum = 0.299 * data[right] + 0.587 * data[right + 1] + 0.114 * data[right + 2];
+          if (Math.abs(lum - rLum) > 80) edge++;
+        }
+        if (y + yStep < height) {
+          const down = (Math.min(height - 1, y + yStep) * width + x) * 4;
+          const dLum = 0.299 * data[down] + 0.587 * data[down + 1] + 0.114 * data[down + 2];
+          if (Math.abs(lum - dLum) > 80) edge++;
+        }
+      }
+    }
+
+    const skinRatio = samples ? skin / samples : 0;
+    const bwRatio = samples ? bw / samples : 0;
+    const edgeDensity = samples ? edge / (samples * 2) : 0;
+    const saturatedRatio = samples ? saturated / samples : 0;
+    const flatRatio = samples ? flat / samples : 0;
+    const colorBucketRatio = samples ? buckets.size / samples : 1;
+
+    if (edgeDensity > 0.20 && bwRatio > 0.25 && skinRatio < 0.08) flags.push('texto_alto_contraste_tipo_meme');
+    if (skinRatio < 0.015 && (edgeDensity > 0.16 || saturatedRatio > 0.45)) flags.push('sin_presencia_humana_probable');
+    if (colorBucketRatio < 0.08 && edgeDensity > 0.10) flags.push('paleta_plana_ilustracion_o_meme');
+    if (flatRatio > 0.48 && skinRatio < 0.06 && edgeDensity > 0.12) flags.push('zonas_planas_tipo_cartel');
+
+    const confidence = Math.min(0.35 + flags.length * 0.22, 0.95);
+    const isAIOrMeme = flags.length >= 2;
+    console.log(`[PRESENTACION] Meme fallback JS: skin=${skinRatio.toFixed(3)} edge=${edgeDensity.toFixed(3)} bw=${bwRatio.toFixed(3)} flags=${flags.join(',') || 'none'}`);
+    return { isAIOrMeme, confidence: isAIOrMeme ? confidence : 0, flags };
+  } catch (err) {
+    console.warn('[PRESENTACION] Fallback JS anti-meme no disponible:', err.message || err);
+    return { isAIOrMeme: flags.length >= 2, confidence: flags.length >= 2 ? 0.7 : 0, flags };
+  }
+}
+
+async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption = '') {
+  try {
+    if (!sharp) return detectMemeFallbackJs(buffer, mediaInfo, originalCaption);
 
     const flags = [];
     const { data, info } = await sharp(buffer, { animated: false })
@@ -486,7 +590,7 @@ function summarizeTopPredictions(predictions = []) {
     .join(' | ');
 }
 
-async function analyzePresentationRelevance(buffer, mediaInfo) {
+async function analyzePresentationRelevance(buffer, mediaInfo, originalCaption = '') {
   const layout = await analyzeImageLayout(buffer, mediaInfo);
   let predictions = [];
   let recognitionError = null;
@@ -507,7 +611,7 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
     // Cuando CLIP está desactivado, usar heurística mejorada para detectar AI/memes
     recognitionError = new Error('clip_disabled');
     console.log('[PRESENTACION] CLIP desactivado; activando heuristica AI/meme robusta.');
-    aiOrMemeDetection = await detectAIOrMemeHeuristic(buffer);
+    aiOrMemeDetection = await detectAIOrMemeHeuristic(buffer, mediaInfo, originalCaption);
   }
 
   const bestAccept = predictions
@@ -695,7 +799,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
 
   // ── Validación Anti-QR (reutiliza detectQrBuffer del bot) ──────────────────
   // Detecta QR de WhatsApp, Instagram y otros intentos de promoción
-  const qrValidation = await validatePresentationAntiQr(buffer, imageContainer?.imageMessage);
+  const qrValidation = await validatePresentationAntiQr(buffer, mediaInfo.mediaMessage);
   if (qrValidation.hasQr) {
     await sock.sendMessage(senderJid, {
       text:
@@ -724,7 +828,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
     return true;
   }
 
-  const relevance = await analyzePresentationRelevance(buffer, mediaInfo);
+  const relevance = await analyzePresentationRelevance(buffer, mediaInfo, text);
   if (!relevance.allowed) {
     const why = relevance.reasons.length
       ? relevance.reasons.slice(0, 3).join(', ')

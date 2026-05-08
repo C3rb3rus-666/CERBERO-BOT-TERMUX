@@ -1,10 +1,16 @@
 import QRCodeReader from 'qrcode-reader';
 import { Jimp } from "jimp";
-import sharp from 'sharp';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { downloadContentFromMessage } from '@whiskeysockets/baileys';
+
+let sharp = null;
+try {
+    sharp = (await import('sharp')).default;
+} catch (err) {
+    console.warn('[QR] sharp no disponible, usando decodificacion JS directa:', err.message?.slice(0, 80));
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -22,6 +28,35 @@ const QR_CACHE_MAX = 400; // máximo de entradas en caché
 // Los QR son detectables incluso a 200px; 600px da margen para QR pequeños.
 const QR_SCAN_SIZE = 600;
 
+function _isWhatsappQrContent(content = '') {
+    return /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9_-]+/i.test(String(content || ''));
+}
+
+function _normalizeCacheEntry(entry) {
+    if (!entry || typeof entry !== 'object') {
+        const value = Boolean(entry);
+        return { hasAnyQr: value, isWhatsappQr: value, content: value ? 'chat.whatsapp.com' : '' };
+    }
+    return {
+        hasAnyQr: Boolean(entry.hasAnyQr),
+        isWhatsappQr: Boolean(entry.isWhatsappQr),
+        content: entry.content || '',
+    };
+}
+
+function _setQrCache(cacheKey, content) {
+    if (!cacheKey) return null;
+    const qrContent = content || '';
+    const entry = {
+        hasAnyQr: Boolean(qrContent.trim()),
+        isWhatsappQr: _isWhatsappQrContent(qrContent),
+        content: qrContent,
+    };
+    if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
+    _qrCache.set(cacheKey, entry);
+    return entry;
+}
+
 function _getCacheKey(imageMessage) {
     if (!imageMessage) return null;
     const sha = imageMessage.fileSha256;
@@ -34,18 +69,46 @@ function _getCacheKey(imageMessage) {
     return `${imageMessage.fileLength || 0}|${imageMessage.mimetype || ''}`;
 }
 
+function _getViewOnceContainer(message) {
+    return message?.viewOnceMessage?.message
+        || message?.viewOnceMessageV2?.message
+        || message?.viewOnceMessageV2Extension?.message
+        || null;
+}
+
+function _getQrMediaInfo(msg) {
+    const candidates = [
+        msg,
+        _getViewOnceContainer(msg),
+        msg?.ephemeralMessage?.message,
+        _getViewOnceContainer(msg?.ephemeralMessage?.message),
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+        if (candidate.imageMessage) {
+            return { mediaMessage: candidate.imageMessage, mediaType: 'image' };
+        }
+        if (candidate.documentMessage?.mimetype?.startsWith('image/')) {
+            return { mediaMessage: candidate.documentMessage, mediaType: 'document' };
+        }
+    }
+    return null;
+}
+
 // Decodificar QR con sharp (resize rápido) + jimp + qrcode-reader
 async function decodeQRCode(rawBuffer) {
     // 1. Redimensionar con sharp (nativo, 10-50× más rápido que Jimp resize)
-    let resizedBuffer;
-    try {
-        resizedBuffer = await sharp(rawBuffer)
-            .resize(QR_SCAN_SIZE, QR_SCAN_SIZE, { fit: 'inside', withoutEnlargement: true })
-            .jpeg({ quality: 90 })
-            .toBuffer();
-    } catch (_) {
-        // Si sharp falla (formato raro), usar el buffer original
-        resizedBuffer = rawBuffer;
+    let resizedBuffer = rawBuffer;
+    if (sharp) {
+        try {
+            resizedBuffer = await sharp(rawBuffer)
+                .resize(QR_SCAN_SIZE, QR_SCAN_SIZE, { fit: 'inside', withoutEnlargement: true })
+                .jpeg({ quality: 90 })
+                .toBuffer();
+        } catch (_) {
+            // Si sharp falla (formato raro), usar el buffer original
+            resizedBuffer = rawBuffer;
+        }
     }
 
     // 2. Leer con Jimp y decodificar QR
@@ -69,9 +132,14 @@ export async function detectQrBuffer(imageBuffer, imageMessage = null) {
         // Usar caché si está disponible
         const cacheKey = imageMessage ? _getCacheKey(imageMessage) : null;
         if (cacheKey && _qrCache.has(cacheKey)) {
-            const cached = _qrCache.get(cacheKey);
+            const cached = _normalizeCacheEntry(_qrCache.get(cacheKey));
             console.log(`[QR] Caché hit (buffer detector): ${cacheKey.slice(0, 16)}...`);
-            return { isQR: cached, cached: true };
+            return {
+                isQR: cached.hasAnyQr,
+                isWhatsappQR: cached.isWhatsappQr,
+                content: cached.content,
+                cached: true
+            };
         }
 
         // Decodificar QR
@@ -81,22 +149,20 @@ export async function detectQrBuffer(imageBuffer, imageMessage = null) {
         } catch (_) {
             // No contiene QR — resultado esperado para imágenes normales
             if (cacheKey) {
-                if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
-                _qrCache.set(cacheKey, false);
+                _setQrCache(cacheKey, '');
             }
             return { isQR: false };
         }
 
         // Guardar en caché si tenemos clave
-        const isWhatsappQr = qrResult?.result?.includes('chat.whatsapp.com') ?? false;
-        if (cacheKey) {
-            if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
-            _qrCache.set(cacheKey, isWhatsappQr);
-        }
+        const qrContent = qrResult?.result || '';
+        const isQr = typeof qrContent === 'string' && qrContent.trim().length > 0;
+        const cacheEntry = cacheKey ? _setQrCache(cacheKey, qrContent) : null;
 
         return {
-            isQR: isWhatsappQr,
-            content: qrResult?.result || null,
+            isQR: isQr,
+            isWhatsappQR: cacheEntry?.isWhatsappQr ?? _isWhatsappQrContent(qrContent),
+            content: qrContent,
         };
     } catch (err) {
         if (
@@ -118,11 +184,11 @@ export async function detectQrBuffer(imageBuffer, imageMessage = null) {
 export async function blockQr(sock, message, isAdmin, groupMetadata) {
     const { key, message: msg } = message;
     const chatId = key.remoteJid;
-    const isImage = msg?.imageMessage;
+    const mediaInfo = _getQrMediaInfo(msg);
 
     let participant = message.participant || key.participant || key.remoteJid;
 
-    if (!isImage) return false;
+    if (!mediaInfo) return false;
 
     try {
         if (!participant) {
@@ -131,12 +197,12 @@ export async function blockQr(sock, message, isAdmin, groupMetadata) {
         }
 
         // ─── Caché: evitar re-procesar la misma imagen ───────────────────────
-        const cacheKey = _getCacheKey(msg.imageMessage);
+        const { mediaMessage, mediaType } = mediaInfo;
+        const cacheKey = _getCacheKey(mediaMessage);
         if (cacheKey && _qrCache.has(cacheKey)) {
-            const cached = _qrCache.get(cacheKey);
-            console.log(`[QR] Caché hit (${cached ? 'QR' : 'segura'}): ${cacheKey.slice(0, 16)}...`);
-            if (!cached) return false; // imagen conocida como segura, saltar
-            // Si era QR conocido: actuar directamente sin re-decodificar
+            const cached = _normalizeCacheEntry(_qrCache.get(cacheKey));
+            console.log(`[QR] Caché hit (${cached.isWhatsappQr ? 'WA-QR' : cached.hasAnyQr ? 'QR-no-WA' : 'segura'}): ${cacheKey.slice(0, 16)}...`);
+            if (!cached.isWhatsappQr) return false; // solo el grupo bloquea QR de WhatsApp
         }
 
         // ─── Registrar mensaje del usuario ───────────────────────────────────
@@ -150,10 +216,11 @@ export async function blockQr(sock, message, isAdmin, groupMetadata) {
 
         if (cacheKey && _qrCache.has(cacheKey)) {
             // Ya sabemos que es QR, no re-decodificamos
-            qrResult = { result: 'chat.whatsapp.com' };
+            const cached = _normalizeCacheEntry(_qrCache.get(cacheKey));
+            qrResult = { result: cached.content || 'chat.whatsapp.com' };
         } else {
             // ─── Descargar imagen ─────────────────────────────────────────────
-            const stream = await downloadContentFromMessage(msg.imageMessage, 'image');
+            const stream = await downloadContentFromMessage(mediaMessage, mediaType);
             const chunks = [];
             for await (const chunk of stream) chunks.push(chunk);
             const imageBuffer = Buffer.concat(chunks);
@@ -164,20 +231,18 @@ export async function blockQr(sock, message, isAdmin, groupMetadata) {
             } catch (_) {
                 // No contiene QR — resultado esperado para imágenes normales
                 if (cacheKey) {
-                    if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
-                    _qrCache.set(cacheKey, false); // cachear como "segura"
+                    _setQrCache(cacheKey, ''); // cachear como "segura"
                 }
                 return false;
             }
 
             // ─── Guardar en caché ─────────────────────────────────────────────
             if (cacheKey) {
-                if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
-                _qrCache.set(cacheKey, qrResult?.result?.includes('chat.whatsapp.com') ?? false);
+                _setQrCache(cacheKey, qrResult?.result || '');
             }
         }
 
-        if (qrResult?.result?.includes('chat.whatsapp.com')) {
+        if (_isWhatsappQrContent(qrResult?.result)) {
             console.log(`[QR] Código QR de WhatsApp detectado. Enviado por: ${participant}`);
 
             if (userInfo.warned) return true;
