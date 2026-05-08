@@ -142,14 +142,13 @@ async function findActiveGroupsForSender(sock, senderJid) {
   return matches;
 }
 
-function buildPresentationCaption(senderJid, originalCaption, safety) {
+function buildPresentationCaption(originalCaption, safety) {
   const intro = originalCaption?.trim()
     ? `\n\n"${originalCaption.trim().slice(0, 700)}"`
     : '';
 
   return (
     `📸 *PRESENTACION DE MIEMBRO*\n\n` +
-    `👤 @${senderJid.split('@')[0]}\n` +
     `🛡️ Filtro K3RB-0xEY3: *CLEAN* (${(safety.topScore * 100).toFixed(1)}% ${safety.friendlyLabel})` +
     intro +
     `\n\n_Bot recibido por privado y publicado en la dinamica activa._`
@@ -375,14 +374,13 @@ async function analyzePresentationSafety(sock, senderJid, buffer) {
   }
 }
 
-async function sendPresentationPoll(sock, groupId, senderJid, mentionJid, quotedMsg) {
+async function sendPresentationPoll(sock, groupId, quotedMsg) {
   const pollMessage = {
     poll: {
-      name: `📊 ¿Qué opinan de @${senderJid.split('@')[0]}?`,
+      name: 'que opinas',
       values: POLL_OPTIONS,
       selectableCount: 1,
     },
-    mentions: [mentionJid || senderJid],
   };
 
   try {
@@ -393,7 +391,6 @@ async function sendPresentationPoll(sock, groupId, senderJid, mentionJid, quoted
       text:
         `📊 *Encuesta de presentacion*\n\n` +
         `${POLL_OPTIONS.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`,
-      mentions: [mentionJid || senderJid],
     });
   }
 }
@@ -470,17 +467,16 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return true;
   }
 
-  const caption = buildPresentationCaption(senderJid, text, safety);
+  const caption = buildPresentationCaption(text, safety);
   let published = 0;
 
-  for (const { groupId, mentionJid } of destinations) {
+  for (const { groupId } of destinations) {
     try {
       const sentImage = await sock.sendMessage(groupId, {
         image: buffer,
         caption,
-        mentions: [mentionJid || senderJid],
       });
-      await sendPresentationPoll(sock, groupId, senderJid, mentionJid, sentImage);
+      await sendPresentationPoll(sock, groupId, sentImage);
       published++;
     } catch (err) {
       console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
