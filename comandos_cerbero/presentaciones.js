@@ -8,18 +8,27 @@ import { analyzeImageBufferForSafety } from './nsfw_detector.js';
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
 const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
 const POLL_OPTIONS = ['le doy', 'no le doy', 'que asco'];
+const IS_ARM_RUNTIME = process.arch === 'arm' || process.arch === 'arm64';
+const FORCE_NATIVE_ANALYSIS = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_FORCE_NATIVE || '');
+const ARM_SAFE_MODE = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_ARM_SAFE_MODE || '') || (IS_ARM_RUNTIME && !FORCE_NATIVE_ANALYSIS);
 const NSFW_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_NSFW_TIMEOUT_MS || 60_000);
 const CLIP_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_CLIP_TIMEOUT_MS || 45_000);
-const CLIP_ENABLED = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_CLIP || '');
+const CLIP_ENABLED = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_CLIP || '') && !ARM_SAFE_MODE;
+const MAX_IMAGE_BYTES = Number(process.env.PRESENTACIONES_MAX_IMAGE_BYTES || (ARM_SAFE_MODE ? 6 : 14) * 1024 * 1024);
 
 let sharp = null;
-try {
-  sharp = (await import('sharp')).default;
-} catch (err) {
-  console.warn('[PRESENTACION] sharp no disponible para anti-meme:', err.message?.slice(0, 80));
+if (!ARM_SAFE_MODE) {
+  try {
+    sharp = (await import('sharp')).default;
+  } catch (err) {
+    console.warn('[PRESENTACION] sharp no disponible para anti-meme:', err.message?.slice(0, 80));
+  }
+} else {
+  console.warn('[PRESENTACION] Modo seguro ARM activo: sin sharp/CLIP local en presentaciones.');
 }
 
 let clipModelPromise = null;
+let presentationQueue = Promise.resolve();
 
 const ACCEPT_LABELS = [
   'a casual selfie photo of a real person',
@@ -103,8 +112,83 @@ function getPrivateImageContainer(msg) {
   return null;
 }
 
+function getMediaInfoFromContainer(container) {
+  if (container?.imageMessage) {
+    return { kind: 'image', mediaMessage: container.imageMessage };
+  }
+  if (container?.documentMessage?.mimetype?.startsWith('image/')) {
+    return { kind: 'document', mediaMessage: container.documentMessage };
+  }
+  return { kind: 'unknown', mediaMessage: null };
+}
+
 function buildMediaMessage(msg, container) {
   return { key: msg.key, message: container };
+}
+
+function numberFromWaValue(value) {
+  if (value == null) return 0;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'bigint') return Number(value);
+  if (typeof value === 'string') {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof value?.toNumber === 'function') {
+    const n = value.toNumber();
+    return Number.isFinite(n) ? n : 0;
+  }
+  if (typeof value?.low === 'number') return value.low;
+  return 0;
+}
+
+function analyzeMediaMetadata(mediaInfo, bufferLength = 0) {
+  const mediaMessage = mediaInfo?.mediaMessage || {};
+  const mimetype = (mediaMessage.mimetype || '').toLowerCase();
+  const width = Number(mediaMessage.width || 0);
+  const height = Number(mediaMessage.height || 0);
+  const bytes = numberFromWaValue(mediaMessage.fileLength || mediaMessage.length) || bufferLength;
+  const format = mimetype.split('/')[1] || 'unknown';
+  const flags = [];
+
+  if (bytes > MAX_IMAGE_BYTES) flags.push(`imagen demasiado pesada (${(bytes / 1024 / 1024).toFixed(1)}MB)`);
+  if (ARM_SAFE_MODE && mediaInfo?.kind === 'document') flags.push('imagen enviada como documento');
+  if (mimetype === 'image/webp' && bytes < 180 * 1024) flags.push('sticker o meme webp');
+
+  if (width && height) {
+    if (width < 260 || height < 260) flags.push('imagen muy pequena');
+    const ratio = Math.max(width / height, height / width);
+    if (ratio > 2.4) flags.push('formato raro/captura');
+  }
+
+  return {
+    width,
+    height,
+    format,
+    bytes,
+    skinRatio: 0,
+    edgeDensity: 0,
+    bloodRatio: 0,
+    flags,
+  };
+}
+
+function precheckPresentationMedia(mediaInfo) {
+  const layout = analyzeMediaMetadata(mediaInfo);
+  const hardBlock = layout.flags.some(flag => (
+    flag.includes('demasiado pesada') ||
+    flag.includes('documento') ||
+    flag.includes('sticker') ||
+    flag.includes('pequena') ||
+    flag.includes('captura')
+  ));
+  return { allowed: !hardBlock, layout };
+}
+
+function enqueuePresentation(task) {
+  const run = presentationQueue.catch(() => {}).then(task);
+  presentationQueue = run.catch(() => {});
+  return run;
 }
 
 async function findActiveGroupsForSender(sock, senderJid) {
@@ -169,7 +253,9 @@ function withTimeout(promise, ms, label) {
 
 async function loadClipModel() {
   if (!CLIP_ENABLED) {
-    throw new Error('CLIP desactivado. Usa PRESENTACIONES_CLIP=1 para activarlo.');
+    throw new Error(ARM_SAFE_MODE
+      ? 'CLIP desactivado por modo seguro ARM. Usa PRESENTACIONES_FORCE_NATIVE=1 para probarlo.'
+      : 'CLIP desactivado. Usa PRESENTACIONES_CLIP=1 para activarlo.');
   }
   if (!clipModelPromise) {
     clipModelPromise = import('@xenova/transformers')
@@ -188,7 +274,7 @@ async function loadClipModel() {
   return clipModelPromise;
 }
 
-async function analyzeImageLayout(buffer) {
+async function analyzeImageLayout(buffer, mediaInfo = null) {
   const fallback = {
     width: 0,
     height: 0,
@@ -199,12 +285,13 @@ async function analyzeImageLayout(buffer) {
     flags: [],
   };
 
-  if (!sharp) return fallback;
+  if (ARM_SAFE_MODE || !sharp) return mediaInfo ? analyzeMediaMetadata(mediaInfo, buffer?.length || 0) : fallback;
 
   try {
     const image = sharp(buffer, { animated: false });
     const meta = await image.metadata();
-    const flags = [];
+    const metadataLayout = analyzeMediaMetadata(mediaInfo, buffer?.length || 0);
+    const flags = [...metadataLayout.flags];
     const width = meta.width || 0;
     const height = meta.height || 0;
     const format = meta.format || 'unknown';
@@ -291,8 +378,8 @@ function summarizeTopPredictions(predictions = []) {
     .join(' | ');
 }
 
-async function analyzePresentationRelevance(buffer) {
-  const layout = await analyzeImageLayout(buffer);
+async function analyzePresentationRelevance(buffer, mediaInfo) {
+  const layout = await analyzeImageLayout(buffer, mediaInfo);
   let predictions = [];
   let recognitionError = null;
 
@@ -411,6 +498,10 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return false;
   }
 
+  return enqueuePresentation(() => manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text));
+}
+
+async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text) {
   const destinations = await findActiveGroupsForSender(sock, senderJid);
   if (!destinations.length) {
     await sock.sendMessage(senderJid, {
@@ -418,6 +509,20 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
         `⚠️ No encontre una dinamica de *presentaciones* activa en algun grupo donde estes.\n` +
         `Pidele a un admin que use *!presentaciones activar* en el grupo.`,
     });
+    return true;
+  }
+
+  const mediaInfo = getMediaInfoFromContainer(imageContainer);
+  const mediaPrecheck = precheckPresentationMedia(mediaInfo);
+  if (!mediaPrecheck.allowed) {
+    const why = mediaPrecheck.layout.flags.slice(0, 3).join(', ') || 'formato no apto';
+    await sock.sendMessage(senderJid, {
+      text:
+        `🚫 No pude aceptar esa imagen para presentacion.\n` +
+        `▸ Motivo: ${why}\n\n` +
+        `Envia una foto normal, no como documento/sticker, y que no sea demasiado pesada.`
+    }).catch(() => {});
+    console.log(`[PRESENTACION] Precheck bloqueado ${senderJid}: ${why}`);
     return true;
   }
 
@@ -432,6 +537,15 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     await sock.sendMessage(senderJid, {
       text: `❌ No pude descargar la imagen. Intenta enviarla de nuevo como foto normal.`,
     });
+    return true;
+  }
+
+  if (buffer.length > MAX_IMAGE_BYTES) {
+    await sock.sendMessage(senderJid, {
+      text:
+        `🚫 La imagen pesa demasiado (${(buffer.length / 1024 / 1024).toFixed(1)}MB).\n` +
+        `Envia una foto normal mas liviana para evitar caidas en ARM.`
+    }).catch(() => {});
     return true;
   }
 
@@ -452,7 +566,7 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return true;
   }
 
-  const relevance = await analyzePresentationRelevance(buffer);
+  const relevance = await analyzePresentationRelevance(buffer, mediaInfo);
   if (!relevance.allowed) {
     const why = relevance.reasons.length
       ? relevance.reasons.slice(0, 3).join(', ')
