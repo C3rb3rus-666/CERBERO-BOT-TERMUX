@@ -454,13 +454,19 @@ async function detectMemeFallbackJs(buffer, mediaInfo = null, originalCaption = 
     const flatRatio = samples ? flat / samples : 0;
     const colorBucketRatio = samples ? buckets.size / samples : 1;
 
-    if (edgeDensity > 0.20 && bwRatio > 0.25 && skinRatio < 0.08) flags.push('texto_alto_contraste_tipo_meme');
-    if (skinRatio < 0.015 && (edgeDensity > 0.16 || saturatedRatio > 0.45)) flags.push('sin_presencia_humana_probable');
-    if (colorBucketRatio < 0.08 && edgeDensity > 0.10) flags.push('paleta_plana_ilustracion_o_meme');
+    if (edgeDensity > 0.24 && bwRatio > 0.30 && skinRatio < 0.06) flags.push('texto_alto_contraste_tipo_meme');
+    if (skinRatio < 0.010 && (edgeDensity > 0.20 || saturatedRatio > 0.55)) flags.push('sin_presencia_humana_probable');
+    if (skinRatio < 0.04 && colorBucketRatio < 0.055 && edgeDensity > 0.14) flags.push('paleta_plana_ilustracion_o_meme');
     if (flatRatio > 0.48 && skinRatio < 0.06 && edgeDensity > 0.12) flags.push('zonas_planas_tipo_cartel');
 
-    const confidence = Math.min(0.35 + flags.length * 0.22, 0.95);
-    const isAIOrMeme = flags.length >= 2;
+    const strongMemeSignal = flags.some(flag => (
+      flag.includes('caption') ||
+      flag.includes('texto_alto_contraste') ||
+      flag.includes('sin_presencia_humana')
+    ));
+    const benignHumanSignal = skinRatio >= 0.08 && !strongMemeSignal;
+    const confidence = Math.min(0.25 + flags.length * 0.18, 0.88);
+    const isAIOrMeme = !benignHumanSignal && flags.length >= 2 && strongMemeSignal;
     console.log(`[PRESENTACION] Meme fallback JS: skin=${skinRatio.toFixed(3)} edge=${edgeDensity.toFixed(3)} bw=${bwRatio.toFixed(3)} flags=${flags.join(',') || 'none'}`);
     return { isAIOrMeme, confidence: isAIOrMeme ? confidence : 0, flags };
   } catch (err) {
@@ -486,6 +492,7 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
     let edgePixels = 0;
     let highFreqPixels = 0;
     let uniformRegions = 0;
+    let skinPixels = 0;
 
     // Analizar distribución de colores (IA suele tener paletas repetitivas)
     for (let i = 0; i < data.length; i += info.channels) {
@@ -494,10 +501,15 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
       const b = data[i + 2];
       const rgb = `${r},${g},${b}`;
       colorCount.add(rgb);
+      const y = 0.299 * r + 0.587 * g + 0.114 * b;
+      const cb = -0.169 * r - 0.331 * g + 0.5 * b + 128;
+      const cr = 0.5 * r - 0.419 * g - 0.081 * b + 128;
+      if (y > 55 && cb >= 80 && cb <= 145 && cr >= 125 && cr <= 190) skinPixels++;
     }
+    const skinRatio = pixels ? skinPixels / pixels : 0;
     const uniqueColors = colorCount.size;
     const expectedColors = Math.min(Math.sqrt(pixels) * 50, 500000);
-    if (uniqueColors < expectedColors * 0.3) {
+    if (skinRatio < 0.05 && uniqueColors < expectedColors * 0.22) {
       flags.push('paleta_artificial_baja_variedad');
     }
 
@@ -523,7 +535,7 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
 
     const edgeDensity = pixels ? edgePixels / pixels : 0;
     const highFreqDensity = pixels ? highFreqPixels / pixels : 0;
-    if (edgeDensity > 0.35 && highFreqDensity > 0.12) {
+    if (edgeDensity > 0.38 && highFreqDensity > 0.15 && skinRatio < 0.08) {
       flags.push('mucho_texto_como_meme');
     }
 
@@ -546,19 +558,16 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
     const uniformityRatio = (info.width - 4) * (info.height - 4) / 9 > 0 
       ? uniformRegions / ((info.width - 4) * (info.height - 4) / 9)
       : 0;
-    if (uniformityRatio > 0.45) {
+    if (uniformityRatio > 0.55 && skinRatio < 0.06) {
       flags.push('demasiado_uniforme_como_generado_IA');
     }
 
     // Calcular confianza
-    let confidence = 0;
-    if (flags.length > 0) {
-      confidence = Math.min(0.5 + (flags.length * 0.25), 0.95);
-    }
-
-    const isAIOrMeme = flags.length >= 2 || (flags.length === 1 && confidence > 0.6);
+    const strongMemeSignal = flags.some(flag => flag.includes('texto') || flag.includes('meme'));
+    const confidence = flags.length > 0 ? Math.min(0.30 + (flags.length * 0.20), 0.90) : 0;
+    const isAIOrMeme = flags.length >= 2 && (strongMemeSignal || skinRatio < 0.025);
     
-    console.log(`[PRESENTACION] AI/Meme heuristic: flags=${flags.join(',') || 'none'} confidence=${confidence.toFixed(2)}`);
+    console.log(`[PRESENTACION] AI/Meme heuristic: skin=${skinRatio.toFixed(3)} flags=${flags.join(',') || 'none'} confidence=${confidence.toFixed(2)}`);
     
     return { isAIOrMeme, confidence, flags };
   } catch (err) {
