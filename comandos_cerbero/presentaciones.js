@@ -687,6 +687,41 @@ async function analyzePresentationSafety(sock, senderJid, buffer) {
   }
 }
 
+function evaluatePresentationSafety(safety) {
+  if (!safety) return { allowed: false, override: false, reason: 'sin resultado' };
+  if (safety.allowed) return { allowed: true, override: false, reason: 'motor limpio' };
+
+  const predictions = Array.isArray(safety.predictions) ? safety.predictions : [];
+  const maxScore = (labels) => predictions
+    .filter(p => labels.includes((p.label || '').toLowerCase()))
+    .reduce((max, p) => Math.max(max, Number(p.score) || 0), 0);
+
+  const label = (safety.topLabel || '').toLowerCase();
+  const topScore = Number(safety.topScore) || 0;
+  const pornScore = maxScore(['porn', 'pornography']);
+  const hentaiScore = maxScore(['hentai']);
+  const goreScore = maxScore(['gore']);
+
+  if (safety.reason === 'gore' || label === 'gore' || goreScore >= 0.55) {
+    return { allowed: false, override: false, reason: 'gore' };
+  }
+  if (pornScore >= 0.72 || hentaiScore >= 0.70 || ['porn', 'pornography', 'hentai'].includes(label)) {
+    return { allowed: false, override: false, reason: 'contenido explicito' };
+  }
+
+  // Presentaciones acepta fotos fitness/torso normal. El motor general puede marcar
+  // pectorales o playa como "sexy" por piel visible; eso no equivale a porno.
+  if (['sexy', 'nsfw_fallback'].includes(label) && topScore < 0.97) {
+    return {
+      allowed: true,
+      override: true,
+      reason: `fitness/torso permitido (${label} ${(topScore * 100).toFixed(1)}%)`,
+    };
+  }
+
+  return { allowed: false, override: false, reason: safety.friendlyLabel || label || 'nsfw' };
+}
+
 /**
  * Valida que una imagen de presentación no contenga códigos QR (WhatsApp, Instagram, etc).
  * Reutiliza el motor detectQrBuffer existente del bot sin duplicar código.
@@ -817,8 +852,9 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
 
   const safety = await analyzePresentationSafety(sock, senderJid, buffer);
   if (!safety) return true;
+  const presentationSafety = evaluatePresentationSafety(safety);
 
-  if (!safety.allowed) {
+  if (!presentationSafety.allowed) {
     await sock.sendMessage(senderJid, {
       text:
         `🚫 Tu foto no se publico porque el filtro anti-NSFW la marco como no segura.\n` +
@@ -826,6 +862,9 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
     });
     console.log(`[PRESENTACION] Imagen bloqueada de ${senderJid}: ${safety.topLabel} ${(safety.topScore * 100).toFixed(1)}%`);
     return true;
+  }
+  if (presentationSafety.override) {
+    console.log(`[PRESENTACION] Override anti-NSFW benigno para ${senderJid}: ${presentationSafety.reason}`);
   }
 
   const relevance = await analyzePresentationRelevance(buffer, mediaInfo, text);
@@ -843,7 +882,10 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
     return true;
   }
 
-  const caption = buildPresentationCaption(text, safety);
+  const captionSafety = presentationSafety.override
+    ? { ...safety, friendlyLabel: 'foto fitness/torso permitida' }
+    : safety;
+  const caption = buildPresentationCaption(text, captionSafety);
   let published = 0;
 
   for (const { groupId } of destinations) {
