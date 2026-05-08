@@ -383,8 +383,8 @@ async function detectMemeFallbackJs(buffer, mediaInfo = null, originalCaption = 
   const metadata = analyzeMediaMetadata(mediaInfo, buffer?.length || 0);
   const caption = String(originalCaption || '').toLowerCase();
 
-  if (caption && /\b(meme|shitpost|jaja|jajaj|haha|xd|lol|bait|sticker)\b/i.test(caption)) {
-    flags.push('caption_tipo_meme');
+  if (caption && /\b(meme|shitpost|jaja|jajaj|haha|xd|lol|bait|sticker|s[ií]ganme|seguirme|follow|instagram|insta|ig|tiktok|telegram|canal)\b/i.test(caption)) {
+    flags.push('caption_tipo_meme_o_promo');
   }
 
   if (metadata.width && metadata.height) {
@@ -455,6 +455,9 @@ async function detectMemeFallbackJs(buffer, mediaInfo = null, originalCaption = 
     const colorBucketRatio = samples ? buckets.size / samples : 1;
 
     if (edgeDensity > 0.24 && bwRatio > 0.30 && skinRatio < 0.06) flags.push('texto_alto_contraste_tipo_meme');
+    if (skinRatio < 0.012 && edgeDensity > 0.075 && (bwRatio > 0.12 || colorBucketRatio < 0.16 || flatRatio > 0.30)) {
+      flags.push('pantalla_texto_o_objeto_sin_persona');
+    }
     if (skinRatio < 0.010 && (edgeDensity > 0.20 || saturatedRatio > 0.55)) flags.push('sin_presencia_humana_probable');
     if (skinRatio < 0.04 && colorBucketRatio < 0.055 && edgeDensity > 0.14) flags.push('paleta_plana_ilustracion_o_meme');
     if (flatRatio > 0.48 && skinRatio < 0.06 && edgeDensity > 0.12) flags.push('zonas_planas_tipo_cartel');
@@ -462,6 +465,7 @@ async function detectMemeFallbackJs(buffer, mediaInfo = null, originalCaption = 
     const strongMemeSignal = flags.some(flag => (
       flag.includes('caption') ||
       flag.includes('texto_alto_contraste') ||
+      flag.includes('pantalla_texto') ||
       flag.includes('sin_presencia_humana')
     ));
     const benignHumanSignal = skinRatio >= 0.08 && !strongMemeSignal;
@@ -538,6 +542,9 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
     if (edgeDensity > 0.38 && highFreqDensity > 0.15 && skinRatio < 0.08) {
       flags.push('mucho_texto_como_meme');
     }
+    if (skinRatio < 0.012 && edgeDensity > 0.12 && (highFreqDensity > 0.035 || uniqueColors < expectedColors * 0.28)) {
+      flags.push('pantalla_texto_o_objeto_sin_persona');
+    }
 
     // Detectar uniformidad anómala (fake faces IA tienen regiones demasiado suaves)
     for (let y = 2; y < info.height - 2; y += 3) {
@@ -563,7 +570,7 @@ async function detectAIOrMemeHeuristic(buffer, mediaInfo = null, originalCaption
     }
 
     // Calcular confianza
-    const strongMemeSignal = flags.some(flag => flag.includes('texto') || flag.includes('meme'));
+    const strongMemeSignal = flags.some(flag => flag.includes('texto') || flag.includes('meme') || flag.includes('pantalla'));
     const confidence = flags.length > 0 ? Math.min(0.30 + (flags.length * 0.20), 0.90) : 0;
     const isAIOrMeme = flags.length >= 2 && (strongMemeSignal || skinRatio < 0.025);
     
