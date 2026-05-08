@@ -356,6 +356,113 @@ async function analyzeImageLayout(buffer, mediaInfo = null) {
   }
 }
 
+/**
+ * Detecta heurísticamente si una imagen es un meme, poster IA, o no-humana.
+ * Se usa cuando CLIP está desactivado (ARM_SAFE_MODE).
+ * Analiza:
+ * - Distribución de colores (imágenes IA tienen paletas artificiales)
+ * - Presencia de texto (memes)
+ * - Uniformidad de zonas (fake faces tienen patrones IA)
+ * - Frecuencia de componentes (noise artificial)
+ */
+async function detectAIOrMemeHeuristic(buffer) {
+  try {
+    if (!sharp) return { isAIOrMeme: false, confidence: 0, flags: [] };
+
+    const flags = [];
+    const { data, info } = await sharp(buffer, { animated: false })
+      .resize(256, 256, { fit: 'inside' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const pixels = info.width * info.height;
+    let colorEntropy = 0;
+    let colorCount = new Set();
+    let edgePixels = 0;
+    let highFreqPixels = 0;
+    let uniformRegions = 0;
+
+    // Analizar distribución de colores (IA suele tener paletas repetitivas)
+    for (let i = 0; i < data.length; i += info.channels) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      const rgb = `${r},${g},${b}`;
+      colorCount.add(rgb);
+    }
+    const uniqueColors = colorCount.size;
+    const expectedColors = Math.min(Math.sqrt(pixels) * 50, 500000);
+    if (uniqueColors < expectedColors * 0.3) {
+      flags.push('paleta_artificial_baja_variedad');
+    }
+
+    // Detectar presencia de texto (bordes rectos = meme)
+    const gray = new Uint8Array(pixels);
+    for (let i = 0, p = 0; i < data.length; i += info.channels, p++) {
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      gray[p] = 0.299 * r + 0.587 * g + 0.114 * b;
+    }
+
+    for (let y = 1; y < info.height - 1; y++) {
+      for (let x = 1; x < info.width - 1; x++) {
+        const idx = y * info.width + x;
+        const gx = Math.abs(gray[idx] - gray[idx - 1]);
+        const gy = Math.abs(gray[idx] - gray[idx - info.width]);
+        const edge = gx + gy;
+        if (edge > 80) edgePixels++;
+        if (edge > 150) highFreqPixels++;
+      }
+    }
+
+    const edgeDensity = pixels ? edgePixels / pixels : 0;
+    const highFreqDensity = pixels ? highFreqPixels / pixels : 0;
+    if (edgeDensity > 0.35 && highFreqDensity > 0.12) {
+      flags.push('mucho_texto_como_meme');
+    }
+
+    // Detectar uniformidad anómala (fake faces IA tienen regiones demasiado suaves)
+    for (let y = 2; y < info.height - 2; y += 3) {
+      for (let x = 2; x < info.width - 2; x += 3) {
+        const idx = y * info.width + x;
+        const maxLocal = Math.max(
+          gray[idx], gray[idx + 1], gray[idx - 1],
+          gray[idx + info.width], gray[idx - info.width]
+        );
+        const minLocal = Math.min(
+          gray[idx], gray[idx + 1], gray[idx - 1],
+          gray[idx + info.width], gray[idx - info.width]
+        );
+        if (maxLocal - minLocal < 15) uniformRegions++;
+      }
+    }
+
+    const uniformityRatio = (info.width - 4) * (info.height - 4) / 9 > 0 
+      ? uniformRegions / ((info.width - 4) * (info.height - 4) / 9)
+      : 0;
+    if (uniformityRatio > 0.45) {
+      flags.push('demasiado_uniforme_como_generado_IA');
+    }
+
+    // Calcular confianza
+    let confidence = 0;
+    if (flags.length > 0) {
+      confidence = Math.min(0.5 + (flags.length * 0.25), 0.95);
+    }
+
+    const isAIOrMeme = flags.length >= 2 || (flags.length === 1 && confidence > 0.6);
+    
+    console.log(`[PRESENTACION] AI/Meme heuristic: flags=${flags.join(',') || 'none'} confidence=${confidence.toFixed(2)}`);
+    
+    return { isAIOrMeme, confidence, flags };
+  } catch (err) {
+    console.error('[PRESENTACION] Error en heurística AI/meme:', err.message || err);
+    return { isAIOrMeme: false, confidence: 0, flags: [] };
+  }
+}
+
 async function recognizePresentationImage(buffer) {
   const tmpPath = path.join(TEMP_DIR, `presentacion_${Date.now()}_${randomUUID()}.jpg`);
   try {
@@ -383,6 +490,7 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
   const layout = await analyzeImageLayout(buffer, mediaInfo);
   let predictions = [];
   let recognitionError = null;
+  let aiOrMemeDetection = null;
 
   if (CLIP_ENABLED) {
     try {
@@ -396,8 +504,10 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
       console.error('[PRESENTACION] CLIP no disponible para reconocimiento:', err.message || err);
     }
   } else {
+    // Cuando CLIP está desactivado, usar heurística mejorada para detectar AI/memes
     recognitionError = new Error('clip_disabled');
-    console.log('[PRESENTACION] CLIP anti-meme desactivado; usando heuristicas ligeras.');
+    console.log('[PRESENTACION] CLIP desactivado; activando heuristica AI/meme robusta.');
+    aiOrMemeDetection = await detectAIOrMemeHeuristic(buffer);
   }
 
   const bestAccept = predictions
@@ -409,6 +519,8 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
   const top = predictions[0] || null;
 
   const reasons = [...layout.flags];
+  
+  // Agregar razones de rechazo por CLIP si está disponible
   if (bestReject && (!bestAccept || bestReject.score >= bestAccept.score * 1.08) && bestReject.score >= 0.16) {
     reasons.push(`parece ${bestReject.label}`);
   }
@@ -419,6 +531,11 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
     reasons.push('no parece una foto real de presentacion');
   }
 
+  // Agregar razones de rechazo por heurística AI/meme
+  if (aiOrMemeDetection && aiOrMemeDetection.isAIOrMeme) {
+    reasons.push(`posible meme o generado por IA (${(aiOrMemeDetection.confidence * 100).toFixed(0)}%): ${aiOrMemeDetection.flags.join(', ')}`);
+  }
+
   const hardLayoutBlock = layout.flags.some(flag => (
     flag.includes('sticker') ||
     flag.includes('meme') ||
@@ -427,6 +544,9 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
     flag.includes('gore') ||
     flag.includes('sangre')
   ));
+  
+  const aiOrMemeBlock = aiOrMemeDetection?.isAIOrMeme ?? false;
+  
   const modelBlock = reasons.some(reason => (
     reason.includes('parece') ||
     reason.includes('clasificacion principal') ||
@@ -434,13 +554,14 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
   ));
 
   return {
-    allowed: !(hardLayoutBlock || modelBlock),
+    allowed: !(hardLayoutBlock || modelBlock || aiOrMemeBlock),
     reasons,
     layout,
     predictions,
     recognitionError,
     bestAccept,
     bestReject,
+    aiOrMemeDetection,
   };
 }
 
