@@ -58,6 +58,60 @@ async function decodeQRCode(rawBuffer) {
 }
 
 /**
+ * Detecta si un buffer de imagen contiene un código QR (sin efectos secundarios).
+ * Reutiliza el motor decodeQRCode y caché existente.
+ * @param {Buffer} imageBuffer - El contenido de la imagen a analizar
+ * @param {Object} imageMessage - El objeto imageMessage de Baileys para usar en caché
+ * @returns {Promise<Object>} { isQR: boolean, content?: string }
+ */
+export async function detectQrBuffer(imageBuffer, imageMessage = null) {
+    try {
+        // Usar caché si está disponible
+        const cacheKey = imageMessage ? _getCacheKey(imageMessage) : null;
+        if (cacheKey && _qrCache.has(cacheKey)) {
+            const cached = _qrCache.get(cacheKey);
+            console.log(`[QR] Caché hit (buffer detector): ${cacheKey.slice(0, 16)}...`);
+            return { isQR: cached, cached: true };
+        }
+
+        // Decodificar QR
+        let qrResult = null;
+        try {
+            qrResult = await decodeQRCode(imageBuffer);
+        } catch (_) {
+            // No contiene QR — resultado esperado para imágenes normales
+            if (cacheKey) {
+                if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
+                _qrCache.set(cacheKey, false);
+            }
+            return { isQR: false };
+        }
+
+        // Guardar en caché si tenemos clave
+        const isWhatsappQr = qrResult?.result?.includes('chat.whatsapp.com') ?? false;
+        if (cacheKey) {
+            if (_qrCache.size >= QR_CACHE_MAX) _qrCache.delete(_qrCache.keys().next().value);
+            _qrCache.set(cacheKey, isWhatsappQr);
+        }
+
+        return {
+            isQR: isWhatsappQr,
+            content: qrResult?.result || null,
+        };
+    } catch (err) {
+        if (
+            err?.message?.includes("Couldn't find enough finder patterns") ||
+            err?.message?.includes('FormatError') ||
+            err?.message?.includes('decode')
+        ) {
+            return { isQR: false }; // No es QR — silenciar error esperado
+        }
+        console.error(`[QR] Error en detector buffer:`, err.message || err);
+        return { isQR: false }; // En caso de error, permitir (no bloquear)
+    }
+}
+
+/**
  * Detecta y bloquea imágenes con códigos QR de WhatsApp.
  * @returns {boolean} true si se detectó y manejó un QR, false en caso contrario.
  */

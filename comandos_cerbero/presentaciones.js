@@ -4,7 +4,7 @@ import path from 'path';
 import { randomUUID } from 'crypto';
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { scanImageBufferWithNsfwEngine } from './nsfw_detector.js';
-import { blockQr } from './qrkill.js';
+import { detectQrBuffer } from './qrkill.js';
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
 const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
@@ -464,26 +464,18 @@ async function analyzePresentationSafety(sock, senderJid, buffer) {
 
 /**
  * Valida que una imagen de presentación no contenga códigos QR (WhatsApp, Instagram, etc).
- * Reutiliza el motor blockQr existente del bot sin duplicar código.
+ * Reutiliza el motor detectQrBuffer existente del bot sin duplicar código.
  * @returns {Object} { hasQr: boolean, type?: string }
  */
-async function validatePresentationAntiQr(sock, senderJid, msg, imageContainer) {
+async function validatePresentationAntiQr(buffer, imageMessage = null) {
   try {
-    // Construir un mensaje temporal con la estructura esperada por blockQr
-    const tempMsg = {
-      key: msg.key,
-      message: imageContainer,
-      participant: msg.key.participant || msg.key.remoteJid,
-    };
-
-    // blockQr retorna true si detectó y manejó un QR, false si no hay QR
-    // Aquí lo usamos solo para detectar (sin publicar avisos, eso lo hace el bot)
-    // pero en presentaciones queremos BLOQUEAR si detecta QR
-    const qrDetected = await blockQr(sock, tempMsg, false, null);
-
+    // Usar el detector QR existente que reutiliza el motor global
+    const qrDetection = await detectQrBuffer(buffer, imageMessage);
+    
     return {
-      hasQr: qrDetected,
-      type: qrDetected ? 'whatsapp_qr' : null,
+      hasQr: qrDetection.isQR,
+      type: qrDetection.isQR ? 'whatsapp_qr' : null,
+      cached: qrDetection.cached || false,
     };
   } catch (err) {
     console.error('[PRESENTACION] Error en validación anti-QR:', err.message || err);
@@ -580,9 +572,9 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
     return true;
   }
 
-  // ── Validación Anti-QR (reutiliza blockQr del bot) ──────────────────────────
+  // ── Validación Anti-QR (reutiliza detectQrBuffer del bot) ──────────────────
   // Detecta QR de WhatsApp, Instagram y otros intentos de promoción
-  const qrValidation = await validatePresentationAntiQr(sock, senderJid, msg, imageContainer);
+  const qrValidation = await validatePresentationAntiQr(buffer, imageContainer?.imageMessage);
   if (qrValidation.hasQr) {
     await sock.sendMessage(senderJid, {
       text:
@@ -607,7 +599,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
         `🚫 Tu foto no se publico porque el filtro anti-NSFW la marco como no segura.\n` +
         `▸ Motivo: ${safety.friendlyLabel} (${(safety.topScore * 100).toFixed(1)}%)`,
     });
-    console.log(`[PRESENTACION] Imagen bloqueada de ${senderJif}: ${safety.topLabel} ${(safety.topScore * 100).toFixed(1)}%`);
+    console.log(`[PRESENTACION] Imagen bloqueada de ${senderJid}: ${safety.topLabel} ${(safety.topScore * 100).toFixed(1)}%`);
     return true;
   }
 
