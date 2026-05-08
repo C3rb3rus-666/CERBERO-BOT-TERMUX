@@ -40,7 +40,7 @@ function getRandomMenuImage(preferredPrefixes = ['menu', 'ping']) {
 
 // Control de concurrencia para evitar sobrecarga cuando llegan muchas imágenes
 let _nsfwProcessingCount = 0;
-const NSFW_MAX_CONCURRENCY = 2; // ajustar según capacidad del servidor
+const NSFW_MAX_CONCURRENCY = Number(process.env.NSFW_MAX_CONCURRENCY || ((process.arch === 'arm' || process.arch === 'arm64') ? 1 : 2));
 const _nsfwQueue = [];
 const OVERLAY_COOLDOWN_MS = 30 * 1000;
 const _overlayTimestamps = new Map();
@@ -365,6 +365,21 @@ export async function analyzeImageBufferForSafety(imageBuffer) {
     predictions: finalPredictions,
     goreSignal,
   };
+}
+
+/**
+ * Entrada publica del motor NSFW compartido.
+ * Otros modulos deben usar esta funcion para reutilizar la misma cola,
+ * modelos en memoria, daemon Python y limites de concurrencia del anti-NSFW.
+ */
+export async function scanImageBufferWithNsfwEngine(imageBuffer, source = 'modulo') {
+  await _acquireNsfwSlot();
+  try {
+    console.log(`[NSFW] Motor compartido: analizando ${source}. cola=${_nsfwQueue.length} activos=${_nsfwProcessingCount}/${NSFW_MAX_CONCURRENCY}`);
+    return await analyzeImageBufferForSafety(imageBuffer);
+  } finally {
+    _releaseNsfwSlot();
+  }
 }
 
 /**

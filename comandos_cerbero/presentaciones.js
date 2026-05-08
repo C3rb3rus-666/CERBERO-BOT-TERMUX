@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { randomUUID } from 'crypto';
 import { downloadMediaMessage } from '@whiskeysockets/baileys';
-import { analyzeImageBufferForSafety } from './nsfw_detector.js';
+import { scanImageBufferWithNsfwEngine } from './nsfw_detector.js';
 
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
 const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
@@ -446,7 +446,7 @@ async function analyzePresentationRelevance(buffer, mediaInfo) {
 async function analyzePresentationSafety(sock, senderJid, buffer) {
   try {
     return await withTimeout(
-      analyzeImageBufferForSafety(buffer),
+      scanImageBufferWithNsfwEngine(buffer, `presentacion privada ${senderJid}`),
       NSFW_ANALYSIS_TIMEOUT_MS,
       'anti-NSFW presentaciones'
     );
