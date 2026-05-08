@@ -16,6 +16,9 @@ const NSFW_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_NSFW_TIMEOUT_
 const CLIP_ANALYSIS_TIMEOUT_MS = Number(process.env.PRESENTACIONES_CLIP_TIMEOUT_MS || 45_000);
 const CLIP_ENABLED = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_CLIP || '') && !ARM_SAFE_MODE;
 const MAX_IMAGE_BYTES = Number(process.env.PRESENTACIONES_MAX_IMAGE_BYTES || (ARM_SAFE_MODE ? 6 : 14) * 1024 * 1024);
+const PRESENTATION_MAX_PENDING = Number(process.env.PRESENTACIONES_MAX_PENDING || (ARM_SAFE_MODE ? 2 : 5));
+const PRESENTATION_FLOOD_WINDOW_MS = Number(process.env.PRESENTACIONES_FLOOD_WINDOW_MS || 60_000);
+const PRESENTATION_MAX_IMAGES_PER_WINDOW = Number(process.env.PRESENTACIONES_MAX_IMAGES_PER_WINDOW || 2);
 
 let sharp = null;
 if (!ARM_SAFE_MODE) {
@@ -30,7 +33,9 @@ if (!ARM_SAFE_MODE) {
 
 let clipModelPromise = null;
 let presentationQueue = Promise.resolve();
+let presentationPendingCount = 0;
 let jimpPromise = null;
+const presentationFloodMap = new Map();
 
 const ACCEPT_LABELS = [
   'a casual selfie photo of a real person',
@@ -187,8 +192,30 @@ function precheckPresentationMedia(mediaInfo) {
   return { allowed: !hardBlock, layout };
 }
 
+function checkPresentationImageFlood(senderJid) {
+  const now = Date.now();
+  const entry = presentationFloodMap.get(senderJid) || { hits: [], warnedAt: 0 };
+  entry.hits = entry.hits.filter(ts => now - ts < PRESENTATION_FLOOD_WINDOW_MS);
+  entry.hits.push(now);
+  presentationFloodMap.set(senderJid, entry);
+
+  if (entry.hits.length > PRESENTATION_MAX_IMAGES_PER_WINDOW) {
+    const mutedSeconds = Math.ceil((PRESENTATION_FLOOD_WINDOW_MS - (now - entry.hits[0])) / 1000);
+    return { blocked: true, mutedSeconds, count: entry.hits.length };
+  }
+
+  return { blocked: false, count: entry.hits.length };
+}
+
 function enqueuePresentation(task) {
-  const run = presentationQueue.catch(() => {}).then(task);
+  if (presentationPendingCount >= PRESENTATION_MAX_PENDING) return null;
+  presentationPendingCount++;
+  const run = presentationQueue
+    .catch(() => {})
+    .then(task)
+    .finally(() => {
+      presentationPendingCount = Math.max(0, presentationPendingCount - 1);
+    });
   presentationQueue = run.catch(() => {});
   return run;
 }
@@ -797,7 +824,27 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return false;
   }
 
-  return enqueuePresentation(() => manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text));
+  const flood = checkPresentationImageFlood(senderJid);
+  if (flood.blocked) {
+    await sock.sendMessage(senderJid, {
+      text:
+        `⏳ Estas enviando demasiadas imagenes muy rapido.\n` +
+        `Espera ${flood.mutedSeconds}s antes de intentar otra presentacion.`
+    }).catch(() => {});
+    console.warn(`[PRESENTACION] Flood privado bloqueado ${senderJid}: ${flood.count} imagenes/${PRESENTATION_FLOOD_WINDOW_MS}ms`);
+    return true;
+  }
+
+  const queued = enqueuePresentation(() => manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text));
+  if (!queued) {
+    await sock.sendMessage(senderJid, {
+      text:
+        `⏳ El analizador de presentaciones esta ocupado.\n` +
+        `Intenta de nuevo en unos segundos.`
+    }).catch(() => {});
+    console.warn(`[PRESENTACION] Cola saturada: pending=${presentationPendingCount}/${PRESENTATION_MAX_PENDING}`);
+  }
+  return true;
 }
 
 async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text) {

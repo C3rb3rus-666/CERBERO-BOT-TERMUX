@@ -41,6 +41,7 @@ function getRandomMenuImage(preferredPrefixes = ['menu', 'ping']) {
 // Control de concurrencia para evitar sobrecarga cuando llegan muchas imágenes
 let _nsfwProcessingCount = 0;
 const NSFW_MAX_CONCURRENCY = Number(process.env.NSFW_MAX_CONCURRENCY || ((process.arch === 'arm' || process.arch === 'arm64') ? 1 : 2));
+const NSFW_MAX_QUEUE = Number(process.env.NSFW_MAX_QUEUE || ((process.arch === 'arm' || process.arch === 'arm64') ? 4 : 12));
 const _nsfwQueue = [];
 const OVERLAY_COOLDOWN_MS = 30 * 1000;
 const _overlayTimestamps = new Map();
@@ -53,8 +54,9 @@ function _acquireNsfwSlot() {
   return new Promise((resolve) => {
     if (_nsfwProcessingCount < NSFW_MAX_CONCURRENCY) {
       _nsfwProcessingCount++;
-      return resolve();
+      return resolve(true);
     }
+    if (_nsfwQueue.length >= NSFW_MAX_QUEUE) return resolve(false);
     _nsfwQueue.push(resolve);
   });
 }
@@ -64,7 +66,7 @@ function _releaseNsfwSlot() {
   if (_nsfwQueue.length) {
     _nsfwProcessingCount++;
     const r = _nsfwQueue.shift();
-    try { r(); } catch (e) { console.error('[NSFW] Error resolviendo cola:', e); }
+    try { r(true); } catch (e) { console.error('[NSFW] Error resolviendo cola:', e); }
   }
 }
 
@@ -202,7 +204,11 @@ async function detectGorePixelSignal(imageBuffer) {
 async function processImageEntry(entry, context, entryIndex) {
   const { sock, groupId, userId, isAdmin, deleteKey } = context;
 
-  await _acquireNsfwSlot();
+  const slot = await _acquireNsfwSlot();
+  if (!slot) {
+    console.warn(`[NSFW] Cola saturada (${_nsfwQueue.length}/${NSFW_MAX_QUEUE}); imagen omitida para proteger el bot.`);
+    return;
+  }
   try {
     console.log(`[NSFW] (${entryIndex}/${context.totalEntries}) Analizando imagen (${entry.mediaMessage.mimetype || 'desconocido'})...`);
 
@@ -373,9 +379,12 @@ export async function analyzeImageBufferForSafety(imageBuffer) {
  * modelos en memoria, daemon Python y limites de concurrencia del anti-NSFW.
  */
 export async function scanImageBufferWithNsfwEngine(imageBuffer, source = 'modulo') {
-  await _acquireNsfwSlot();
+  const slot = await _acquireNsfwSlot();
+  if (!slot) {
+    throw new Error(`motor NSFW saturado (${_nsfwQueue.length}/${NSFW_MAX_QUEUE})`);
+  }
   try {
-    console.log(`[NSFW] Motor compartido: analizando ${source}. cola=${_nsfwQueue.length} activos=${_nsfwProcessingCount}/${NSFW_MAX_CONCURRENCY}`);
+    console.log(`[NSFW] Motor compartido: analizando ${source}. cola=${_nsfwQueue.length}/${NSFW_MAX_QUEUE} activos=${_nsfwProcessingCount}/${NSFW_MAX_CONCURRENCY}`);
     return await analyzeImageBufferForSafety(imageBuffer);
   } finally {
     _releaseNsfwSlot();
