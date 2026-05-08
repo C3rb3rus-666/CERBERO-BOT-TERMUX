@@ -1,5 +1,14 @@
 import QRCodeReader from 'qrcode-reader';
 import { Jimp } from "jimp";
+import {
+    BarcodeFormat,
+    BinaryBitmap,
+    DecodeHintType,
+    HybridBinarizer,
+    InvertedLuminanceSource,
+    MultiFormatReader,
+    RGBLuminanceSource,
+} from '@zxing/library';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -25,8 +34,9 @@ const _qrCache = new Map();
 const QR_CACHE_MAX = 400; // máximo de entradas en caché
 
 // Tamaño máximo al que se redimensiona antes de decodificar.
-// Los QR son detectables incluso a 200px; 600px da margen para QR pequeños.
-const QR_SCAN_SIZE = 600;
+// Un QR pequeño dentro de una foto real se pierde si bajamos demasiado.
+const QR_SCAN_SIZES = [1600, 1100, 760];
+const QR_MAX_BUFFER_BYTES = Number(process.env.QR_MAX_BUFFER_BYTES || 12 * 1024 * 1024);
 
 function _isWhatsappQrContent(content = '') {
     return /(?:https?:\/\/)?chat\.whatsapp\.com\/[A-Za-z0-9_-]+/i.test(String(content || ''));
@@ -95,29 +105,121 @@ function _getQrMediaInfo(msg) {
     return null;
 }
 
-// Decodificar QR con sharp (resize rápido) + jimp + qrcode-reader
-async function decodeQRCode(rawBuffer) {
-    // 1. Redimensionar con sharp (nativo, 10-50× más rápido que Jimp resize)
-    let resizedBuffer = rawBuffer;
+async function buildQrDecodeBuffers(rawBuffer) {
+    const buffers = [rawBuffer];
     if (sharp) {
-        try {
-            resizedBuffer = await sharp(rawBuffer)
-                .resize(QR_SCAN_SIZE, QR_SCAN_SIZE, { fit: 'inside', withoutEnlargement: true })
-                .jpeg({ quality: 90 })
-                .toBuffer();
-        } catch (_) {
-            // Si sharp falla (formato raro), usar el buffer original
-            resizedBuffer = rawBuffer;
+        for (const size of QR_SCAN_SIZES) {
+            try {
+                const resized = await sharp(rawBuffer, { animated: false })
+                    .rotate()
+                    .resize(size, size, { fit: 'inside', withoutEnlargement: true })
+                    .jpeg({ quality: 92 })
+                    .toBuffer();
+                buffers.push(resized);
+            } catch (_) {}
         }
     }
 
-    // 2. Leer con Jimp y decodificar QR
-    const image = await Jimp.read(resizedBuffer);
+    return buffers.filter((buf, idx) => (
+        Buffer.isBuffer(buf) &&
+        buf.length > 0 &&
+        (idx === 0 || buf.length <= QR_MAX_BUFFER_BYTES)
+    ));
+}
+
+function decodeWithQrcodeReader(image) {
     const qr = new QRCodeReader();
     return new Promise((resolve, reject) => {
         qr.callback = (err, value) => (err ? reject(err) : resolve(value));
         qr.decode(image.bitmap);
     });
+}
+
+function makeZxingHints() {
+    return new Map([
+        [DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.QR_CODE]],
+        [DecodeHintType.TRY_HARDER, true],
+    ]);
+}
+
+function decodeZxingSource(source) {
+    const reader = new MultiFormatReader();
+    reader.setHints(makeZxingHints());
+    return reader.decode(new BinaryBitmap(new HybridBinarizer(source)));
+}
+
+function decodeWithZxing(image) {
+    const { width, height, data } = image.bitmap;
+    const luminance = new Uint8ClampedArray(width * height);
+
+    for (let src = 0, dst = 0; src < data.length; src += 4, dst++) {
+        const r = data[src];
+        const g = data[src + 1];
+        const b = data[src + 2];
+        luminance[dst] = ((r + (g * 2) + b) / 4) & 0xff;
+    }
+
+    const minSide = Math.min(width, height);
+    const cropRects = [
+        [0, 0, width, height],
+        [Math.floor(width * 0.10), Math.floor(height * 0.10), Math.floor(width * 0.80), Math.floor(height * 0.80)],
+        [0, 0, Math.floor(width * 0.60), Math.floor(height * 0.60)],
+        [Math.floor(width * 0.40), 0, Math.floor(width * 0.60), Math.floor(height * 0.60)],
+        [0, Math.floor(height * 0.40), Math.floor(width * 0.60), Math.floor(height * 0.60)],
+        [Math.floor(width * 0.40), Math.floor(height * 0.40), Math.floor(width * 0.60), Math.floor(height * 0.60)],
+        [Math.floor(width * 0.20), Math.floor(height * 0.20), Math.floor(width * 0.60), Math.floor(height * 0.60)],
+    ].filter(([, , w, h]) => w >= Math.min(180, minSide) && h >= Math.min(180, minSide));
+
+    for (const [left, top, cropW, cropH] of cropRects) {
+        try {
+            const source = new RGBLuminanceSource(luminance, cropW, cropH, width, height, left, top);
+            const result = decodeZxingSource(source);
+            const text = result?.getText?.() || result?.text || '';
+            if (text) return { result: text };
+        } catch (_) {}
+
+        try {
+            const source = new RGBLuminanceSource(luminance, cropW, cropH, width, height, left, top);
+            const inverted = new InvertedLuminanceSource(source);
+            const result = decodeZxingSource(inverted);
+            const text = result?.getText?.() || result?.text || '';
+            if (text) return { result: text };
+        } catch (_) {}
+    }
+
+    throw new Error("Couldn't find QR");
+}
+
+// Decodificar QR con varios tamaños + qrcode-reader + ZXing.
+async function decodeQRCode(rawBuffer) {
+    const buffers = await buildQrDecodeBuffers(rawBuffer);
+    let lastError = null;
+
+    for (const buffer of buffers) {
+        let image = null;
+        try {
+            image = await Jimp.read(buffer);
+        } catch (err) {
+            lastError = err;
+            continue;
+        }
+
+        try {
+            const result = await decodeWithQrcodeReader(image);
+            if (result?.result) return result;
+        } catch (err) {
+            lastError = err;
+        }
+
+        try {
+            const result = decodeWithZxing(image);
+            if (result?.result) return result;
+        } catch (err) {
+            lastError = err;
+        }
+    }
+
+    throw lastError || new Error("Couldn't find QR");
 }
 
 /**
