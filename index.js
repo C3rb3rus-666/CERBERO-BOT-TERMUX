@@ -26,7 +26,8 @@ import { iniciarAdminAutonomo, toggleAdminAutonomo, darBienvenidaAutonoma, inici
 // cerbero_ia desactivada — autorespuesta reemplazada por cerbero_simi local
 import * as autobanVideo from './comandos_cerbero/autobanvideo.js';
 import { verificarLealtad } from './comandos_cerbero/lealtad.js';
-import { amorCommand, iniciarMensajesDiarios } from './comandos_cerbero/amor_bot.js';
+// Amor bot queda dormido: módulo conservado sin cargar.
+// import { amorCommand, iniciarMensajesDiarios } from './comandos_cerbero/amor_bot.js';
 import { manejarDMConf, manejarComandoConf } from './comandos_cerbero/confesiones.js';
 import { manejarDMPresentacion, manejarComandoPresentacion } from './comandos_cerbero/presentaciones.js';
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';

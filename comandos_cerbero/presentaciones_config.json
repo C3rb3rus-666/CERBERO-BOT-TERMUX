@@ -1,9 +1,14 @@
 {
   "enabled_groups": {
     "120363401828935049@g.us": {
-      "activo": true,
-      "updatedAt": 1778150498495,
+      "activo": false,
+      "updatedAt": 1778285991055,
       "updatedBy": "64279084535828@lid"
+    },
+    "120363408350162414@g.us": {
+      "activo": false,
+      "updatedAt": 1778303031981,
+      "updatedBy": "121358830833911@lid"
     }
   }
 }
