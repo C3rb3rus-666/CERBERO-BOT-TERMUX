@@ -956,6 +956,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
       const sentImage = await sock.sendMessage(groupId, {
         image: buffer,
         caption,
+        viewOnce: true,
       });
       await sendPresentationPoll(sock, groupId, sentImage);
       published++;
