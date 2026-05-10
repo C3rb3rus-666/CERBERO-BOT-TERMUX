@@ -346,8 +346,8 @@ async function connectToWhatsApp() {
         try { const t = iniciarScannerBienvenida(sock); if (t) allTimers.push(t); } catch(e) { console.error('[ADMIN-AUTO] Error iniciando scanner bienvenidas:', e.message); }
         // Pre-calentar modelos ML anti-NSFW (evita lag en la primera imagen)
         warmupNSFW().catch(e => console.error('[NSFW] warmup error:', e.message));
-        // Iniciar mensajes románticos diarios (si están configurados)
-        iniciarMensajesDiarios(sock).catch(e => console.error('[AMOR-BOT] Error iniciando:', e.message));
+        // Amor bot queda dormido: no iniciar mensajes románticos diarios.
+        // iniciarMensajesDiarios(sock).catch(e => console.error('[AMOR-BOT] Error iniciando:', e.message));
 
         if (bannerInterval) clearInterval(bannerInterval);
         bannerInterval = setInterval(() => {
@@ -702,11 +702,11 @@ async function connectToWhatsApp() {
           );
           console.log('');
             
-            // Comando especial !amor (privado para Carlos)
-            if (command === 'amor') {
-                await amorCommand(sock, msg, args);
-                return;
-            }
+            // Amor bot queda dormido: no responder al comando !amor.
+            // if (command === 'amor') {
+            //     await amorCommand(sock, msg, args);
+            //     return;
+            // }
 
             // Dinámica de confesiones anónimas
             if (command === 'confesiones') {
