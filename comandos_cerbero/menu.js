@@ -133,7 +133,7 @@ export async function menuCommand(sock, msg) {
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🎭 *DINÁMICAS DE GRUPO*      ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-  ▸ !confesiones [abrir|cerrar|estado] — Confesiones anónimas
+  ▸ !confesiones [grupo|abrir|cerrar|estado] — Confesiones anónimas
   ▸ !presentaciones [activar|desactivar|estado] — Fotos privadas + encuesta
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

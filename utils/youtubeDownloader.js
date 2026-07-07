@@ -1,10 +1,9 @@
 // youtubeDownloader.js
 // Utilidad para descargar audio de YouTube — ESM
-import ytdl from 'ytdl-core';
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,7 +24,12 @@ function findYtDlpCommand() {
     }
 
     const has = (cmd) => {
-        try { return require('child_process').execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0; } catch(e){ return false; }
+        try {
+            const result = spawnSync('command', ['-v', cmd], { stdio: ['ignore', 'pipe', 'ignore'] });
+            return result.status === 0 && result.stdout.toString().trim().length > 0;
+        } catch (e) {
+            return false;
+        }
     }
 
     if (has('yt_dlp')) return { cmd: 'yt_dlp', args: [] };
@@ -58,7 +62,7 @@ async function installYtDlp() {
     });
 }
 
-async function runYtDlp(url, outPrefix) {
+async function runYtDlp(url, outPrefix, extraArgs = []) {
     let found = findYtDlpCommand();
     console.log('[youtubeDownloader] findYtDlpCommand ->', found);
     if (!found || !found.cmd) {
@@ -92,11 +96,9 @@ async function runYtDlp(url, outPrefix) {
         ...cookiesArgs,
         '--user-agent', USER_AGENT,
         '--add-header', `Accept-Language:es-MX,es;q=0.9,en;q=0.8`,
-        '--sleep-interval', '2',      // esperar 2s entre peticiones (menos agresivo)
-        '--max-sleep-interval', '5',  // hasta 5s aleatorio
-        '-f', 'bestaudio',
-        '--extract-audio',
-        '--audio-format', 'mp3',
+        '--sleep-interval', '2',
+        '--max-sleep-interval', '5',
+        ...extraArgs,
         '-o', `${outPrefix}.%(ext)s`,
         url
     ]);
@@ -127,11 +129,32 @@ export async function downloadAudioFromYoutube(url, requesterId = 'anon') {
     const outPrefix = path.join(tmpdir(), `cerbero_${requesterId}_${unique}`);
     console.log('[youtubeDownloader] usando yt-dlp para:', url);
     try {
-        const downloaded = await runYtDlp(url, outPrefix);
+        const downloaded = await runYtDlp(url, outPrefix, ['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0']);
         console.log('[youtubeDownloader] descargado:', downloaded);
         return downloaded;
     } catch (err) {
         console.error('[youtubeDownloader] runYtDlp failed:', err && (err.message || err));
+        const msg = (err && err.message) || String(err);
+        if (msg.includes('Sign in to confirm your age') || msg.includes('age-restricted')) {
+            throw new Error('AGE_RESTRICTED');
+        }
+        if (msg.includes('Private video') || msg.includes('This video is private')) {
+            throw new Error('PRIVATE_VIDEO');
+        }
+        throw new Error(`yt-dlp falló: ${msg}`);
+    }
+}
+
+export async function downloadVideoFromYoutube(url, requesterId = 'anon') {
+    const unique = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const outPrefix = path.join(tmpdir(), `cerbero_video_${requesterId}_${unique}`);
+    console.log('[youtubeDownloader] usando yt-dlp para video:', url);
+    try {
+        const downloaded = await runYtDlp(url, outPrefix, ['-f', 'bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best']);
+        console.log('[youtubeDownloader] video descargado:', downloaded);
+        return downloaded;
+    } catch (err) {
+        console.error('[youtubeDownloader] runYtDlp video failed:', err && (err.message || err));
         const msg = (err && err.message) || String(err);
         if (msg.includes('Sign in to confirm your age') || msg.includes('age-restricted')) {
             throw new Error('AGE_RESTRICTED');

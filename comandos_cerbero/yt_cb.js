@@ -9,6 +9,7 @@ const execAsync = promisify(exec);
 const BOT_HEADER = '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 𝐁𝐲 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 #𝐔𝐧𝐤𝐧𝐨𝐰𝐧𝐬';
 const TEMP_DIR = path.join(process.cwd(), 'temp');
 if (!fs.existsSync(TEMP_DIR)) fs.mkdirSync(TEMP_DIR);
+const NODE_RUNTIME_FLAG = `--js-runtimes node:${process.execPath}`;
 
 // Control de descargas por solicitante para evitar concurrencia
 const downloadsInProgress = {};
@@ -67,20 +68,37 @@ function _ytCookiesFlag() {
   return '';
 }
 
+async function execYtDlpWithFallback(primaryCmd, fallbackCmd) {
+  try {
+    await execAsync(primaryCmd);
+  } catch (error) {
+    const stderr = (error.stderr || '').toString();
+    const retryable = /Only images are available for download|Requested format is not available|Some android client .* missing a URL/i;
+    if (retryable.test(stderr)) {
+      console.warn('[downloadAudio/video] extractor-args failed, reintentando sin extractor args');
+      await execAsync(fallbackCmd);
+    } else {
+      throw error;
+    }
+  }
+}
+
 async function downloadAudio(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   const cookiesFlag = _ytCookiesFlag();
   const playerClient = cookiesFlag ? 'web' : 'android';
-  const cmd = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
-  await execAsync(cmd);
+  const primaryCmd = `yt-dlp ${NODE_RUNTIME_FLAG} --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
+  const fallbackCmd = `yt-dlp ${NODE_RUNTIME_FLAG} --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${outPath}" "${videoUrl}"`;
+  await execYtDlpWithFallback(primaryCmd, fallbackCmd);
 }
 
 async function downloadVideo(videoUrl, outPath) {
   const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
   const cookiesFlag = _ytCookiesFlag();
   const playerClient = cookiesFlag ? 'web' : 'android';
-  const cmd = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
-  await execAsync(cmd);
+  const primaryCmd = `yt-dlp ${NODE_RUNTIME_FLAG} --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
+  const fallbackCmd = `yt-dlp ${NODE_RUNTIME_FLAG} --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -f "bestvideo[ext=mp4]+bestaudio/best[ext=mp4]/best" -o "${outPath}" "${videoUrl}"`;
+  await execYtDlpWithFallback(primaryCmd, fallbackCmd);
 }
 
 export const youtubeCb = async (sock, msg, args, opts = { video:false }) => {

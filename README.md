@@ -2,7 +2,7 @@
 
 Cerbero-bot es un bot de WhatsApp basado en Baileys, creado por C3rb3rus-666.
 
- Versión: v4.2.15 (Build 88)
+ Versión: v4.4.17 (Build 93)
 
 Resumen rápido
  Comando `!dox`: minijuego que genera datos ficticios (IP, ISP, ubicación, email) y etiqueta al objetivo. Es completamente falso y solo para diversión.
@@ -33,7 +33,7 @@ Archivos importantes
 - `temp/message_counts.json` — archivo persistente con contadores.
 
 Correcciones recientes
-- v4.2.15 (Build 88):
+- v4.4.17 (Build 93):
 	- Nuevo minijuego Buscaminas (!minas) con renderizado emoji, flood-fill y primer clic seguro.
 	- Comando !vigilar para monitoreo de cambios de admin con resolución LID→teléfono.
 	- Rediseño estético de !programador con box-drawing y secciones.

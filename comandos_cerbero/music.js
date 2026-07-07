@@ -3,6 +3,7 @@ import { promisify } from "util";
 import { tmpdir } from "os";
 import path from "path";
 import fs from "fs";
+import { downloadAudioFromYoutube } from '../utils/youtubeDownloader.js';
 
 const execAsync = promisify(exec);
 
@@ -27,27 +28,12 @@ async function downloadMusic(query, requesterId) {
 
   const sanitizedTitle = titleMatch.replace(/[^\w\s.-]/g, "_").slice(0, 50);
   const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const tempMp3Path = path.join(tmpdir(), `${sanitizedTitle}_${requesterId}_${uniqueId}.mp3`);
   const tempOggPath = path.join(tmpdir(), `${sanitizedTitle}_${requesterId}_${uniqueId}.ogg`);
 
   const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
 
-  // Descargar el audio como MP3
-  const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
-  const _cookiesPath = path.resolve('./config/youtube_cookies.txt');
-  const _cookiesValid = (() => {
-    try {
-      if (!fs.existsSync(_cookiesPath)) return false;
-      const firstLine = fs.readFileSync(_cookiesPath, 'utf8').split('\n')[0].trim();
-      return firstLine === '# Netscape HTTP Cookie File' || firstLine === '# HTTP Cookie File';
-    } catch (_) { return false; }
-  })();
-  const cookiesFlag = _cookiesValid ? `--cookies "${_cookiesPath}"` : '';
-  // android no soporta cookies → usar web cuando hay cookies, android cuando no
-  const playerClient = _cookiesValid ? 'web' : 'android';
-  const command = `yt-dlp --js-runtimes node --extractor-args "youtube:player_client=${playerClient}" --user-agent "${UA}" --add-header "Accept-Language:es-MX,es;q=0.9" --sleep-interval 2 --max-sleep-interval 5 ${cookiesFlag} -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
-
-  await execAsync(command);
+  // Descargar el audio como MP3 usando el helper central
+  const tempMp3Path = await downloadAudioFromYoutube(videoUrl, requesterId);
 
   // Convertir a formato OGG (PTT de WhatsApp)
   const ffmpegCommand = `ffmpeg -i "${tempMp3Path}" -c:a libopus -b:a 128k -vn "${tempOggPath}"`;

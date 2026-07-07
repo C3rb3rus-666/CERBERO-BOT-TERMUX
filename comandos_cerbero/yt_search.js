@@ -5,6 +5,7 @@ import path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
 import axios from "axios";
+import { downloadAudioFromYoutube } from '../utils/youtubeDownloader.js';
 
 const execAsync = promisify(exec);
 
@@ -28,24 +29,18 @@ const deleteFile = (filePath) => {
  * @param {string} requesterId - ID del solicitante.
  * @returns {Promise<{ mp3: string, ogg: string, title: string }>} - Información del audio descargado.
  */
-async function downloadMusic(videoUrl, requesterId) {
+async function downloadMusic(videoUrl, requesterId, title) {
   const uniqueId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  const tempMp3Path = path.join(TEMP_DIR, `audio_${requesterId}_${uniqueId}.mp3`);
   const tempOggPath = path.join(TEMP_DIR, `audio_${requesterId}_${uniqueId}.ogg`);
 
-  // Descargar el audio como MP3
-  const command = `yt-dlp -x --audio-format mp3 --audio-quality 0 -o "${tempMp3Path}" "${videoUrl}"`;
-  await execAsync(command);
+  // Descargar el audio como MP3 usando el helper central
+  const tempMp3Path = await downloadAudioFromYoutube(videoUrl, requesterId);
 
   // Convertir a formato OGG (PTT de WhatsApp)
   const ffmpegCommand = `ffmpeg -i "${tempMp3Path}" -c:a libopus -b:a 128k -vn "${tempOggPath}"`;
   await execAsync(ffmpegCommand);
 
-  // Obtener el título del video
-  const infoCommand = `yt-dlp --get-title "${videoUrl}"`;
-  const { stdout: title } = await execAsync(infoCommand);
-
-  return { mp3: tempMp3Path, ogg: tempOggPath, title: title.trim() };
+  return { mp3: tempMp3Path, ogg: tempOggPath, title };
 }
 
 /**
@@ -102,7 +97,7 @@ export const buscarMusica = async (sock, msg, args) => {
 
       try {
         // Descargar el audio
-        const { mp3, ogg, title } = await downloadMusic(video.url, requesterId);
+        const { mp3, ogg, title } = await downloadMusic(video.url, requesterId, video.title);
 
         // Enviar el archivo MP3
         await sock.sendMessage(chatId, {

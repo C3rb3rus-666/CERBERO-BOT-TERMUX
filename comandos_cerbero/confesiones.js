@@ -107,11 +107,75 @@ function loadData() {
 }
 function saveData(d) { fs.writeFileSync(DATA_PATH, JSON.stringify(d, null, 2)); }
 
+function createEmptyConfig() {
+  return { enabled_groups: {} };
+}
+
 function loadConfig() {
   try { return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')); }
-  catch (_) { return { grupo_id: null, activo: false }; }
+  catch (_) { return createEmptyConfig(); }
 }
 function saveConfig(c) { fs.writeFileSync(CONFIG_PATH, JSON.stringify(c, null, 2)); }
+
+function normalizeJidNumber(jid = '') {
+  return jid.toString().split('@')[0].split(':')[0].replace(/\D/g, '');
+}
+
+function getNormalizedConfig() {
+  const parsed = loadConfig();
+  if (parsed.enabled_groups && typeof parsed.enabled_groups === 'object') {
+    return parsed;
+  }
+
+  if (parsed.grupo_id) {
+    return {
+      enabled_groups: {
+        [parsed.grupo_id]: {
+          activo: !!parsed.activo,
+          updatedAt: Date.now(),
+          updatedBy: parsed.updatedBy || null,
+        },
+      },
+    };
+  }
+
+  return createEmptyConfig();
+}
+
+function getActiveGroupIds(config = getNormalizedConfig()) {
+  return Object.entries(config.enabled_groups || {})
+    .filter(([, value]) => value?.activo)
+    .map(([groupId]) => groupId);
+}
+
+async function findActiveGroupsForSender(sock, senderJid) {
+  const config = getNormalizedConfig();
+  const activeGroupIds = getActiveGroupIds(config);
+  if (!activeGroupIds.length) return [];
+
+  const senderNumber = normalizeJidNumber(senderJid);
+  const matches = [];
+
+  for (const groupId of activeGroupIds) {
+    try {
+      const meta = await sock.groupMetadata(groupId);
+      const isMember = (meta.participants || []).some(participant => {
+        const ids = [
+          participant?.id,
+          participant?.phoneNumber,
+          participant?.lid,
+        ].filter(Boolean);
+        return ids.some(id => normalizeJidNumber(id) === senderNumber);
+      });
+
+      if (isMember) matches.push(groupId);
+    } catch (err) {
+      console.error(`[CONF] No se pudo leer metadata de ${groupId}:`, err.message || err);
+    }
+  }
+
+  return matches;
+}
 
 // ── Detección inteligente de intención ───────────────────────────────────────
 
@@ -289,59 +353,67 @@ const FRASES_INCENTIVO = [
 
 // ── Publicar al grupo con etiqueta masiva ─────────────────────────────────────
 
-async function publicarConf(sock, texto, id) {
-  const config = loadConfig();
-  if (!config.grupo_id || !config.activo) return false;
+async function publicarConf(sock, texto, id, groupIds = null) {
+  const config = getNormalizedConfig();
+  const groupIdsResolved = Array.isArray(groupIds) && groupIds.length
+    ? groupIds
+    : getActiveGroupIds(config);
+  const groupIdsToUse = groupIdsResolved;
+  if (!groupIdsToUse.length) return false;
 
   // Etiquetar a todos solo cada 2 confesiones (IDs pares), el resto sin tags
   const esTurnoTag = (id % 2 === 0);
+  const img = await generarImagenConf(texto, id);
+  let published = 0;
 
   try {
-    const img = await generarImagenConf(texto, id);
-
-    let mentions = [];
-    if (esTurnoTag) {
-      try {
-        const meta = await sock.groupMetadata(config.grupo_id);
-        mentions = (meta.participants || []).map(p => p.id);
-      } catch (_) {}
-    }
-
     const ts = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
     const frase = FRASES_INCENTIVO[id % FRASES_INCENTIVO.length];
 
-    // Caption con etiquetas solo cuando toca
-    const tagLine = esTurnoTag && mentions.length
-      ? `\n👥 ${mentions.map(j => `@${j.split('@')[0]}`).join(' ')}\n`
-      : '';
+    for (const groupId of groupIdsToUse) {
+      let mentions = [];
+      if (esTurnoTag) {
+        try {
+          const meta = await sock.groupMetadata(groupId);
+          mentions = (meta.participants || []).map(p => p.id).filter(Boolean);
+        } catch (_) {}
+      }
 
-    await sock.sendMessage(config.grupo_id, {
-      image:    img,
-      caption:
-        `╔══════════════════════════╗\n` +
-        `║  🤫  C3RB3RUS :: CONF_DAEMON  🤫  ║\n` +
-        `╚══════════════════════════╝\n` +
-        `▸ PROC    : confesiones.publish()\n` +
-        `▸ ID      : #${id}\n` +
-        `▸ TS      : ${ts}\n` +
-        `▸ STATUS  : ANONYMOUS ✓\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `${frase}${tagLine}\n\n` +
-        `📩 _Escríbeme en privado: "🤫 tu secreto aquí"_\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-      mentions,
-    });
-    console.log(`[CONF] ✅ #${id} publicada → ${config.grupo_id}`);
-    return true;
+      const tagLine = esTurnoTag && mentions.length
+        ? `\n👥 ${mentions.map(j => `@${j.split('@')[0]}`).join(' ')}\n`
+        : '';
+
+      await sock.sendMessage(groupId, {
+        image: img,
+        caption:
+          `╔══════════════════════════╗\n` +
+          `║  🤫  C3RB3RUS :: CONF_DAEMON  🤫  ║\n` +
+          `╚══════════════════════════╝\n` +
+          `▸ PROC    : confesiones.publish()\n` +
+          `▸ ID      : #${id}\n` +
+          `▸ TS      : ${ts}\n` +
+          `▸ STATUS  : ANONYMOUS ✓\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+          `${frase}${tagLine}\n\n` +
+          `📩 _Escríbeme en privado: "🤫 tu secreto aquí"_\n` +
+          `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+        mentions,
+      });
+      console.log(`[CONF] ✅ #${id} publicada → ${groupId}`);
+      published++;
+    }
+    return published > 0;
   } catch (e) {
     console.error('[CONF] ❌ Error publicando imagen:', e.message);
     // Fallback texto plano
     try {
-      await sock.sendMessage(config.grupo_id, {
-        text: `🤫 *CONFESIÓN ANÓNIMA #${id}*\n\n_"${texto}"_\n\n— Anónimo`,
-      });
+      for (const groupId of groupIdsToUse) {
+        await sock.sendMessage(groupId, {
+          text: `🤫 *CONFESIÓN ANÓNIMA #${id}*\n\n_"${texto}"_\n\n— Anónimo`,
+        });
+      }
     } catch (_) {}
-    return false;
+    return published > 0;
   }
 }
 
@@ -436,7 +508,7 @@ export async function manejarDMConf(sock, senderJid, text) {
     console.log(`[CONF DM] ⚠️ texto descartado (muy corto, no tiene prefijo o es comando)`);
     // Solo responder con el mensaje de bienvenida si las confesiones están activas
     const cfgCheck = loadConfig();
-    if (cfgCheck.activo) {
+    if (getActiveGroupIds(cfgCheck).length) {
       await sock.sendMessage(senderJid, {
         text:
           `🤫 ¡Hola! Soy el bot de confesiones anónimas.\n\n` +
@@ -465,9 +537,10 @@ export async function manejarDMConf(sock, senderJid, text) {
   }
 
   const config = loadConfig();
-  console.log(`[CONF DM] config → grupo_id=${config.grupo_id} activo=${config.activo}`);
+  const destinos = await findActiveGroupsForSender(sock, senderJid);
+  console.log(`[CONF DM] config → grupos_activos=${getActiveGroupIds(config).length} destinos=${destinos.length}`);
 
-  if (!config.grupo_id || !config.activo) {
+  if (!destinos.length) {
     return true;
   }
 
@@ -478,7 +551,7 @@ export async function manejarDMConf(sock, senderJid, text) {
   if (data.confesiones.length > 50) data.confesiones = data.confesiones.slice(-50);
   saveData(data);
 
-  await publicarConf(sock, confesion, id);
+  await publicarConf(sock, confesion, id, destinos);
   await sock.sendMessage(senderJid, {
     text: `✅ *¡Publicada!* (#${id}) 🔐\n_Nadie sabe que fuiste tú._`,
   });
@@ -491,6 +564,11 @@ export async function manejarDMConf(sock, senderJid, text) {
 export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args) {
   const sub = (args[0] || '').toLowerCase();
 
+  if (!chatId.endsWith('@g.us')) {
+    await sock.sendMessage(chatId, { text: 'Este comando debe usarse dentro de un grupo.' });
+    return;
+  }
+
   if (!isAdmin) {
     await sock.sendMessage(chatId, { text: '⛔ Solo los administradores pueden usar este comando.' });
     return;
@@ -498,8 +576,13 @@ export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args)
 
   // !confesiones grupo → registrar este grupo como destino
   if (sub === 'grupo') {
-    const config = loadConfig();
-    config.grupo_id = chatId;
+    const config = getNormalizedConfig();
+    if (!config.enabled_groups) config.enabled_groups = {};
+    config.enabled_groups[chatId] = {
+      activo: false,
+      updatedAt: Date.now(),
+      updatedBy: senderJid,
+    };
     saveConfig(config);
     await sock.sendMessage(chatId, {
       text:
@@ -507,21 +590,21 @@ export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args)
 ` +
         `▸ ID: \`${chatId}\`
 ` +
-        `Ahora usa *!confesiones abrir* para activar la dinámica.`,
+        `Ahora usa *!confesiones abrir* para activar la dinámica en este grupo.`,
     });
     return;
   }
 
   // !confesiones abrir
   if (sub === 'abrir') {
-    const config = loadConfig();
-    if (!config.grupo_id) {
-      await sock.sendMessage(chatId, {
-        text: `⚠️ Primero registra el grupo con *!confesiones grupo*`,
-      });
-      return;
-    }
-    config.activo = true;
+    const config = getNormalizedConfig();
+    if (!config.enabled_groups) config.enabled_groups = {};
+    config.enabled_groups[chatId] = {
+      ...(config.enabled_groups[chatId] || {}),
+      activo: true,
+      updatedAt: Date.now(),
+      updatedBy: senderJid,
+    };
     saveConfig(config);
 
     let mentions = [];
@@ -549,8 +632,14 @@ export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args)
 
   // !confesiones cerrar
   if (sub === 'cerrar') {
-    const config = loadConfig();
-    config.activo = false;
+    const config = getNormalizedConfig();
+    if (!config.enabled_groups) config.enabled_groups = {};
+    config.enabled_groups[chatId] = {
+      ...(config.enabled_groups[chatId] || {}),
+      activo: false,
+      updatedAt: Date.now(),
+      updatedBy: senderJid,
+    };
     saveConfig(config);
     await sock.sendMessage(chatId, { text: '🔒 Dinámica de confesiones *cerrada*.' });
     return;
@@ -570,17 +659,16 @@ export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args)
 
   // !confesiones estado
   if (sub === 'estado' || sub === 'info') {
-    const config = loadConfig();
+    const config = getNormalizedConfig();
     const data   = loadData();
-    let groupName = config.grupo_id || 'No configurado';
-    if (config.grupo_id) {
-      try { groupName = (await sock.groupMetadata(config.grupo_id)).subject || config.grupo_id; } catch (_) {}
-    }
+    const current = config.enabled_groups?.[chatId];
+    const activeCount = getActiveGroupIds(config).length;
     await sock.sendMessage(chatId, {
       text:
         `🤫 *Estado del sistema de confesiones:*\n\n` +
-        `▸ Grupo destino : ${groupName}\n` +
-        `▸ Estado        : ${config.activo ? '✅ ACTIVO' : '🔒 CERRADO'}\n` +
+        `▸ Grupo actual  : ${chatId}\n` +
+        `▸ Estado aquí   : ${current?.activo ? '✅ ACTIVO' : '🔒 CERRADO'}\n` +
+        `▸ Grupos activos: ${activeCount}\n` +
         `▸ Publicadas    : ${data.confesiones.length} (historial reciente)\n` +
         `▸ Próximo ID    : #${data.nextId}`,
     });
@@ -592,8 +680,8 @@ export async function manejarComandoConf(sock, chatId, senderJid, isAdmin, args)
     text:
       `🤫 *CONFESIONES — Comandos admin:*\n\n` +
       `!confesiones grupo   → registrar este grupo como destino\n` +
-      `!confesiones abrir   → activar + anunciar\n` +
-      `!confesiones cerrar  → desactivar\n` +
+      `!confesiones abrir   → activar en este grupo\n` +
+      `!confesiones cerrar  → desactivar en este grupo\n` +
       `!confesiones limpiar → borrar historial completo\n` +
       `!confesiones estado  → ver configuración`,
   });

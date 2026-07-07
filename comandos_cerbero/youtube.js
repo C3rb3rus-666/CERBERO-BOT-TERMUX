@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
+import { downloadVideoFromYoutube } from '../utils/youtubeDownloader.js';
 
 const execAsync = promisify(exec);
 
@@ -12,14 +13,8 @@ const execAsync = promisify(exec);
  * @returns {Promise<string>} - Ruta del archivo de video.
  */
 async function downloadVideo(url) {
-  const tempFilePath = path.join(tmpdir(), `video_${Date.now()}.mp4`);
-
-  // Comando para descargar el video con yt-dlp
-  const command = `yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" -o "${tempFilePath}" ${url}`;
-
   try {
-    await execAsync(command);
-    return tempFilePath;
+    return await downloadVideoFromYoutube(url);
   } catch (error) {
     console.error('Error al descargar el video:', error);
     throw new Error('No se pudo descargar el video.');

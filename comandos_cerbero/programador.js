@@ -35,7 +35,7 @@ export async function creador(sock, msg) {
   const menuText = `
 ╔══════════════════════════════════════════╗
 ║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑        ║
-║    v4.4.17 (Build 92) — Online          ║
+║    v4.4.17 (Build 93) — Online          ║
 ╚══════════════════════════════════════════╝
 
 *🧑‍💻 𝗦𝗢𝗕𝗥𝗘 𝗘𝗟 𝗗𝗘𝗦𝗔𝗥𝗥𝗢𝗟𝗟𝗔𝗗𝗢𝗥*
@@ -56,7 +56,7 @@ export async function creador(sock, msg) {
 *📊 𝗘𝗦𝗧𝗔𝗗𝗢 𝗗𝗘𝗟 𝗕𝗢𝗧*
 ─────────────────────────
 • 🔋 *Estado:* Online
-• 📦 *Versión:* v4.4.17 (Build 92)
+• 📦 *Versión:* v4.4.17 (Build 93)
 • 🧩 *Comandos:* 50+ disponibles
 
 *🔗 𝗖𝗢𝗡𝗧𝗔𝗖𝗧𝗢 & 𝗥𝗘𝗗𝗘𝗦*
@@ -96,6 +96,6 @@ export async function creador(sock, msg) {
       { buttonId: '!ping', buttonText: { displayText: '📶 Ping' }, type: 1 },
       { buttonId: '!help', buttonText: { displayText: '❓ Ayuda' }, type: 1 }
     ],
-    footer: '⚡ Desarrollado por C3rb3rus-666 | v4.4.17 Build 92'
+    footer: '⚡ Desarrollado por C3rb3rus-666 | v4.4.17 Build 93'
   }, { quoted: msg });
 }
