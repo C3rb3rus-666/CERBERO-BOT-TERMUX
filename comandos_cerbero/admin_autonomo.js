@@ -88,6 +88,11 @@ const WELCOME_MIN_AGE_MS = 20_000; // 20 s
 
 /** Zona horaria de referencia */
 const TIMEZONE = 'America/Bogota';
+const BOGOTA_HOUR_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  timeZone: TIMEZONE,
+  hour: '2-digit',
+  hourCycle: 'h23',
+});
 
 /** Hora a la que se abre el grupo si está cerrado */
 const AUTO_OPEN_HOUR  = 9;
@@ -180,13 +185,9 @@ function saveConfig(config) {
  * Hora actual en Colombia (0–23).
  */
 function getHoraColombia() {
-  const str = new Date().toLocaleString('es-CO', {
-    timeZone: TIMEZONE,
-    hour: '2-digit',
-    hour12: false,
-  });
-  // toLocaleString puede devolver "09" o "9"; parseInt lo maneja
-  return parseInt(str.split(':')[0], 10);
+  const hourPart = BOGOTA_HOUR_FORMATTER.formatToParts(new Date())
+    .find(part => part.type === 'hour')?.value;
+  return Number.parseInt(hourPart || '0', 10);
 }
 
 /**

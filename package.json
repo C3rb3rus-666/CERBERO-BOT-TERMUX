@@ -1,7 +1,7 @@
 {
   "name": "cerbero-bot",
-  "version": "4.4.17",
-  "description": "Cerbero-bot By C3rb3rus-666 (Build 93)",
+  "version": "4.4.18",
+  "description": "Cerbero-bot By C3rb3rus-666 (Build 94)",
   "type": "module",
   "main": "index.js",
   "scripts": {
@@ -49,16 +49,16 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/C3rb3rus-666/"
+    "url": "https://github.com/C3rb3rus-666/CERBERO-BOT.git"
   },
   "bugs": {
-    "url": "https://github.com/C3rb3rus-666/"
+    "url": "https://github.com/C3rb3rus-666/CERBERO-BOT/issues"
   },
-  "homepage": "https://github.com/C3rb3rus-666/",
+  "homepage": "https://github.com/C3rb3rus-666/CERBERO-BOT#readme",
   "devDependencies": {
     "eslint": "^9.39.2",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0"
   },
-  "build": "93"
+  "build": "94"
 }
