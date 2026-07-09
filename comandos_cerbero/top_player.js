@@ -28,9 +28,13 @@ export async function commandTopPlayers(sock, msg) {
   }
 
   const gameData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const userRecords = gameData?.users && typeof gameData.users === 'object'
+    ? gameData.users
+    : gameData;
 
   // Calcular total de cada jugador
-  const players = Object.entries(gameData).map(([jid, data]) => {
+  const players = Object.entries(userRecords || {}).map(([jid, data]) => {
+    if (!data || typeof data !== 'object') return null;
     const efectivo = parseInt(data.money) || 0;
     const banco = parseInt(data.bank) || 0;
     const caja = parseInt(data.safe) || 0;
@@ -44,7 +48,7 @@ export async function commandTopPlayers(sock, msg) {
       xp: data.xp || 0,
       nivel: data.level || 1
     };
-  });
+  }).filter(Boolean);
 
   // Ordenar por total (descendente)
   const top = players.sort((a, b) => b.total - a.total).slice(0, 5);

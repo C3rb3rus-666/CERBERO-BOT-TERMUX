@@ -233,7 +233,7 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
   switch (command.toLowerCase()) {
     case 'ping':
       await humanDelay(sock, message, 1, 3);
-      await ping(sock, message);
+      await ping(sock, message, groupMetadata);
       break;
     
     case 'sticker':
@@ -860,5 +860,4 @@ default:
       break;
   }
 }
-
 

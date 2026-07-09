@@ -85,14 +85,11 @@ function formatAegisStats() {
   return `🟢 ACTIVO · 🚫${black} / ✅${white}`;
 }
 
-export async function statusCerberoCommand(sock, msg, groupMetadata) {
-  const chatId = msg.key.remoteJid;
-  const mentionTarget = msg.key.participant || chatId;
+export function buildCerberoStatusLines({ chatId, groupMetadata }) {
   const { version, build } = loadPackageMeta();
-
   const groupId = chatId?.endsWith('@g.us') ? chatId : null;
 
-  const statusLines = [
+  return [
     '╔══════════════════════════╗',
     '║      📡 CERBERO STATUS    ║',
     '╚══════════════════════════╝',
@@ -117,6 +114,12 @@ export async function statusCerberoCommand(sock, msg, groupMetadata) {
     '▪ Anti-Flood         : 🟢 ACTIVO',
     '▪ K3RB·0xEY3 (NSFW)  : 🟢 ACTIVO',
   ];
+}
+
+export async function statusCerberoCommand(sock, msg, groupMetadata) {
+  const chatId = msg.key.remoteJid;
+  const mentionTarget = msg.key.participant || chatId;
+  const statusLines = buildCerberoStatusLines({ chatId, groupMetadata });
 
   const caption = statusLines.join('\n');
   const imagePath = getRandomMenuImagePath();

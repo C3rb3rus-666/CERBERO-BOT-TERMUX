@@ -3,6 +3,7 @@ import { performance } from 'perf_hooks';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import { buildCerberoStatusLines } from './status_cerbero.js';
 
 // 🛠️ CONFIGURACIÓN DE RUTAS
 const __filename = fileURLToPath(import.meta.url);
@@ -30,7 +31,7 @@ function formatUptime(seconds) {
 }
 
 
-export const ping = async (sock, msg) => {
+export const ping = async (sock, msg, groupMetadata) => {
     const chatId = msg.key.remoteJid;
     const tStart = performance.now();
 
@@ -62,6 +63,8 @@ export const ping = async (sock, msg) => {
             latency = Math.round(performance.now() - tStart);
         }
 
+        const statusLines = buildCerberoStatusLines({ chatId, groupMetadata });
+
         // Variables de telemetría
         let cpuLoad, cpuTemp, totalRam, usedRam, gpuTemp, fanSpeed, uptime, specs, osDisplay, message;
 
@@ -91,7 +94,7 @@ export const ping = async (sock, msg) => {
                         const messageLines = [
 '╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
 '║',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.17 Build 93*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 95*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
 '╠══ [ *📡 SENSORS & COOLING* ] ══',
@@ -125,8 +128,11 @@ export const ping = async (sock, msg) => {
 '║ 🖥️ *Operating System:*',
 `║ └─ ${osDisplay}`,
 '║',
+'╠══ [ *🛡️ BOT STATUS* ] ══',
+...statusLines.map((line) => `║ ${line}`),
+'║',
 '╚════════════════════════════╝',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.17 Build 93*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 95*`,
 `║ _¿Quieres un bot como este? Contacta al creador C3rb3rus-666 · +57 3233704652_`
 ].join('\n');
 
