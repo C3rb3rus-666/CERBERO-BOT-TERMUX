@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const imagesDir = path.join(__dirname, 'imagenes');
+const DB_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'juegos', 'gameData.json');
 
 // Función para seleccionar una imagen aleatoria
 function getRandomImage(imagesDir) {
@@ -26,7 +27,7 @@ export async function commandTopPlayers(sock, msg) {
     }, { quoted: msg });
   }
 
-  const gameData = JSON.parse(fs.readFileSync(DB_PATH));
+  const gameData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
 
   // Calcular total de cada jugador
   const players = Object.entries(gameData).map(([jid, data]) => {
@@ -87,7 +88,7 @@ ${top.map((p, i) => {
     }, { quoted: msg });
 
   } catch (error) {
-    console.error('Error en !topricos:', error);
+    console.error('Error en !top:', error);
     await sock.sendMessage(msg.key.remoteJid, {
       text: `❌ Error al mostrar el top: ${error.message}`,
       mentions: top.map(p => p.jid)

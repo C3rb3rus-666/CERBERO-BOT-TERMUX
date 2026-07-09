@@ -59,7 +59,7 @@ export async function menuCommand(sock, msg) {
 ▓                             ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-       ⚔️ *v4.4.18 · Build 94* ⚔️
+       ⚔️ *v4.4.19 · Build 95* ⚔️
         _Coded by C3rb3rus-666_
 
   ╔════════════════════════════╗
@@ -108,6 +108,7 @@ export async function menuCommand(sock, msg) {
   ▸ !cerbero_yt <link> — Descargar video de YouTube
   ▸ !sticker — Convertir imagen/video a sticker
   ▸ !extractor — Extraer imagen de un sticker
+  ▸ !status_cerbero — Ver estado completo del bot
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🎭 *ENTRETENIMIENTO*          ┃
@@ -232,6 +233,7 @@ export async function menuCommand(sock, msg) {
   ⚡ !leerlog — Ver registro de links bloqueados
   ⚡ !clear_log — Limpiar registros
   ⚡ !antistatustag [on|off] — Bloquear etiquetas del grupo en estados
+  ⚡ !status_cerbero — Ver estado completo del bot
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🤖 *ADMIN AUTÓNOMO · AEGIS*  ┃
