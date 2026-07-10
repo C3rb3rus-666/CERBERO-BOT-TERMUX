@@ -6,6 +6,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const imagesDir = path.join(__dirname, 'imagenes');
+const DB_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'juegos', 'gameData.json');
 
 // Función para seleccionar una imagen aleatoria
 function getRandomImage(imagesDir) {
@@ -26,10 +27,14 @@ export async function commandTopPlayers(sock, msg) {
     }, { quoted: msg });
   }
 
-  const gameData = JSON.parse(fs.readFileSync(DB_PATH));
+  const gameData = JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
+  const userRecords = gameData?.users && typeof gameData.users === 'object'
+    ? gameData.users
+    : gameData;
 
   // Calcular total de cada jugador
-  const players = Object.entries(gameData).map(([jid, data]) => {
+  const players = Object.entries(userRecords || {}).map(([jid, data]) => {
+    if (!data || typeof data !== 'object') return null;
     const efectivo = parseInt(data.money) || 0;
     const banco = parseInt(data.bank) || 0;
     const caja = parseInt(data.safe) || 0;
@@ -43,7 +48,7 @@ export async function commandTopPlayers(sock, msg) {
       xp: data.xp || 0,
       nivel: data.level || 1
     };
-  });
+  }).filter(Boolean);
 
   // Ordenar por total (descendente)
   const top = players.sort((a, b) => b.total - a.total).slice(0, 5);
@@ -87,7 +92,7 @@ ${top.map((p, i) => {
     }, { quoted: msg });
 
   } catch (error) {
-    console.error('Error en !topricos:', error);
+    console.error('Error en !top:', error);
     await sock.sendMessage(msg.key.remoteJid, {
       text: `❌ Error al mostrar el top: ${error.message}`,
       mentions: top.map(p => p.jid)

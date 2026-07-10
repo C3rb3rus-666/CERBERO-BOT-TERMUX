@@ -51,6 +51,7 @@ import { nuevosCommand } from './nuevos_fixed.js';
 import { lidMapCommand } from './lidmap.js';
 import { toggleMonitorAdmin } from './monitor_evento.js';
 import { toggleAdminAutonomo } from './admin_autonomo.js';
+import { statusCerberoCommand } from './status_cerbero.js';
 import { handleBuscaminas } from './buscaminas.js';
 // juego RPG y Economía
 import {
@@ -232,7 +233,7 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
   switch (command.toLowerCase()) {
     case 'ping':
       await humanDelay(sock, message, 1, 3);
-      await ping(sock, message);
+      await ping(sock, message, groupMetadata);
       break;
     
     case 'sticker':
@@ -283,6 +284,12 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'menu':
       await humanDelay(sock, message, 2, 5);
       await menuCommand(sock, message);
+      break;
+
+    case 'status_cerbero':
+    case 'statuscerbero':
+      await humanDelay(sock, message, 2, 5);
+      await statusCerberoCommand(sock, message, groupMetadata);
       break;
 
     case 'arte':
@@ -853,6 +860,4 @@ default:
       break;
   }
 }
-
-
 

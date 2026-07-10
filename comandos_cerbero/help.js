@@ -65,6 +65,7 @@ Ustedes tienen las llaves de las puertas.
 • \`!antilink\`: Expulsa automáticamente a quienes envían enlaces de otros grupos.
 • \`!ban\` / \`!kick\`: Elimina usuarios molestos.
 • \`!todos\`: Invoca a todo el grupo sin restricciones de frecuencia; sigue siendo mega visible.
+• \`!status_cerbero\`: Muestra el estado de los módulos del bot con arte.
 
 ────────────────────────────
 📂 *¿Buscas la lista completa de comandos?*
