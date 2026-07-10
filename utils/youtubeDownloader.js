@@ -3,7 +3,7 @@
 import fs from 'fs';
 import path from 'path';
 import { tmpdir } from 'os';
-import { spawn, spawnSync } from 'child_process';
+import { execSync, spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -24,12 +24,7 @@ function findYtDlpCommand() {
     }
 
     const has = (cmd) => {
-        try {
-            const result = spawnSync('command', ['-v', cmd], { stdio: ['ignore', 'pipe', 'ignore'] });
-            return result.status === 0 && result.stdout.toString().trim().length > 0;
-        } catch (e) {
-            return false;
-        }
+        try { return execSync(`command -v ${cmd} 2>/dev/null`).toString().trim().length > 0; } catch(e){ return false; }
     }
 
     if (has('yt_dlp')) return { cmd: 'yt_dlp', args: [] };
@@ -96,8 +91,8 @@ async function runYtDlp(url, outPrefix, extraArgs = []) {
         ...cookiesArgs,
         '--user-agent', USER_AGENT,
         '--add-header', `Accept-Language:es-MX,es;q=0.9,en;q=0.8`,
-        '--sleep-interval', '2',
-        '--max-sleep-interval', '5',
+        '--sleep-interval', '2',      // esperar 2s entre peticiones (menos agresivo)
+        '--max-sleep-interval', '5',  // hasta 5s aleatorio
         ...extraArgs,
         '-o', `${outPrefix}.%(ext)s`,
         url
@@ -129,7 +124,7 @@ export async function downloadAudioFromYoutube(url, requesterId = 'anon') {
     const outPrefix = path.join(tmpdir(), `cerbero_${requesterId}_${unique}`);
     console.log('[youtubeDownloader] usando yt-dlp para:', url);
     try {
-        const downloaded = await runYtDlp(url, outPrefix, ['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3', '--audio-quality', '0']);
+        const downloaded = await runYtDlp(url, outPrefix, ['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3']);
         console.log('[youtubeDownloader] descargado:', downloaded);
         return downloaded;
     } catch (err) {

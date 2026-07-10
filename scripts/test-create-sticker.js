@@ -18,7 +18,7 @@ import fs from 'fs';
     console.log('[CREATE TEST] ws keys:', Object.keys(ws));
 
     const options = {
-      pack: 'CERBERO-BOT',
+      pack: 'CERBERO-BOT-TERMUX',
       author: 'Test',
       quality: 70
     };
