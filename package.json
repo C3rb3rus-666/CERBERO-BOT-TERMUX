@@ -6,8 +6,10 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "setup:arm": "bash scripts/setup-arm-env.sh",
     "test:antinumbers": "node scripts/test_antinumbers.js",
-    "install:deps": "python3 -m pip install --upgrade yt-dlp && apt update && apt install -y ffmpeg",
+    "verify:canvas": "node scripts/verify-arm-canvas.js",
+    "install:deps": "bash scripts/setup-arm-env.sh",
     "postinstall": "patch-package"
   },
   "author": "Carlos Sanchez",
