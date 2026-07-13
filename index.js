@@ -29,7 +29,7 @@ import { verificarLealtad } from './comandos_cerbero/lealtad.js';
 // Amor bot queda dormido: módulo conservado sin cargar.
 // import { amorCommand, iniciarMensajesDiarios } from './comandos_cerbero/amor_bot.js';
 import { manejarDMConf, manejarComandoConf } from './comandos_cerbero/confesiones.js';
-import { manejarDMPresentacion, manejarComandoPresentacion } from './comandos_cerbero/presentaciones.js';
+import { manejarDMPresentacion, manejarDMTinder, manejarComandoPresentacion, manejarComandoTinder } from './comandos_cerbero/presentaciones.js';
 import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists, validarCreds, ReconnectThrottler, limpiarAllTimers } from './utils/recovery.js';
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
@@ -439,6 +439,9 @@ async function connectToWhatsApp() {
                          msg.message?.imageMessage?.caption ||
                          msg.message?.documentMessage?.caption ||
                          '';
+          const handledTinder = await manejarDMTinder(sock, senderJid, msg, { silentNoDestinations: true });
+          if (handledTinder) return;
+
           const handledPresentation = await manejarDMPresentacion(sock, senderJid, msg);
           if (handledPresentation) return;
 
@@ -718,6 +721,12 @@ async function connectToWhatsApp() {
             // Dinamica de presentaciones con fotos por privado
             if (command === 'presentaciones' || command === 'presentacion') {
                 await manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args);
+                return;
+            }
+
+            // Dinamica Tinder con fotos por privado y encuesta MATCH/NEXT
+            if (command === 'tinder') {
+                await manejarComandoTinder(sock, chatId, senderJid, isAdmin, args);
                 return;
             }
             

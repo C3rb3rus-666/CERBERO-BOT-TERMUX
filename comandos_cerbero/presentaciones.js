@@ -6,9 +6,41 @@ import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { scanImageBufferWithNsfwEngine } from './nsfw_detector.js';
 import { detectQrBuffer } from './qrkill.js';
 
-const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json');
 const TEMP_DIR = path.resolve(os.tmpdir(), 'cerbero_presentaciones');
-const POLL_OPTIONS = ['le doy', 'no le doy', 'que asco'];
+const DYNAMICS = {
+  presentaciones: {
+    key: 'presentaciones',
+    label: 'presentaciones',
+    configPath: path.resolve(process.cwd(), 'comandos_cerbero', 'presentaciones_config.json'),
+    pollTitle: 'que opinas',
+    pollOptions: ['le doy', 'no le doy', 'que asco'],
+    captionTitle: '📸 *PRESENTACION DE MIEMBRO*',
+    publishedName: 'Presentacion',
+    activeTitle: 'Presentaciones activadas',
+    inactiveText: 'Presentaciones desactivadas en este grupo.',
+    statusTitle: 'Estado de presentaciones',
+    adminTitle: 'PRESENTACIONES',
+    commandName: 'presentaciones',
+    introText: 'Los miembros pueden enviar su foto al privado del bot. CERBERO la revisa con anti-NSFW, aplica anti-meme y la publica aqui con encuesta si esta limpia.',
+    dmHint: 'Si hay una dinamica de *presentaciones* activa en tu grupo, la reviso con anti-NSFW y la publico alla.',
+  },
+  tinder: {
+    key: 'tinder',
+    label: 'tinder',
+    configPath: path.resolve(process.cwd(), 'comandos_cerbero', 'tinder_config.json'),
+    pollTitle: 'TINDER DEL GRUPO',
+    pollOptions: ['MATCH', 'NEXT'],
+    captionTitle: '💘 *TINDER — PERFIL DEL GRUPO*',
+    publishedName: 'Perfil Tinder',
+    activeTitle: 'Tinder activado',
+    inactiveText: 'Tinder desactivado en este grupo.',
+    statusTitle: 'Estado de Tinder',
+    adminTitle: 'TINDER',
+    commandName: 'tinder',
+    introText: 'Los miembros pueden enviar su foto al privado del bot. CERBERO la revisa con anti-NSFW, aplica anti-meme y la publica aqui con encuesta MATCH/NEXT.',
+    dmHint: 'Si hay una dinamica de *Tinder* activa en tu grupo, la reviso con anti-NSFW y la publico alla con encuesta MATCH/NEXT.',
+  },
+};
 const IS_ARM_RUNTIME = process.arch === 'arm' || process.arch === 'arm64';
 const FORCE_NATIVE_ANALYSIS = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_FORCE_NATIVE || '');
 const ARM_SAFE_MODE = /^(1|true|yes|on)$/i.test(process.env.PRESENTACIONES_ARM_SAFE_MODE || '') || (IS_ARM_RUNTIME && !FORCE_NATIVE_ANALYSIS);
@@ -69,9 +101,9 @@ const VISUAL_LABELS = [...ACCEPT_LABELS, ...REJECT_LABELS];
 const ACCEPT_SET = new Set(ACCEPT_LABELS);
 const REJECT_SET = new Set(REJECT_LABELS);
 
-function loadConfig() {
+function loadConfig(dynamic = DYNAMICS.presentaciones) {
   try {
-    const parsed = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
+    const parsed = JSON.parse(fs.readFileSync(dynamic.configPath, 'utf-8'));
     if (!parsed.enabled_groups) parsed.enabled_groups = {};
     return parsed;
   } catch (_) {
@@ -79,8 +111,8 @@ function loadConfig() {
   }
 }
 
-function saveConfig(config) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2));
+function saveConfig(config, dynamic = DYNAMICS.presentaciones) {
+  fs.writeFileSync(dynamic.configPath, JSON.stringify(config, null, 2));
 }
 
 function normalizeNumber(jid = '') {
@@ -232,8 +264,8 @@ async function loadJimp() {
   return jimpPromise;
 }
 
-async function findActiveGroupsForSender(sock, senderJid) {
-  const config = loadConfig();
+async function findActiveGroupsForSender(sock, senderJid, dynamic = DYNAMICS.presentaciones) {
+  const config = loadConfig(dynamic);
   const activeGroupIds = Object.entries(config.enabled_groups || {})
     .filter(([, value]) => value?.activo)
     .map(([groupId]) => groupId);
@@ -260,23 +292,23 @@ async function findActiveGroupsForSender(sock, senderJid) {
 
       if (isMember) matches.push({ groupId, meta, mentionJid });
     } catch (err) {
-      console.error(`[PRESENTACION] No se pudo leer metadata de ${groupId}:`, err.message || err);
+      console.error(`[${dynamic.key.toUpperCase()}] No se pudo leer metadata de ${groupId}:`, err.message || err);
     }
   }
 
   return matches;
 }
 
-function buildPresentationCaption(originalCaption, safety) {
+function buildPresentationCaption(originalCaption, safety, dynamic = DYNAMICS.presentaciones) {
   const intro = originalCaption?.trim()
     ? `\n\n"${originalCaption.trim().slice(0, 700)}"`
     : '';
 
   return (
-    `📸 *PRESENTACION DE MIEMBRO*\n\n` +
+    `${dynamic.captionTitle}\n\n` +
     `🛡️ Filtro K3RB-0xEY3: *CLEAN* (${(safety.topScore * 100).toFixed(1)}% ${safety.friendlyLabel})` +
     intro +
-    `\n\n_Bot recibido por privado y publicado en la dinamica activa._`
+    `\n\n_Bot recibido por privado y publicado en la dinamica ${dynamic.label} activa._`
   );
 }
 
@@ -787,11 +819,11 @@ async function validatePresentationAntiQr(buffer, imageMessage = null) {
   }
 }
 
-async function sendPresentationPoll(sock, groupId, quotedMsg) {
+async function sendPresentationPoll(sock, groupId, quotedMsg, dynamic = DYNAMICS.presentaciones) {
   const pollMessage = {
     poll: {
-      name: 'que opinas',
-      values: POLL_OPTIONS,
+      name: dynamic.pollTitle,
+      values: dynamic.pollOptions,
       selectableCount: 1,
     },
   };
@@ -799,25 +831,28 @@ async function sendPresentationPoll(sock, groupId, quotedMsg) {
   try {
     await sock.sendMessage(groupId, pollMessage, quotedMsg ? { quoted: quotedMsg } : undefined);
   } catch (err) {
-    console.error(`[PRESENTACION] Error enviando encuesta en ${groupId}:`, err.message || err);
+    console.error(`[${dynamic.key.toUpperCase()}] Error enviando encuesta en ${groupId}:`, err.message || err);
     await sock.sendMessage(groupId, {
       text:
-        `📊 *Encuesta de presentacion*\n\n` +
-        `${POLL_OPTIONS.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`,
+        `📊 *Encuesta ${dynamic.label}*\n\n` +
+        `${dynamic.pollOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`,
     });
   }
 }
 
-export async function manejarDMPresentacion(sock, senderJid, msg) {
+async function manejarDMFotoDinamica(sock, senderJid, msg, dynamic = DYNAMICS.presentaciones, opts = {}) {
   const imageContainer = getPrivateImageContainer(msg);
   const text = getTextFromMessage(msg).trim();
 
   if (!imageContainer) {
-    if (/presentaci[oó]n|presentarme|me\s+presento/i.test(text)) {
+    const asksForDynamic = dynamic.key === 'tinder'
+      ? /tinder|match|next|perfil/i.test(text)
+      : /presentaci[oó]n|presentarme|me\s+presento/i.test(text);
+    if (asksForDynamic) {
       await sock.sendMessage(senderJid, {
         text:
-          `📸 Para presentarte, enviame una foto por privado.\n\n` +
-          `Si hay una dinamica de *presentaciones* activa en tu grupo, la reviso con anti-NSFW y la publico alla.`,
+          `📸 Enviame una foto por privado.\n\n` +
+          dynamic.dmHint,
       });
       return true;
     }
@@ -835,7 +870,16 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
     return true;
   }
 
-  const queued = enqueuePresentation(() => manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text));
+  let precomputedDestinations = null;
+  if (opts.silentNoDestinations) {
+    precomputedDestinations = await findActiveGroupsForSender(sock, senderJid, dynamic);
+    if (!precomputedDestinations.length) return false;
+  }
+
+  const queued = enqueuePresentation(() => manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text, dynamic, {
+    ...opts,
+    precomputedDestinations,
+  }));
   if (!queued) {
     await sock.sendMessage(senderJid, {
       text:
@@ -847,13 +891,22 @@ export async function manejarDMPresentacion(sock, senderJid, msg) {
   return true;
 }
 
-async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text) {
-  const destinations = await findActiveGroupsForSender(sock, senderJid);
+export async function manejarDMPresentacion(sock, senderJid, msg, opts = {}) {
+  return manejarDMFotoDinamica(sock, senderJid, msg, DYNAMICS.presentaciones, opts);
+}
+
+export async function manejarDMTinder(sock, senderJid, msg, opts = {}) {
+  return manejarDMFotoDinamica(sock, senderJid, msg, DYNAMICS.tinder, opts);
+}
+
+async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer, text, dynamic = DYNAMICS.presentaciones, opts = {}) {
+  const destinations = opts.precomputedDestinations || await findActiveGroupsForSender(sock, senderJid, dynamic);
   if (!destinations.length) {
+    if (opts.silentNoDestinations) return false;
     await sock.sendMessage(senderJid, {
       text:
-        `⚠️ No encontre una dinamica de *presentaciones* activa en algun grupo donde estes.\n` +
-        `Pidele a un admin que use *!presentaciones activar* en el grupo.`,
+        `⚠️ No encontre una dinamica de *${dynamic.label}* activa en algun grupo donde estes.\n` +
+        `Pidele a un admin que use *!${dynamic.commandName} activar* en el grupo.`,
     });
     return true;
   }
@@ -864,7 +917,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
     const why = mediaPrecheck.layout.flags.slice(0, 3).join(', ') || 'formato no apto';
     await sock.sendMessage(senderJid, {
       text:
-        `🚫 No pude aceptar esa imagen para presentacion.\n` +
+        `🚫 No pude aceptar esa imagen para ${dynamic.label}.\n` +
         `▸ Motivo: ${why}\n\n` +
         `Envia una foto normal, no como documento/sticker, y que no sea demasiado pesada.`
     }).catch(() => {});
@@ -934,10 +987,10 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
   if (!relevance.allowed) {
     const why = relevance.reasons.length
       ? relevance.reasons.slice(0, 3).join(', ')
-      : 'no parece una foto real de presentacion';
+      : `no parece una foto real para ${dynamic.label}`;
     await sock.sendMessage(senderJid, {
       text:
-        `🚫 No publique esa imagen porque parece meme, captura, sticker, gore o algo ajeno a la presentacion.\n` +
+        `🚫 No publique esa imagen porque parece meme, captura, sticker, gore o algo ajeno a ${dynamic.label}.\n` +
         `▸ Motivo: ${why}\n\n` +
         `Manda una foto real donde se vea una persona.`
     });
@@ -948,7 +1001,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
   const captionSafety = presentationSafety.override
     ? { ...safety, friendlyLabel: 'foto fitness/torso permitida' }
     : safety;
-  const caption = buildPresentationCaption(text, captionSafety);
+  const caption = buildPresentationCaption(text, captionSafety, dynamic);
   let published = 0;
 
   for (const { groupId } of destinations) {
@@ -958,7 +1011,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
         caption,
         viewOnce: true,
       });
-      await sendPresentationPoll(sock, groupId, sentImage);
+      await sendPresentationPoll(sock, groupId, sentImage, dynamic);
       published++;
     } catch (err) {
       console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
@@ -967,7 +1020,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
 
   if (published > 0) {
     await sock.sendMessage(senderJid, {
-      text: `✅ Presentacion publicada en ${published} grupo(s).`,
+      text: `✅ ${dynamic.publishedName} publicado en ${published} grupo(s).`,
     });
   } else {
     await sock.sendMessage(senderJid, {
@@ -978,19 +1031,19 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
   return true;
 }
 
-export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args) {
+async function manejarComandoFotoDinamica(sock, chatId, senderJid, isAdmin, args, dynamic = DYNAMICS.presentaciones) {
   if (!chatId.endsWith('@g.us')) {
     await sock.sendMessage(chatId, { text: 'Este comando debe usarse dentro de un grupo.' });
     return;
   }
 
   if (!isAdmin) {
-    await sock.sendMessage(chatId, { text: '⛔ Solo administradores pueden configurar las presentaciones.' });
+    await sock.sendMessage(chatId, { text: `⛔ Solo administradores pueden configurar ${dynamic.label}.` });
     return;
   }
 
   const sub = (args[0] || '').toLowerCase();
-  const config = loadConfig();
+  const config = loadConfig(dynamic);
   if (!config.enabled_groups) config.enabled_groups = {};
 
   if (['activar', 'abrir', 'grupo', 'on'].includes(sub)) {
@@ -999,11 +1052,11 @@ export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmi
       updatedAt: Date.now(),
       updatedBy: senderJid,
     };
-    saveConfig(config);
+    saveConfig(config, dynamic);
     await sock.sendMessage(chatId, {
       text:
-        `✅ *Presentaciones activadas* en este grupo.\n\n` +
-        `Los miembros pueden enviar su foto al privado del bot. CERBERO la revisa con anti-NSFW, aplica anti-meme y la publica aqui con encuesta si esta limpia.`,
+        `✅ *${dynamic.activeTitle}* en este grupo.\n\n` +
+        dynamic.introText,
     });
     return;
   }
@@ -1013,8 +1066,8 @@ export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmi
     config.enabled_groups[chatId].activo = false;
     config.enabled_groups[chatId].updatedAt = Date.now();
     config.enabled_groups[chatId].updatedBy = senderJid;
-    saveConfig(config);
-    await sock.sendMessage(chatId, { text: '🔒 Presentaciones desactivadas en este grupo.' });
+    saveConfig(config, dynamic);
+    await sock.sendMessage(chatId, { text: `🔒 ${dynamic.inactiveText}` });
     return;
   }
 
@@ -1022,7 +1075,7 @@ export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmi
     const active = config.enabled_groups?.[chatId]?.activo === true;
     await sock.sendMessage(chatId, {
       text:
-        `📸 *Estado de presentaciones*\n\n` +
+        `📸 *${dynamic.statusTitle}*\n\n` +
         `▸ Grupo : ${chatId}\n` +
         `▸ Estado: ${active ? '✅ ACTIVO' : '🔒 CERRADO'}`,
     });
@@ -1031,10 +1084,18 @@ export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmi
 
   await sock.sendMessage(chatId, {
     text:
-      `📸 *PRESENTACIONES — comandos admin:*\n\n` +
-      `!presentaciones activar    → abrir dinamica en este grupo\n` +
-      `!presentaciones desactivar → cerrar dinamica\n` +
-      `!presentaciones estado     → ver estado\n\n` +
-      `Los miembros se presentan enviando una foto al privado del bot. Se publica con encuesta.`,
+      `📸 *${dynamic.adminTitle} — comandos admin:*\n\n` +
+      `!${dynamic.commandName} activar    → abrir dinamica en este grupo\n` +
+      `!${dynamic.commandName} desactivar → cerrar dinamica\n` +
+      `!${dynamic.commandName} estado     → ver estado\n\n` +
+      dynamic.introText,
   });
+}
+
+export async function manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args) {
+  return manejarComandoFotoDinamica(sock, chatId, senderJid, isAdmin, args, DYNAMICS.presentaciones);
+}
+
+export async function manejarComandoTinder(sock, chatId, senderJid, isAdmin, args) {
+  return manejarComandoFotoDinamica(sock, chatId, senderJid, isAdmin, args, DYNAMICS.tinder);
 }

@@ -136,6 +136,7 @@ export async function menuCommand(sock, msg) {
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
   ▸ !confesiones [grupo|abrir|cerrar|estado] — Confesiones anónimas
   ▸ !presentaciones [activar|desactivar|estado] — Fotos privadas + encuesta
+  ▸ !tinder [activar|desactivar|estado] — Fotos privadas + encuesta MATCH/NEXT
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🎮 *MINIJUEGOS*               ┃
