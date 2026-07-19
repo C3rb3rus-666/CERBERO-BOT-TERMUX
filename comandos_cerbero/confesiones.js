@@ -98,7 +98,7 @@ async function dibujarLineaMixta(ctx, segs, x, y, fontSize) {
 
 const DATA_PATH   = path.resolve(process.cwd(), 'comandos_cerbero', 'confesiones_data.json');
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'confesiones_config.json');
-
+const CONFESIONES_GROUP_SEND_DELAY_MS = Number(process.env.CONFESIONES_GROUP_SEND_DELAY_MS || 900);
 // ── Persistencia ─────────────────────────────────────────────────────────────
 
 function loadData() {
@@ -140,6 +140,10 @@ function getNormalizedConfig() {
   }
 
   return createEmptyConfig();
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 function getActiveGroupIds(config = getNormalizedConfig()) {
@@ -370,7 +374,8 @@ async function publicarConf(sock, texto, id, groupIds = null) {
     const ts = new Date().toLocaleString('es-CO', { timeZone: 'America/Bogota', hour12: false });
     const frase = FRASES_INCENTIVO[id % FRASES_INCENTIVO.length];
 
-    for (const groupId of groupIdsToUse) {
+    for (let index = 0; index < groupIdsToUse.length; index++) {
+      const groupId = groupIdsToUse[index];
       let mentions = [];
       if (esTurnoTag) {
         try {
@@ -401,6 +406,9 @@ async function publicarConf(sock, texto, id, groupIds = null) {
       });
       console.log(`[CONF] ✅ #${id} publicada → ${groupId}`);
       published++;
+      if (index < groupIdsToUse.length - 1) {
+        await sleep(CONFESIONES_GROUP_SEND_DELAY_MS);
+      }
     }
     return published > 0;
   } catch (e) {

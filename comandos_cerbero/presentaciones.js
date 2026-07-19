@@ -28,8 +28,8 @@ const DYNAMICS = {
     key: 'tinder',
     label: 'tinder',
     configPath: path.resolve(process.cwd(), 'comandos_cerbero', 'tinder_config.json'),
-    pollTitle: 'TINDER DEL GRUPO',
-    pollOptions: ['MATCH', 'NEXT'],
+    pollTitle: 'TINDER 😈😈',
+    pollOptions: ['MATCH😍', 'NEXT'],
     captionTitle: '💘 *TINDER — PERFIL DEL GRUPO*',
     publishedName: 'Perfil Tinder',
     activeTitle: 'Tinder activado',
@@ -51,6 +51,11 @@ const MAX_IMAGE_BYTES = Number(process.env.PRESENTACIONES_MAX_IMAGE_BYTES || (AR
 const PRESENTATION_MAX_PENDING = Number(process.env.PRESENTACIONES_MAX_PENDING || (ARM_SAFE_MODE ? 2 : 5));
 const PRESENTATION_FLOOD_WINDOW_MS = Number(process.env.PRESENTACIONES_FLOOD_WINDOW_MS || 60_000);
 const PRESENTATION_MAX_IMAGES_PER_WINDOW = Number(process.env.PRESENTACIONES_MAX_IMAGES_PER_WINDOW || 2);
+const PRESENTATION_GROUP_SEND_DELAY_MS = Number(process.env.PRESENTACIONES_GROUP_SEND_DELAY_MS || 900);
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 let sharp = null;
 if (!ARM_SAFE_MODE) {
@@ -1004,7 +1009,8 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
   const caption = buildPresentationCaption(text, captionSafety, dynamic);
   let published = 0;
 
-  for (const { groupId } of destinations) {
+  for (let index = 0; index < destinations.length; index++) {
+    const { groupId } = destinations[index];
     try {
       const sentImage = await sock.sendMessage(groupId, {
         image: buffer,
@@ -1015,6 +1021,9 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
       published++;
     } catch (err) {
       console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
+    }
+    if (index < destinations.length - 1) {
+      await sleep(PRESENTATION_GROUP_SEND_DELAY_MS);
     }
   }
 

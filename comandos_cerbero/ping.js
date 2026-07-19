@@ -94,7 +94,7 @@ export const ping = async (sock, msg, groupMetadata) => {
                         const messageLines = [
 '╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
 '║',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 95*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 97*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
 '╠══ [ *📡 SENSORS & COOLING* ] ══',
@@ -132,7 +132,7 @@ export const ping = async (sock, msg, groupMetadata) => {
 ...statusLines.map((line) => `║ ${line}`),
 '║',
 '╚════════════════════════════╝',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 95*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.4.19 Build 97*`,
 `║ _¿Quieres un bot como este? Contacta al creador C3rb3rus-666 · +57 3233704652_`
 ].join('\n');
 
