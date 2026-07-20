@@ -77,8 +77,14 @@ export async function sendImageWithCaption(sock, message, caption, opts = {}) {
 const DB_PATH = './comandos_cerbero/juegos/gameData.json';
 let gameData = {};
 
-// ⏱️ Función de delay para evitar saturación de API
-function delay(ms) {
+// ⏱️ Función de delay aleatorio para simular comportamiento humano
+// Evita patrones sospechosos de delays fijos
+function delay(min, max) {
+  // Si solo se pasa un argumento, usar como valor fijo (para compatibilidad)
+  if (max === undefined) {
+    max = min;
+  }
+  const ms = Math.floor(Math.random() * (max - min + 1)) + min;
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
@@ -657,7 +663,7 @@ export async function commandWork(sock, msg) {
 `.trim();
 
         const randomImagePathTrampa = getRandomImage(imagesDir);
-        await delay(200); // Delay para evitar saturación
+        await delay(150, 250); // Delay aleatorio para evitar saturación
         if (randomImagePathTrampa) {
             const imageBuffer = fs.readFileSync(randomImagePathTrampa);
             await sock.sendMessage(msg.key.remoteJid, {
@@ -684,7 +690,7 @@ export async function commandWork(sock, msg) {
         const seconds = Math.floor(remaining / 1000);
         const cooldownText = `⌛ *Espera ${seconds}s...* El sistema está inestable.`;
         const randomImagePathCooldown = getRandomImage(imagesDir);
-        await delay(200); // Delay para evitar saturación
+        await delay(150, 250); // Delay aleatorio para evitar saturación
         if (randomImagePathCooldown) {
             const imageBuffer = fs.readFileSync(randomImagePathCooldown);
             await sock.sendMessage(msg.key.remoteJid, {
@@ -739,7 +745,7 @@ export async function commandWork(sock, msg) {
     user.cooldowns.work = now + 60 * 1000;
     saveGameData();
 
-    await delay(300); // Delay para evitar saturación de API
+    await delay(250, 350); // Delay aleatorio para evitar saturación de API
     await sock.sendMessage(msg.key.remoteJid, {
         text: `👨‍💻 *Trabajaste como ${job.name}*
 💰 Ganaste: ${formatMoney(earned)} | Impuesto: -${formatMoney(tax)} | ✨ XP: +${job.xp}${atracoMsg}${crisisMsg}${levelUpMsg}
@@ -1844,14 +1850,14 @@ export async function commandRuleta(sock, msg, apuestaStr) {
   const apuesta = parseAmount(apuestaStr);
 
   if (isNaN(apuesta) || apuesta <= 0) {
-    await delay(200);
+    await delay(150, 250);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: "❌ *Apuesta inválida.* Ejemplo: `!ruleta 500`"
     }, { quoted: msg });
   }
 
   if (apuesta > user.money) {
-    await delay(200);
+    await delay(150, 250);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: `❌ *No tienes suficiente dinero.* Tu saldo: ${formatMoney(user.money)}`
     }, { quoted: msg });
@@ -1876,7 +1882,7 @@ export async function commandRuleta(sock, msg, apuestaStr) {
 
     fs.writeFileSync(DB_PATH, JSON.stringify(gameData, null, 2));
 
-    await delay(300);
+    await delay(250, 350);
     await sock.sendMessage(msg.key.remoteJid, {
       text: `
 💀 *PURGA GLOBAL DEL SISTEMA* 💀
@@ -1910,7 +1916,7 @@ C3rb3rus-666 ejecutó una limpieza masiva...
 
     saveGameData();
 
-    await delay(300);
+    await delay(250, 350);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: `
 💢 *CASTIGO DIVINO DE C3rb3rus-666* 💢
@@ -1968,7 +1974,7 @@ C3rb3rus-666 ejecutó una limpieza masiva...
 
     saveGameData();
 
-    await delay(300);
+    await delay(250, 350);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: mensaje + `\n🔁 Racha actual: ${user.casinoStats.consecutiveWins}`,
       mentions: [id]
@@ -1984,7 +1990,7 @@ C3rb3rus-666 ejecutó una limpieza masiva...
 
     saveGameData();
 
-    await delay(300);
+    await delay(250, 350);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: `💥 *¡BANG!* Cámara ${resultado}\n😵 *Perdiste:* ${formatMoney(apuesta)}\n💀 Tu racha fue reiniciada.`,
       mentions: [id]
@@ -2127,14 +2133,14 @@ export async function commandBlackjack(sock, msg, apuestaStr) {
   const apuesta = parseAmount(apuestaStr);
 
   if (isNaN(apuesta) || apuesta <= 0) {
-    await delay(200);
+    await delay(150, 250);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: "❌ *Apuesta inválida.*\n\n📌 Uso: `!blackjack 500`\nPuedes usar puntos o comas: `1.000` o `1,000`"
     }, { quoted: msg });
   }
 
   if (apuesta > user.money) {
-    await delay(200);
+    await delay(150, 250);
     return await sock.sendMessage(msg.key.remoteJid, {
       text: `❌ *Fondos insuficientes.*\n💰 Tu saldo: ${formatMoney(user.money)}`
     }, { quoted: msg });
@@ -2444,7 +2450,7 @@ async function _bjImagen(cartasJugador, cartasCrupier, mostrarTodo, totalJ, tota
 
 // Helper: envía imagen + caption, o solo texto si no hay imagen
 async function _bjEnviar(sock, msg, imgBuffer, caption) {
-  await delay(300); // Delay para evitar saturación de API
+  await delay(250, 350); // Delay aleatorio para evitar saturación de API
   if (imgBuffer) {
     await sock.sendMessage(msg.key.remoteJid, { image: imgBuffer, caption }, { quoted: msg });
   } else {
@@ -3058,7 +3064,7 @@ export async function commandDaily(sock, msg) {
         const hours = Math.floor(remaining / (1000 * 60 * 60));
         const errorText = `⏳ Ya reclamaste tu recompensa diaria. Vuelve en ${hours} horas.`;
         const randomImagePathError = getRandomImage(imagesDir);
-        await delay(200); // Delay para evitar saturación
+        await delay(150, 250); // Delay aleatorio para evitar saturación
         if (randomImagePathError) {
             const imageBuffer = fs.readFileSync(randomImagePathError);
             return await sock.sendMessage(msg.key.remoteJid, {
@@ -3079,7 +3085,7 @@ export async function commandDaily(sock, msg) {
   
     const successText = `🎁 *Recompensa diaria:* ${formatMoney(reward)}\n💰 *Nuevo saldo:* ${formatMoney(user.money)}`;
     const randomImagePathSuccess = getRandomImage(imagesDir);
-    await delay(200); // Delay para evitar saturación
+    await delay(150, 250); // Delay aleatorio para evitar saturación
     if (randomImagePathSuccess) {
         const imageBuffer = fs.readFileSync(randomImagePathSuccess);
         await sock.sendMessage(msg.key.remoteJid, {
@@ -3098,7 +3104,7 @@ export async function commandRob(sock, msg) {
 
     const target = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid?.[0];
     if (!target) {
-        await delay(150); // Delay para evitar saturación
+        await delay(100, 200); // Delay aleatorio para evitar saturación
         return await sock.sendMessage(msg.key.remoteJid, {
             text: "❌ Debes mencionar a un usuario para robarle. Ejemplo: !rob @usuario"
         }, { quoted: msg });
