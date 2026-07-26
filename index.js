@@ -763,7 +763,9 @@ async function connectToWhatsApp() {
               await antilink(sock, msg, groupMetadata, isAdmin);
               await deleteLongMessage(sock, msg);
               if (text.startsWith('#') || text.startsWith('.')) {
-                await sock.sendMessage(msg.key.remoteJid, { text: `❌ *Syntax Error.* Protocol requires: \`!\`` }, { quoted: msg });
+                const art = '🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 🤖';
+                const errorMsg = `❌ *Error de sintaxis.*\n\nEl bot no acepta comandos que empiecen por \`#\`. Los comandos deben empezar por \`!\`.\n\n${art}`;
+                await sock.sendMessage(msg.key.remoteJid, { text: errorMsg }, { quoted: msg });
                 return;
               }
           }
