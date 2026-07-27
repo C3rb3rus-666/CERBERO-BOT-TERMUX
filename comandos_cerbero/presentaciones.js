@@ -51,10 +51,16 @@ const MAX_IMAGE_BYTES = Number(process.env.PRESENTACIONES_MAX_IMAGE_BYTES || (AR
 const PRESENTATION_MAX_PENDING = Number(process.env.PRESENTACIONES_MAX_PENDING || (ARM_SAFE_MODE ? 2 : 5));
 const PRESENTATION_FLOOD_WINDOW_MS = Number(process.env.PRESENTACIONES_FLOOD_WINDOW_MS || 60_000);
 const PRESENTATION_MAX_IMAGES_PER_WINDOW = Number(process.env.PRESENTACIONES_MAX_IMAGES_PER_WINDOW || 2);
-const PRESENTATION_GROUP_SEND_DELAY_MS = Number(process.env.PRESENTACIONES_GROUP_SEND_DELAY_MS || 900);
+const PRESENTATION_GROUP_SEND_DELAY_MS = Number(process.env.PRESENTACIONES_GROUP_SEND_DELAY_MS || 3500);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Delay humano con variabilidad (±500ms) para evitar detección automática
+function getHumanDelay(baseMs) {
+  const variance = Math.random() * 1000 - 500; // ±500ms
+  return Math.max(baseMs + variance, 1000); // Mínimo 1 segundo
 }
 
 let sharp = null;
@@ -1023,7 +1029,7 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
       console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
     }
     if (index < destinations.length - 1) {
-      await sleep(PRESENTATION_GROUP_SEND_DELAY_MS);
+      await sleep(getHumanDelay(PRESENTATION_GROUP_SEND_DELAY_MS));
     }
   }
 

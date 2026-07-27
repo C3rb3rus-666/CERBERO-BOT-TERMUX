@@ -98,7 +98,13 @@ async function dibujarLineaMixta(ctx, segs, x, y, fontSize) {
 
 const DATA_PATH   = path.resolve(process.cwd(), 'comandos_cerbero', 'confesiones_data.json');
 const CONFIG_PATH = path.resolve(process.cwd(), 'comandos_cerbero', 'confesiones_config.json');
-const CONFESIONES_GROUP_SEND_DELAY_MS = Number(process.env.CONFESIONES_GROUP_SEND_DELAY_MS || 900);
+const CONFESIONES_GROUP_SEND_DELAY_MS = Number(process.env.CONFESIONES_GROUP_SEND_DELAY_MS || 3500);
+
+// Delay humano con variabilidad (±500ms) para evitar detección automática
+function getHumanDelay(baseMs) {
+  const variance = Math.random() * 1000 - 500; // ±500ms
+  return Math.max(baseMs + variance, 1000); // Mínimo 1 segundo
+}
 // ── Persistencia ─────────────────────────────────────────────────────────────
 
 function loadData() {
@@ -407,7 +413,7 @@ async function publicarConf(sock, texto, id, groupIds = null) {
       console.log(`[CONF] ✅ #${id} publicada → ${groupId}`);
       published++;
       if (index < groupIdsToUse.length - 1) {
-        await sleep(CONFESIONES_GROUP_SEND_DELAY_MS);
+        await sleep(getHumanDelay(CONFESIONES_GROUP_SEND_DELAY_MS));
       }
     }
     return published > 0;

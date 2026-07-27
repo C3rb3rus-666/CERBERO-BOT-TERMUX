@@ -42,14 +42,18 @@ echo ""
 echo "📝 Variables de entorno para ARM64:"
 echo "===================================="
 
-# ─── Exportar variables para nsfw_detector.js (ARM64) ───
-export NSFW_MAX_CONCURRENCY=1
-export NSFW_MAX_QUEUE=4
-export NSFW_DETECTION_TIMEOUT_MS=45000
+# ─── Exportar variables para nsfw_detector.js (ARM64 - MEJORADO) ───
+export NSFW_FORCE_XENOVA=1              # Habilita Xenova en ARM64 (soluciona GPU warnings)
+export NSFW_MAX_CONCURRENCY=2           # 2 imágenes paralelas (ARM64 moderno puede)
+export NSFW_MAX_QUEUE=6                 # cola max 6 imágenes
+export NSFW_DETECTION_TIMEOUT_MS=60000  # 60s timeout para análisis
+export XENOVA_BACKEND=wasm              # Backend WASM optimizado para ARM
 
-echo "  NSFW_MAX_CONCURRENCY=1          (1 imagen simultanea en ARM)"
-echo "  NSFW_MAX_QUEUE=4                (cola max 4 imágenes)"
-echo "  NSFW_DETECTION_TIMEOUT_MS=45000 (45s timeout para análisis)"
+echo "  NSFW_FORCE_XENOVA=1             (Xenova habilitado en ARM64)"
+echo "  NSFW_MAX_CONCURRENCY=2          (2 imágenes paralelas)"
+echo "  NSFW_MAX_QUEUE=6                (cola max 6 imágenes)"
+echo "  NSFW_DETECTION_TIMEOUT_MS=60000 (60s timeout para análisis)"
+echo "  XENOVA_BACKEND=wasm             (Backend WASM optimizado para ARM)"
 
 # ─── Exportar variables para presentaciones.js (ARM64) ───
 export PRESENTACIONES_ARM_SAFE_MODE=1
@@ -69,20 +73,29 @@ echo "  PRESENTACIONES_MAX_PENDING=2"
 echo "  PRESENTACIONES_NSFW_TIMEOUT_MS=60000"
 echo "  PRESENTACIONES_CLIP_TIMEOUT_MS=45000"
 echo "  PRESENTACIONES_GROUP_SEND_DELAY_MS=1200 (delay entre envios en grupos)"
+echo ""
+echo "📌 NUEVAS OPTIMIZACIONES:"
+echo "   • Xenova anti-NSFW habilitado (detecta con precisión en ARM64)"
+echo "   • Delays humanizados para evitar detección de WhatsApp"
+echo "   • Mejor paralelismo (2 threads ONNX) sin sobrecargar"
+echo "   • Memoria Node optimizada (768MB)"
+echo "   • Backend WASM para Xenova (máximo rendimiento en ARM)"
 
-# ─── Configuración Python para ARM64 ───
-export ONNX_NUM_THREADS=1
-export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
+# ─── Configuración Python para ARM64 (MEJORADA) ───
+export ONNX_NUM_THREADS=2              # 2 threads para mejor paralelismo
+export OMP_NUM_THREADS=2
+export MKL_NUM_THREADS=2
+export PYTHON_WORKERS_AUTO=1            # Detectar workers automáticamente
 
-echo "  ONNX_NUM_THREADS=1  (1 thread para modelos ONNX)"
-echo "  OMP_NUM_THREADS=1   (1 thread OpenMP)"
-echo "  MKL_NUM_THREADS=1   (1 thread MKL)"
+echo "  ONNX_NUM_THREADS=2  (2 threads para modelos ONNX - mejor paralelismo)"
+echo "  OMP_NUM_THREADS=2   (2 thread OpenMP)"
+echo "  MKL_NUM_THREADS=2   (2 thread MKL)"
+echo "  PYTHON_WORKERS_AUTO=1 (workers automáticos)"
 
-# ─── Variables de Node.js ───
-export NODE_OPTIONS="--max-old-space-size=512 --max-semi-space-size=64"
+# ─── Variables de Node.js (AUMENTADA PARA ARM64 MODERNO) ───
+export NODE_OPTIONS="--max-old-space-size=768 --max-semi-space-size=128"
 
-echo "  NODE_OPTIONS=--max-old-space-size=512 (limitar memoria Node)"
+echo "  NODE_OPTIONS=--max-old-space-size=768 (memoria aumentada para modelos ML)"
 
 echo ""
 echo "✅ Configuración ARM64 lista"

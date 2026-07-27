@@ -43,9 +43,11 @@ export const instagramCb = async (sock, msg, args) => {
   try {
     const res = await instagramDownload(url);
     if (!res || !res.status) throw new Error('fallback');
-    for (const item of res.data) {
+    for (let i = 0; i < res.data.length; i++) {
+      const item = res.data[i];
       if (item.type === 'image') await sock.sendMessage(chatId, { image: { url: item.url } }, { quoted: msg });
       else await sock.sendMessage(chatId, { video: { url: item.url } }, { quoted: msg });
+      if (i < res.data.length - 1) await new Promise(resolve => setTimeout(resolve, 800));
     }
   } catch (e) {
     console.error('IG fallback:', e);
@@ -53,9 +55,11 @@ export const instagramCb = async (sock, msg, args) => {
     try {
       const res2 = await axios.get(global.BASE_API_DELIRIUS + '/download/instagram', { params: { url } });
       const data = res2.data.data || [];
-      for (const item of data) {
+      for (let i = 0; i < data.length; i++) {
+        const item = data[i];
         if (item.type === 'image') await sock.sendMessage(chatId, { image: { url: item.url } }, { quoted: msg });
         else await sock.sendMessage(chatId, { video: { url: item.url } }, { quoted: msg });
+        if (i < data.length - 1) await new Promise(resolve => setTimeout(resolve, 800));
       }
     } catch (err) {
       console.error('IG error final:', err);

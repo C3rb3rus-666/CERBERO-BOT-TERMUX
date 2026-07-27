@@ -13,8 +13,18 @@ import { createRequire } from 'module';
 // sharp y canvas son dependencias nativas — cargar de forma dinámica para no crashear en ARM/Termux
 let sharp = null;
 let _canvasLib = null;
-try { sharp = (await import('sharp')).default; } catch (e) { console.warn('[NSFW] sharp no disponible (ARM/Termux):', e.message?.slice(0,60)); }
-try { _canvasLib = await import('canvas'); } catch (e) { console.warn('[NSFW] canvas no disponible (ARM/Termux):', e.message?.slice(0,60)); }
+try { 
+  sharp = (await import('sharp')).default; 
+  if (IS_ARM_RUNTIME) console.log('[NSFW] ✓ sharp cargado para ARM64.');
+} catch (e) { 
+  console.warn('[NSFW] ⚠ sharp no disponible (puede causar lentitud en ARM).');
+}
+try { 
+  _canvasLib = await import('canvas');
+  if (IS_ARM_RUNTIME) console.log('[NSFW] ✓ canvas cargado para ARM64.');
+} catch (e) { 
+  console.warn('[NSFW] ⚠ canvas no disponible (se usará fallback).');
+}
 const createCanvas = _canvasLib?.createCanvas || null;
 const loadImage    = _canvasLib?.loadImage    || null;
 
@@ -31,26 +41,26 @@ xenovaEnv.backends          = { onnx: { wasm: { numThreads: 1 } } };
 const XENOVA_TMP_DIR = path.join(os.tmpdir(), 'cerbero_nsfw_xenova');
 const IS_ARM_RUNTIME = process.arch === 'arm' || process.arch === 'arm64';
 const FORCE_XENOVA = /^(1|true|yes|on)$/i.test(process.env.NSFW_FORCE_XENOVA || '');
-const DISABLE_XENOVA = /^(1|true|yes|on)$/i.test(process.env.NSFW_DISABLE_XENOVA || '') || (IS_ARM_RUNTIME && !FORCE_XENOVA);
+const DISABLE_XENOVA = /^(1|true|yes|on)$/i.test(process.env.NSFW_DISABLE_XENOVA || '');
+// En ARM64: permitir Xenova si FORCE_XENOVA=1, sino solo si NO está explícitamente deshabilitado
+const XENOVA_ARM_MODE = IS_ARM_RUNTIME && (FORCE_XENOVA || !DISABLE_XENOVA);
 let _xenovaArmWarned = false;
 
-// ─ tfjs-node requiere AVX/AVX2 en x64. Esta CPU solo tiene SSE4.2.
-// Cargar tfjs-node causaría SIGILL (crash del proceso). Se usa backend JS puro.
-// Para activar: verificar primero con `grep avx /proc/cpuinfo`
-// try {
-//   _require('@tensorflow/tfjs-node');
-//   console.log('[NSFW] Backend tfjs-node activado.');
-// } catch (err) {
-//   console.warn('[NSFW] tfjs-node no disponible, usando JS puro:', err.message);
-// }
-console.log('[NSFW] Backend: JS puro (CPU sin AVX — tfjs-node desactivado).');
+// ─ tfjs-node requiere AVX/AVX2 en x64. CPU sin AVX usará JS puro.
+// Cargar tfjs-node causaría SIGILL (crash). En ARM64 se evita automaticamente.
+if (IS_ARM_RUNTIME) {
+  console.log('[NSFW] ARM64 detectado: usando backend Xenova WASM (ONNX optimizado).');
+} else {
+  console.log('[NSFW] Backend: JS puro (CPU sin AVX — tfjs-node desactivado).');
+}
 
 // nsfwjs via CJS para evitar ERR_UNSUPPORTED_DIR_IMPORT
 let _nsfwjsLib = null;
 try {
   _nsfwjsLib = _require('nsfwjs');
+  if (IS_ARM_RUNTIME) console.log('[NSFW] ✓ nsfwjs cargado para ARM64.');
 } catch (err) {
-  console.warn('[NSFW] nsfwjs no disponible:', err.message);
+  console.warn('[NSFW] ⚠ nsfwjs no disponible (se usará solo Xenova).');
 }
 
 // jimp para pHash perceptual (blacklist de imágenes NSFW conocidas)
@@ -58,8 +68,9 @@ let _jimp = null;
 try {
   const jimpLib = _require('jimp');
   _jimp = jimpLib.Jimp ? jimpLib.Jimp : jimpLib;
+  if (IS_ARM_RUNTIME) console.log('[NSFW] ✓ jimp cargado para perceptual hashing.');
 } catch (err) {
-  console.warn('[NSFW] jimp no disponible (pHash desactivado):', err.message);
+  console.warn('[NSFW] ⚠ jimp no disponible (pHash desactivado).');
 }
 
 
@@ -153,23 +164,24 @@ let _nsfwjsModel  = null;
 async function loadXenovaClassifier() {
   if (_xenovaModel)  return _xenovaModel;
   if (_xenovaFailed) return null;           // ya falló antes, no reintentar
-  if (DISABLE_XENOVA) {
+  if (DISABLE_XENOVA && !FORCE_XENOVA) {
     if (!_xenovaArmWarned) {
-      console.warn('[NSFW] Xenova desactivado para estabilidad en ARM/Termux. Usa NSFW_FORCE_XENOVA=1 si quieres probarlo.');
+      console.warn('[NSFW] Xenova desactivado. Para habilitarlo: NSFW_FORCE_XENOVA=1');
       _xenovaArmWarned = true;
     }
     _xenovaFailed = true;
     return null;
   }
   try {
-    console.log('[NSFW] Cargando Xenova (AdamCodd/vit-base-nsfw-detector) desde caché local...');
+    const model = IS_ARM_RUNTIME ? 'AdamCodd/vit-base-nsfw-detector' : 'Falconsai/nsfw_image_detection';
+    console.log(`[NSFW] Cargando Xenova (${model}) desde caché local...`);
     _xenovaModel = await pipeline(
       'image-classification',
-      'AdamCodd/vit-base-nsfw-detector'
+      model
     );
     console.log('[NSFW] ✅ Xenova listo.');
   } catch (err) {
-    console.warn(`[NSFW] Xenova no disponible (${err.message}) — se usará solo nsfwjs.`);
+    console.warn(`[NSFW] Xenova no disponible (${err.message?.slice(0, 80)}) — se usará nsfwjs como respaldo.`);
     _xenovaModel  = null;
     _xenovaFailed = true;   // bloquea reintentos de red
   }
