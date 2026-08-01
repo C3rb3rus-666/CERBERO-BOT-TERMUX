@@ -13,6 +13,7 @@ import fs from 'fs';
 import path from 'path';
 import { getCounts, getCountsSinceBaseline } from '../utils/messageCounter.js';
 import { fileURLToPath } from 'url';
+import { enqueueGlobalCommandTask } from '../utils/global_command_queue.js';
 
 // ── RUTAS ────────────────────────────────────────────────────────────────────
 
@@ -1015,14 +1016,15 @@ async function _enviarBienvenida(sock, chatId, mentions, groupMetadata) {
       imagePath = path.join(IMAGES_DIR, images[Math.floor(Math.random() * images.length)]);
   } catch (_) { /* fallback a texto */ }
 
-  await sock.sendPresenceUpdate('composing', chatId);
-  await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
-
-  if (imagePath) {
-    await sock.sendMessage(chatId, { image: { url: imagePath }, caption: mensaje, mentions });
-  } else {
-    await sock.sendMessage(chatId, { text: mensaje, mentions });
-  }
+  enqueueGlobalCommandTask(async () => {
+    await sock.sendPresenceUpdate('composing', chatId);
+    await new Promise(r => setTimeout(r, 1500 + Math.random() * 1000));
+    if (imagePath) {
+      await sock.sendMessage(chatId, { image: { url: imagePath }, caption: mensaje, mentions });
+    } else {
+      await sock.sendMessage(chatId, { text: mensaje, mentions });
+    }
+  }, { chatId, command: 'bienvenida_autonoma' });
 }
 
 /**
