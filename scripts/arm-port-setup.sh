@@ -106,7 +106,11 @@ install_node_stack() {
     apt-get install -y libglib2.0-dev 2>/dev/null || warn "No se pudo instalar libglib2.0-dev; si sharp falla al compilar, ejecuta: apt-get install -y libglib2.0-dev"
   fi
   npm install --include=dev
-  npm rebuild sharp --build-from-source || warn "No se pudo rebuild sharp desde fuente."
+  if node -e "require('sharp')" >/dev/null 2>&1; then
+    log "sharp importa correctamente; se omite rebuild forzado."
+  else
+    npm rebuild sharp --build-from-source || warn "No se pudo rebuild sharp desde fuente."
+  fi
   npm rebuild canvas --build-from-source || warn "No se pudo rebuild canvas desde fuente."
 }
 
