@@ -71,6 +71,31 @@ detect_pm() {
   echo none
 }
 
+ensure_sharp_prereqs() {
+  local pm="$1"
+  case "$pm" in
+    apt)
+      # En Debian/Ubuntu proot, sharp/vips necesita estas cabeceras para rebuild.
+      run_as_root env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+        libglib2.0-dev libvips-dev libwebp-dev libcairo2-dev libpango1.0-dev \
+        libjpeg-dev libpng-dev libgif-dev librsvg2-dev >/dev/null 2>&1 \
+        || warn "No se pudieron instalar todas las cabeceras sharp; el instalador siguio con el mejor esfuerzo."
+      ;;
+    termux)
+      pkg install -y glib vips webp cairo pango jpeg-turbo libpng giflib librsvg >/dev/null 2>&1 \
+        || warn "No se pudieron instalar todas las dependencias sharp en Termux; el instalador siguio con el mejor esfuerzo."
+      ;;
+    apk)
+      run_as_root apk add --no-cache glib-dev vips-dev webp-dev cairo-dev pango-dev jpeg-dev libpng-dev giflib-dev librsvg-dev >/dev/null 2>&1 \
+        || warn "No se pudieron instalar todas las dependencias sharp en Alpine; el instalador siguio con el mejor esfuerzo."
+      ;;
+    dnf|yum|zypper|xbps)
+      # Ya se cubren en install_system_packages; esto solo fuerza la presencia de cabeceras clave.
+      :
+      ;;
+  esac
+}
+
 install_system_packages() {
   local pm="$1"
   log "Gestor detectado: ${pm} — instalando dependencias del sistema..."
@@ -159,6 +184,7 @@ main() {
   if [[ "$SKIP_SYSTEM" -eq 0 ]]; then
     pm="$(detect_pm)"
     install_system_packages "$pm"
+    ensure_sharp_prereqs "$pm"
   else
     log "Saltando paquetes del sistema por --skip-system"
   fi
