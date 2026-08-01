@@ -60,6 +60,7 @@
   "homepage": "https://github.com/C3rb3rus-666/CERBERO-BOT#readme",
   "devDependencies": {
     "eslint": "^9.39.2",
+    "node-gyp": "^10.1.0",
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0"
   },

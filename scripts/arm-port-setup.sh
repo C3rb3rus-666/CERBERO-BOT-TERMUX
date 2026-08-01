@@ -101,6 +101,10 @@ install_node_stack() {
   log "Instalando/ajustando stack Node para modulos nativos..."
   command -v npm >/dev/null 2>&1 || die "npm no esta instalado."
   cd "$ROOT_DIR"
+  # Asegurar cabeceras glib necesarias para compilar sharp/vips en ARM
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get install -y libglib2.0-dev 2>/dev/null || warn "No se pudo instalar libglib2.0-dev; si sharp falla al compilar, ejecuta: apt-get install -y libglib2.0-dev"
+  fi
   npm install --include=dev
   npm rebuild sharp --build-from-source || warn "No se pudo rebuild sharp desde fuente."
   npm rebuild canvas --build-from-source || warn "No se pudo rebuild canvas desde fuente."
