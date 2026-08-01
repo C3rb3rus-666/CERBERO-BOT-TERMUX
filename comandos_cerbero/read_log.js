@@ -1,21 +1,12 @@
 import fs from 'fs/promises';
+import { denyIfNotOwner } from './owner_guard.js';
 
 const LOG_PATH = './comandos_cerbero/configuraciones/deleted_links.json';
 
-export async function readLog(sock, message, isAdmin) {
+export async function readLog(sock, message) {
   try {
-    const participantId = message.key.participant || message.key.remoteJid;
-    const senderName = message.pushName || participantId.split('@')[0];
-    const isC3 = participantId.toLowerCase().includes('c3rb3rus-666') || (senderName && senderName.toLowerCase().includes('c3rb3rus-666'));
-
-    if (!isC3) {
-      await sock.sendMessage(
-        message.key.remoteJid,
-        { text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🚫 Comando *exclusivo* para C3rb3rus-666.' },
-        { quoted: message }
-      );
-      return;
-    }
+    const denied = await denyIfNotOwner(sock, message);
+    if (denied) return;
 
     // Leer el archivo de logs
     const data = await fs.readFile(LOG_PATH, 'utf-8');

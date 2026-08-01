@@ -15,6 +15,9 @@ try {
   console.warn('[NSFW] sharp no disponible para señal anti-gore:', err.message?.slice(0, 80));
 }
 
+const GORE_SAFE_OVERRIDE_SCORE = Number(process.env.GORE_SAFE_OVERRIDE_SCORE || 0.90);
+const GORE_MODEL_CONFIRM_SCORE = Number(process.env.GORE_MODEL_CONFIRM_SCORE || 0.45);
+
 function getRandomMenuImage(preferredPrefixes = ['menu', 'ping']) {
   try {
     const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
@@ -42,13 +45,50 @@ function getRandomMenuImage(preferredPrefixes = ['menu', 'ping']) {
 let _nsfwProcessingCount = 0;
 const NSFW_MAX_CONCURRENCY = Number(process.env.NSFW_MAX_CONCURRENCY || ((process.arch === 'arm' || process.arch === 'arm64') ? 1 : 2));
 const NSFW_MAX_QUEUE = Number(process.env.NSFW_MAX_QUEUE || ((process.arch === 'arm' || process.arch === 'arm64') ? 4 : 12));
+const NSFW_HARD_MAX_QUEUE = Number(process.env.NSFW_HARD_MAX_QUEUE || 120);
+const NSFW_DEBUG = /^(1|true|yes|on)$/i.test(process.env.NSFW_DEBUG || '');
+const NSFW_SAFE_BATCH_NOTICE_ENABLED = !/^(0|false|no|off)$/i.test(process.env.NSFW_SAFE_BATCH_NOTICE_ENABLED || '1');
+const NSFW_SAFE_BATCH_WINDOW_MS = Number(process.env.NSFW_SAFE_BATCH_WINDOW_MS || 30_000);
 const _nsfwQueue = [];
 const OVERLAY_COOLDOWN_MS = 30 * 1000;
 const _overlayTimestamps = new Map();
+const _safeBatchByGroup = new Map();
 
-// Cooldown por usuario para el aviso de imagen segura (90 segundos)
-const SAFE_NOTICE_COOLDOWN_MS = 90 * 1000;
-const _safeNoticeTimestamps = new Map();
+function nsfwDebugLog(...args) {
+  if (NSFW_DEBUG) {
+    console.log(...args);
+  }
+}
+
+function queueSafeBatchNotice(sock, groupId) {
+  if (!NSFW_SAFE_BATCH_NOTICE_ENABLED || !groupId) return;
+
+  let batch = _safeBatchByGroup.get(groupId);
+  if (!batch) {
+    batch = { count: 0, timer: null };
+    _safeBatchByGroup.set(groupId, batch);
+  }
+
+  batch.count += 1;
+  if (batch.timer) return;
+
+  batch.timer = setTimeout(async () => {
+    const snapshot = _safeBatchByGroup.get(groupId);
+    if (!snapshot) return;
+    _safeBatchByGroup.delete(groupId);
+
+    const text = `🛡️ Anti-NSFW: ${snapshot.count} imagen(es) seguras verificadas en cola.`;
+    try {
+      await sock.sendMessage(groupId, { text });
+    } catch (err) {
+      console.error('[NSFW] Error enviando resumen SAFE:', err.message || err);
+    }
+  }, NSFW_SAFE_BATCH_WINDOW_MS);
+
+  if (typeof batch.timer?.unref === 'function') {
+    batch.timer.unref();
+  }
+}
 
 function _acquireNsfwSlot() {
   return new Promise((resolve) => {
@@ -56,7 +96,10 @@ function _acquireNsfwSlot() {
       _nsfwProcessingCount++;
       return resolve(true);
     }
-    if (_nsfwQueue.length >= NSFW_MAX_QUEUE) return resolve(false);
+    if (_nsfwQueue.length >= NSFW_HARD_MAX_QUEUE) return resolve(false);
+    if (_nsfwQueue.length >= NSFW_MAX_QUEUE) {
+      nsfwDebugLog(`[NSFW] Cola por encima del objetivo (${_nsfwQueue.length}/${NSFW_MAX_QUEUE}), en espera.`);
+    }
     _nsfwQueue.push(resolve);
   });
 }
@@ -144,7 +187,7 @@ function collectMediaEntries(msg) {
   push(quoted);
   push(getViewOnceContainer(quoted));
 
-  console.log(`[NSFW] collectMediaEntries: ${entries.length} entrada(s). root keys: [${Object.keys(root || {}).join(', ')}]`);
+  nsfwDebugLog(`[NSFW] collectMediaEntries: ${entries.length} entrada(s). root keys: [${Object.keys(root || {}).join(', ')}]`);
   return entries;
 }
 
@@ -153,7 +196,7 @@ async function detectGorePixelSignal(imageBuffer) {
 
   try {
     const { data, info } = await sharp(imageBuffer, { animated: false })
-      .resize(128, 128, { fit: 'inside' })
+      .resize(96, 96, { fit: 'inside' })
       .removeAlpha()
       .raw()
       .toBuffer({ resolveWithObject: true });
@@ -164,6 +207,9 @@ async function detectGorePixelSignal(imageBuffer) {
     const gray = new Uint8Array(pixels);
     let blood = 0;
     let edges = 0;
+    let darkPixels = 0;
+    let redPixels = 0;
+    let flatRedPixels = 0;
 
     for (let i = 0, p = 0; i < data.length; i += info.channels, p++) {
       const r = data[i];
@@ -173,7 +219,16 @@ async function detectGorePixelSignal(imageBuffer) {
 
       const brightBlood = r > 95 && g < 115 && b < 115 && r > g * 1.55 && r > b * 1.45 && (r - g) > 45 && (r - b) > 45;
       const darkBlood = r > 55 && r < 175 && g < 70 && b < 75 && r > g * 1.65 && r > b * 1.45;
-      if (brightBlood || darkBlood) blood++;
+      const isBloodLike = brightBlood || darkBlood;
+
+      if (isBloodLike) blood++;
+      if (r > 90 && g < 120 && b < 120) redPixels++;
+      if (gray[p] < 55) darkPixels++;
+
+      // Rojo plano (camisa/pared/pintura uniforme): baja probabilidad de gore.
+      if (isBloodLike && p > 0 && Math.abs(gray[p] - gray[p - 1]) < 8) {
+        flatRedPixels++;
+      }
     }
 
     for (let y = 1; y < info.height; y++) {
@@ -187,14 +242,26 @@ async function detectGorePixelSignal(imageBuffer) {
 
     const bloodRatio = blood / pixels;
     const edgeDensity = edges / pixels;
-    const score = Math.min(0.99, Math.max(bloodRatio * 2.4, bloodRatio + edgeDensity));
-    const blocked = bloodRatio > 0.36 || (bloodRatio > 0.25 && edgeDensity > 0.08);
+    const darkRatio = darkPixels / pixels;
+    const redRatio = redPixels / pixels;
+    const flatRedRatio = redPixels > 0 ? (flatRedPixels / redPixels) : 0;
+    const traumaScore = (bloodRatio * 1.7) + (edgeDensity * 2.2) + (darkRatio * 0.7);
+    const score = Math.min(0.99, traumaScore);
+
+    // Bloquea solo si existe patrón de trauma visual, no solo rojo dominante.
+    const hasStrongTraumaPattern =
+      (bloodRatio > 0.24 && edgeDensity > 0.12) ||
+      (bloodRatio > 0.32 && edgeDensity > 0.10 && darkRatio > 0.10) ||
+      (score > 0.86 && edgeDensity > 0.11);
+
+    const isLikelyFlatRedNoise = redRatio > 0.22 && flatRedRatio > 0.38 && edgeDensity < 0.11;
+    const blocked = hasStrongTraumaPattern && !isLikelyFlatRedNoise;
 
     if (blocked) {
-      console.warn(`[NSFW] Anti-gore pixel: blood=${bloodRatio.toFixed(3)} edge=${edgeDensity.toFixed(3)}`);
+      console.warn(`[NSFW] Anti-gore pixel: blood=${bloodRatio.toFixed(3)} edge=${edgeDensity.toFixed(3)} dark=${darkRatio.toFixed(3)} score=${score.toFixed(3)}`);
     }
 
-    return { blocked, score, bloodRatio, edgeDensity };
+    return { blocked, score, bloodRatio, edgeDensity, darkRatio, redRatio, flatRedRatio };
   } catch (err) {
     console.warn('[NSFW] Anti-gore pixel error:', err.message || err);
     return { blocked: false, score: 0, bloodRatio: 0, edgeDensity: 0 };
@@ -206,15 +273,15 @@ async function processImageEntry(entry, context, entryIndex) {
 
   const slot = await _acquireNsfwSlot();
   if (!slot) {
-    console.warn(`[NSFW] Cola saturada (${_nsfwQueue.length}/${NSFW_MAX_QUEUE}); imagen omitida para proteger el bot.`);
+    console.warn(`[NSFW] Cola saturada al limite duro (${_nsfwQueue.length}/${NSFW_HARD_MAX_QUEUE}); imagen omitida por seguridad de memoria.`);
     return;
   }
   try {
-    console.log(`[NSFW] (${entryIndex}/${context.totalEntries}) Analizando imagen (${entry.mediaMessage.mimetype || 'desconocido'})...`);
+    nsfwDebugLog(`[NSFW] (${entryIndex}/${context.totalEntries}) Analizando imagen (${entry.mediaMessage.mimetype || 'desconocido'})...`);
 
     const buffer = await downloadMediaMessage(entry.fullMessage, 'buffer', {}, sock);
     if (!buffer) {
-      console.log('[NSFW] No se pudo descargar la imagen a procesar.');
+      nsfwDebugLog('[NSFW] No se pudo descargar la imagen a procesar.');
       return;
     }
 
@@ -225,7 +292,7 @@ async function processImageEntry(entry, context, entryIndex) {
     const isNSFW = !safety.allowed;
     const entrySignature = getMediaSignature(entry.mediaMessage);
     if (isNSFW && context.alertedSignatures.has(entrySignature)) {
-      console.log(`[NSFW] Aviso repetido omitido para ${entrySignature}`);
+      nsfwDebugLog(`[NSFW] Aviso repetido omitido para ${entrySignature}`);
       return;
     }
     if (isNSFW) {
@@ -248,6 +315,14 @@ async function processImageEntry(entry, context, entryIndex) {
         ? `${baseMessage}. Usuario es admin, no se expulsa.`
         : `${baseMessage}. Expulsado del grupo.`;
 
+      if (!isAdmin) {
+        try {
+          await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
+        } catch (kickErr) {
+          console.error('[NSFW] Error expulsando usuario:', kickErr.message || kickErr);
+        }
+      }
+
       try {
         const menuImage = getRandomMenuImage();
         const overlayAllowed = menuImage && canSendOverlay(groupId);
@@ -260,7 +335,7 @@ async function processImageEntry(entry, context, entryIndex) {
           }, { quoted: entry.fullMessage });
         } else {
           if (menuImage) {
-            console.log('[NSFW] Overlay limitado, enviando solo texto en lugar de imagen.');
+            nsfwDebugLog('[NSFW] Overlay limitado, enviando solo texto en lugar de imagen.');
           }
           await sock.sendMessage(groupId, { text: caption, mentions: [userId] }, { quoted: entry.fullMessage });
         }
@@ -273,58 +348,10 @@ async function processImageEntry(entry, context, entryIndex) {
         }
       }
 
-      if (!isAdmin) {
-        try {
-          await sock.groupParticipantsUpdate(groupId, [userId], 'remove');
-        } catch (kickErr) {
-          console.error('[NSFW] Error expulsando usuario:', kickErr.message || kickErr);
-        }
-      }
-
       console.log(`[NSFW] Imagen NSFW (${topLabel}) procesada (${isAdmin ? 'admin, sin expulsión' : 'usuario expulsado'}).`);
     } else {
-      // Imagen segura: notificar en el grupo (con cooldown por usuario para no spamear)
-      console.log(`[NSFW] ✅ Imagen segura (${topLabel}: ${(topScore * 100).toFixed(1)}%). Sin acción.`);
-      const now = Date.now();
-      const lastSafe = _safeNoticeTimestamps.get(userId) || 0;
-      if (now - lastSafe >= SAFE_NOTICE_COOLDOWN_MS) {
-        _safeNoticeTimestamps.set(userId, now);
-        try {
-          const scoreLines = predictions
-            .slice(0, 5)
-            .map(p => {
-              const pct = (p.score * 100).toFixed(1);
-              const bar = '█'.repeat(Math.round(p.score * 10)) + '░'.repeat(10 - Math.round(p.score * 10));
-              return `  ${bar} ${pct}% — ${mapFriendlyLabel(p.label)}`;
-            })
-            .join('\n');
-
-          const safeText =
-            `💀 *[CERBERO-BOT* — *IMAGEN VERIFICADA]*\n` +
-            `▶ src: @${userId.split('@')[0]}\n` +
-            `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
-            `${scoreLines}\n` +
-            `▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓\n` +
-            `✅ STATUS: *CLEAN* — conf: ${(topScore * 100).toFixed(1)}%\n` +
-            `🔒 MOTOR : ·0xEY3 v1.0 — [CLASSIFIED]`;
-
-          const safeImg = getRandomMenuImage();
-          if (safeImg) {
-            await sock.sendMessage(groupId, {
-              image: fs.readFileSync(safeImg),
-              caption: safeText,
-              mentions: [userId],
-            }, { quoted: entry.fullMessage });
-          } else {
-            await sock.sendMessage(groupId, {
-              text: safeText,
-              mentions: [userId],
-            }, { quoted: entry.fullMessage });
-          }
-        } catch (noticeErr) {
-          console.error('[NSFW] Error enviando aviso seguro:', noticeErr.message || noticeErr);
-        }
-      }
+      nsfwDebugLog(`[NSFW] ✅ Imagen segura (${topLabel}: ${(topScore * 100).toFixed(1)}%). Sin acción.`);
+      queueSafeBatchNotice(sock, groupId);
     }
   } catch (error) {
     console.error(`[NSFW] Error procesando imagen ${entryIndex}/${context.totalEntries}:`, error);
@@ -356,7 +383,25 @@ export async function analyzeImageBufferForSafety(imageBuffer) {
   const topPrediction = predictions[0];
   const topLabel = topPrediction.label;
   const topScore = topPrediction.score;
-  const goreLike = goreSignal.blocked || /gore|blood|bloody|violence|violent|corpse|injur/i.test(topLabel);
+  const normalizedTop = (topLabel || '').toLowerCase();
+  const safeLabels = new Set(['neutral', 'drawing', 'safe', 'sfw_fallback']);
+  const strongSafeByModel = safeLabels.has(normalizedTop) && topScore >= GORE_SAFE_OVERRIDE_SCORE;
+  const modelNsfwEvidence = predictions.some((p) => {
+    const label = (p?.label || '').toLowerCase();
+    if (!label || safeLabels.has(label)) return false;
+    return (p?.score || 0) >= GORE_MODEL_CONFIRM_SCORE;
+  });
+
+  // Compuerta híbrida JS + ML/Python:
+  // no bloquea por rojo aislado si el consenso ML indica imagen claramente segura.
+  const goreLike =
+    /gore|blood|bloody|violence|violent|corpse|injur/i.test(normalizedTop) ||
+    (goreSignal.blocked && (modelNsfwEvidence || !strongSafeByModel));
+
+  if (goreSignal.blocked && strongSafeByModel && !modelNsfwEvidence) {
+    console.log(`[NSFW] Gore JS suprimido por consenso ML seguro (${normalizedTop}:${(topScore * 100).toFixed(1)}%).`);
+  }
+
   const blocked = isNSFWPrediction(topLabel, topScore) || goreLike;
   const finalPredictions = goreSignal.blocked
     ? [{ label: 'gore', score: goreSignal.score }, ...predictions]
@@ -381,10 +426,10 @@ export async function analyzeImageBufferForSafety(imageBuffer) {
 export async function scanImageBufferWithNsfwEngine(imageBuffer, source = 'modulo') {
   const slot = await _acquireNsfwSlot();
   if (!slot) {
-    throw new Error(`motor NSFW saturado (${_nsfwQueue.length}/${NSFW_MAX_QUEUE})`);
+    throw new Error(`motor NSFW saturado (${_nsfwQueue.length}/${NSFW_HARD_MAX_QUEUE})`);
   }
   try {
-    console.log(`[NSFW] Motor compartido: analizando ${source}. cola=${_nsfwQueue.length}/${NSFW_MAX_QUEUE} activos=${_nsfwProcessingCount}/${NSFW_MAX_CONCURRENCY}`);
+    nsfwDebugLog(`[NSFW] Motor compartido: analizando ${source}. cola=${_nsfwQueue.length}/${NSFW_MAX_QUEUE} activos=${_nsfwProcessingCount}/${NSFW_MAX_CONCURRENCY}`);
     return await analyzeImageBufferForSafety(imageBuffer);
   } finally {
     _releaseNsfwSlot();
@@ -400,30 +445,30 @@ export async function scanImageBufferWithNsfwEngine(imageBuffer, source = 'modul
  * @param {Object} groupMetadata - Metadatos del grupo.
  */
 export async function detectNSFW(sock, msg, isAdmin, groupMetadata) {
-  console.log('[NSFW] detectNSFW function called');
+  nsfwDebugLog('[NSFW] detectNSFW function called');
   if (!groupMetadata) {
-    console.log('[NSFW] No groupMetadata, skipping');
+    nsfwDebugLog('[NSFW] No groupMetadata, skipping');
     return; // Solo en grupos
   }
 
   const containsSticker = !!msg.message?.stickerMessage || !!msg.message?.extendedTextMessage?.contextInfo?.quotedMessage?.stickerMessage;
   if (containsSticker) {
-    console.log('[NSFW] Mensaje o citado contiene sticker, omitiendo detector NSFW.');
+    nsfwDebugLog('[NSFW] Mensaje o citado contiene sticker, omitiendo detector NSFW.');
     return;
   }
 
   const groupId = msg.key.remoteJid;
   const userId = msg.key.participant || msg.key.remoteJid;
 
-  console.log(`[NSFW] Función detectNSFW llamada para mensaje en ${groupId}`);
+  nsfwDebugLog(`[NSFW] Funcion detectNSFW llamada para mensaje en ${groupId}`);
 
   const entries = collectMediaEntries(msg);
   if (!entries.length) {
-    console.log('[NSFW] El mensaje no contiene imágenes que se puedan procesar.');
+    nsfwDebugLog('[NSFW] El mensaje no contiene imagenes que se puedan procesar.');
     return;
   }
 
-  console.log(`[NSFW] Se encontraron ${entries.length} imagen(es) para analizar de ${userId}.`);
+  nsfwDebugLog(`[NSFW] Se encontraron ${entries.length} imagen(es) para analizar de ${userId}.`);
 
   const context = {
     sock,

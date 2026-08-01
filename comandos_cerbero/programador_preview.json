@@ -6,7 +6,7 @@
     "buttons",
     "footer"
   ],
-  "caption": "╔══════════════════════════════════════════╗\n║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑        ║\n║    v4.4.17 (Build 93) — Online          ║\n╚══════════════════════════════════════════╝\n\n*🧑‍💻 𝗦𝗢𝗕𝗥𝗘 𝗘𝗟 𝗗𝗘𝗦𝗔𝗥𝗥𝗢𝗟𝗟𝗔𝗗𝗢𝗥*\n─────────────────────────\n• 👤 *Nombre:* Carlos Sánchez\n• 🏷️ *Alias:* C3rb3rus-666\n• 💼 *Rol:* Full-Stack Developer & Bot Creator\n• 📅 *Experiencia:* 12 años\n• 🎯 *Especialidad:* Node.js · Python · C++ · Java\n\n*⚙️ 𝗧𝗘𝗖𝗡𝗢𝗟𝗢𝗚𝗜𝗔𝗦*\n─────────────────────────\n• 🟢 Node.js + Baileys v7\n• 🐍 Python (IA local)\n• 🤖 TensorFlow.js (NSFW/NLP)\n• 🎬 FFmpeg · Canvas · Axios\n\n*📊 𝗘𝗦𝗧𝗔𝗗𝗢 𝗗𝗘𝗟 𝗕𝗢𝗧*\n─────────────────────────\n• 🔋 *Estado:* Online\n• 📦 *Versión:* v4.4.17 (Build 93)\n• 🧩 *Comandos:* 50+ disponibles\n\n*🔗 𝗖𝗢𝗡𝗧𝗔𝗖𝗧𝗢 & 𝗥𝗘𝗗𝗘𝗦*\n─────────────────────────\n• 🐙 github.com/C3rb3rus-666\n• 📂 github.com/C3rb3rus-666/cerbero-bot\n• ✈️ t.me/C3rb3rus_666\n• 📷 instagram.com/c3rb3rus_666\n• 📱 wa.me/573233704652\n\n*🚀 𝗣𝗥𝗢𝗬𝗘𝗖𝗧𝗢𝗦*\n─────────────────────────\n• 🤖 Cerbero-Bot (WhatsApp)\n• 🧠 IA Local Kerbero\n• 🎵 Music Bot\n• ⚔️ RPG & Economy System",
+  "caption": "╔══════════════════════════════════════════╗\n║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑        ║\n║    v4.6.0 (Build 123) — Online          ║\n╚══════════════════════════════════════════╝\n\n*🧑‍💻 𝗦𝗢𝗕𝗥𝗘 𝗘𝗟 𝗗𝗘𝗦𝗔𝗥𝗥𝗢𝗟𝗟𝗔𝗗𝗢𝗥*\n─────────────────────────\n• 👤 *Nombre:* Carlos Sánchez\n• 🏷️ *Alias:* C3rb3rus-666\n• 💼 *Rol:* Full-Stack Developer & Bot Creator\n• 📅 *Experiencia:* 12 años\n• 🎯 *Especialidad:* Node.js · Python · C++ · Java\n\n*⚙️ 𝗧𝗘𝗖𝗡𝗢𝗟𝗢𝗚𝗜𝗔𝗦*\n─────────────────────────\n• 🟢 Node.js + Baileys v7\n• 🐍 Python (IA local)\n• 🤖 TensorFlow.js (NSFW/NLP)\n• 🎬 FFmpeg · Canvas · Axios\n\n*📊 𝗘𝗦𝗧𝗔𝗗𝗢 𝗗𝗘𝗟 𝗕𝗢𝗧*\n─────────────────────────\n• 🔋 *Estado:* Online\n• 📦 *Versión:* v4.6.0 (Build 123)\n• 🧩 *Comandos:* 50+ disponibles\n\n*🔗 𝗖𝗢𝗡𝗧𝗔𝗖𝗧𝗢 & 𝗥𝗘𝗗𝗘𝗦*\n─────────────────────────\n• 🐙 github.com/C3rb3rus-666\n• 📂 github.com/C3rb3rus-666/cerbero-bot\n• ✈️ t.me/C3rb3rus_666\n• 📷 instagram.com/c3rb3rus_666\n• 📱 wa.me/573233704652\n\n*🚀 𝗣𝗥𝗢𝗬𝗘𝗖𝗧𝗢𝗦*\n─────────────────────────\n• 🤖 Cerbero-Bot (WhatsApp)\n• 🧠 IA Local Kerbero\n• 🎵 Music Bot\n• ⚔️ RPG & Economy System",
   "buttons": [
     {
       "buttonId": "!menu",
@@ -30,5 +30,5 @@
       "type": 1
     }
   ],
-  "footer": "⚡ Desarrollado por C3rb3rus-666 | v4.4.17 Build 93"
+  "footer": "⚡ Desarrollado por C3rb3rus-666 | v4.6.0 Build 123"
 }

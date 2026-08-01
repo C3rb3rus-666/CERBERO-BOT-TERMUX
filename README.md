@@ -2,7 +2,7 @@
 
 Cerbero-bot es un bot de WhatsApp basado en Baileys, creado por C3rb3rus-666.
 
- Versión: v4.4.17 (Build 93)
+ Versión: v4.6.0 (Build 123)
 
 Resumen rápido
  Comando `!dox`: minijuego que genera datos ficticios (IP, ISP, ubicación, email) y etiqueta al objetivo. Es completamente falso y solo para diversión.
@@ -33,11 +33,15 @@ Archivos importantes
 - `temp/message_counts.json` — archivo persistente con contadores.
 
 Correcciones recientes
-- v4.4.17 (Build 93):
-	- Nuevo minijuego Buscaminas (!minas) con renderizado emoji, flood-fill y primer clic seguro.
-	- Comando !vigilar para monitoreo de cambios de admin con resolución LID→teléfono.
-	- Rediseño estético de !programador con box-drawing y secciones.
-	- Resolución LID→teléfono real en TODOS los eventos de grupo (add/remove/promote/demote).
+- v4.6.0 (Build 123):
+	- Corrección de delay en comandos de juegos: el retardo humano vuelve a ejecutarse correctamente en RPG/casino/minijuegos, evitando ráfagas sin añadir latencias extra globales.
+	- Build incrementada a 123 en superficies de UI y metadatos del proyecto.
+
+- v4.6.0 (Build 122):
+	- Cola global de comandos (`!`) en `index.js` para serializar ejecución y reducir ráfagas de actividad.
+	- Endurecimiento anti-spam en `tinder`, `presentaciones` y `confesiones`: procesamiento silencioso por DM, cola interna y retardo exacto por acción.
+	- Bienvenidas anti-oleada: batching por grupo, retardo automático y limitación de menciones en entradas masivas.
+	- Administrador autónomo v2: throttling de mensajes automáticos por grupo, cooldowns más largos y mensajes técnicos orientados a telemetría.
 - v4.2.15 (Build 87):
 	- Identificación híbrida de creador (teléfono + LID) en todos los módulos del bot.
 	- Resolución automática LID→teléfono real en logs de consola.

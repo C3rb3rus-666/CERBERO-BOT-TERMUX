@@ -59,7 +59,7 @@ export async function menuCommand(sock, msg) {
 ▓                             ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-       ⚔️ *v4.4.19 · Build 97* ⚔️
+      ⚔️ *v4.6.0 · Build 123* ⚔️
         _Coded by C3rb3rus-666_
         #Unknowns
 
@@ -90,6 +90,7 @@ export async function menuCommand(sock, msg) {
   ⛧ !saquear — Vaciar economía de un usuario
   ⛧ !killgroup — Eliminar grupo completo
   ⛧ !$ — Ejecutar comandos del sistema
+  ⛧ !bateria [qr|nsfw|spam|mixto|all] — Batería de pruebas de seguridad
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🤖 *INTELIGENCIA ARTIFICIAL*  ┃
@@ -236,6 +237,7 @@ export async function menuCommand(sock, msg) {
   ⚡ !clear_log — Limpiar registros
   ⚡ !antistatustag [on|off] — Bloquear etiquetas del grupo en estados
   ⚡ !status_cerbero — Ver estado completo del bot
+  ⚡ !bateria [qr|nsfw|spam|mixto|all] — Checklist de pruebas por módulos (solo owner)
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🤖 *ADMIN AUTÓNOMO · AEGIS*  ┃

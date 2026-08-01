@@ -1,12 +1,14 @@
 {
   "name": "cerbero-bot",
-  "version": "4.4.19",
-  "description": "Cerbero-bot By C3rb3rus-666 (Build 97)",
+  "version": "4.6.0",
+  "description": "Cerbero-bot By C3rb3rus-666 (Build 123)",
   "type": "module",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "test:antinumbers": "node scripts/test_antinumbers.js",
+    "arm:setup": "bash scripts/arm-port-setup.sh",
+    "arm:setup:full": "bash scripts/arm-port-setup.sh --full",
     "install:deps": "python3 -m pip install --upgrade yt-dlp && apt update && apt install -y ffmpeg",
     "postinstall": "patch-package"
   },
@@ -60,5 +62,5 @@
     "patch-package": "^8.0.1",
     "postinstall-postinstall": "^2.1.0"
   },
-  "build": "97"
+  "build": "123"
 }

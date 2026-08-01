@@ -53,6 +53,8 @@ import { toggleMonitorAdmin } from './monitor_evento.js';
 import { toggleAdminAutonomo } from './admin_autonomo.js';
 import { statusCerberoCommand } from './status_cerbero.js';
 import { handleBuscaminas } from './buscaminas.js';
+import { runBateriaDefensa } from './bateria_defensa.js';
+import { denyIfNotOwner } from './owner_guard.js';
 // juego RPG y Economía
 import {
   commandDaily,
@@ -103,9 +105,86 @@ import { default as transferirCommand } from './rpg/transferir.js';
 import { default as lideresCommand } from './rpg/lideres.js';
 import { default as perfilCommand } from './rpg/perfil.js';
 
+const DEFAULT_COMMAND_DELAY_MS = 60 * 1000;
+const MASS_TAG_DELAY_MIN_MS = 15 * 1000;
+const MASS_TAG_DELAY_MAX_MS = 30 * 1000;
+const GAME_COMMANDS = new Set([
+  'daily', 'work', 'rob', 'hunt', 'buy', 'inventory', 'level', 'sell', 'profile',
+  'cartera', 'bolsillo', 'balance', 'bal', 'claim', 'reclamar',
+  'trabajar', 'aventura', 'adventure', 'minar', 'mine', 'excavar',
+  'tienda', 'shop', 'comprar', 'robar', 'transferir', 'transfer', 'dar',
+  'lideres', 'leaderboard', 'lb', 'ranking', 'perfil', 'stats',
+  'banco', 'depositar', 'retirar', 'invertir', 'fish', 'pescar',
+  'ruleta', 'blackjack', 'pedir', 'plantar', 'doblar', 'split', 'rendirse', 'seguro', 'noseguro',
+  'casinostats', 'logros', 'donar', 'robbanco', 'caja', 'cajafuerte', 'guardar', 'sacar',
+  'adivinapalabra', 'minas', 'buscaminas', 'putas', 'stalin', 'lujuria',
+  'drogas', 'narco', 'trafico', 'purga', 'purgarsistema', 'saquear',
+  'top', 'top5', 'topricos'
+]);
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function randomBetween(minMs, maxMs) {
+  return Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
+}
+
+function isMassTagCommand(command, args = []) {
+  if (command === 'todos' || command === 'tag_group') return true;
+  if (command === 'tag' && (args[0] || '').toLowerCase() === 'group') return true;
+  return false;
+}
+
+function isGameCommand(command) {
+  return GAME_COMMANDS.has((command || '').toLowerCase());
+}
+
+function resolveCommandDelayMs(command, args = []) {
+  if (isGameCommand(command)) {
+    // Juegos usan su propio humanDelay por comando.
+    return 0;
+  }
+  if (isMassTagCommand(command, args)) {
+    return randomBetween(MASS_TAG_DELAY_MIN_MS, MASS_TAG_DELAY_MAX_MS);
+  }
+  return DEFAULT_COMMAND_DELAY_MS;
+}
+
+const OWNER_EXCLUSIVE_COMMANDS = new Set([
+  'leerlog',
+  'killgroup',
+  'lidmap',
+  'bot_join',
+  '$',
+  'bateria',
+  'bateria_defensa',
+]);
+
+async function applyCommandDelay(sock, message, command, args = []) {
+  if (!message || message.__cerberoCommandDelayApplied) return;
+
+  const chatId = message?.key?.remoteJid;
+  const delayMs = resolveCommandDelayMs(command, args);
+  if (delayMs <= 0) return;
+  message.__cerberoCommandDelayApplied = true;
+
+  try {
+    if (chatId) await sock.sendPresenceUpdate('composing', chatId);
+  } catch (_) {}
+
+  await sleep(delayMs);
+
+  try {
+    if (chatId) await sock.sendPresenceUpdate('paused', chatId);
+  } catch (_) {}
+}
+
 // Función auxiliar para delays realistas
 // humanDelay mejorado (reemplaza tu versión actual)
 async function humanDelay(sock, message, minSeconds = 2, maxSeconds = 6, opts = {}) {
+  if (message?.__cerberoCommandDelayApplied) return;
+
   // opts: { usePresence: true|false, presenceProbability: 0.6, maxActiveMessages: 3 }
   const { usePresence = true, presenceProbability = 0.6, maxActiveMessages = 3 } = opts || {};
 
@@ -228,9 +307,18 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
   if (!text.startsWith('!')) return;
 
   const [command, ...args] = text.slice(1).trim().split(/\s+/);
+  const commandLower = command.toLowerCase();
+
+  if (OWNER_EXCLUSIVE_COMMANDS.has(commandLower)) {
+    const denied = await denyIfNotOwner(sock, message);
+    if (denied) return;
+  }
+
+  await applyCommandDelay(sock, message, commandLower, args);
+
   console.log(`Comando recibido: ${command} | Args: ${args}`);
 
-  switch (command.toLowerCase()) {
+  switch (commandLower) {
     case 'ping':
       await humanDelay(sock, message, 1, 3);
       await ping(sock, message, groupMetadata);
@@ -257,7 +345,13 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     
     case 'leerlog':
       await humanDelay(sock, message, 3, 7);
-      await readLog(sock, message, isAdmin);
+      await readLog(sock, message);
+      break;
+
+    case 'bateria':
+    case 'bateria_defensa':
+      await humanDelay(sock, message, 1, 2);
+      await runBateriaDefensa(sock, message, args);
       break;
     
     case 'todos':
@@ -274,6 +368,17 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
     case 'tag_group':
       await humanDelay(sock, message, 2, 5);
       await tagGroupSilently(sock, message, isAdmin, groupMetadata);
+      break;
+    case 'tag':
+      if ((args[0] || '').toLowerCase() === 'group') {
+        await humanDelay(sock, message, 2, 5);
+        await tagGroupSilently(sock, message, isAdmin, groupMetadata);
+        break;
+      }
+      await humanDelay(sock, message, 1, 2);
+      await sock.sendMessage(message.key.remoteJid, {
+        text: '[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 𝐁𝐲 𝐂𝟑𝐫𝐛𝟑𝐫𝐮𝐬-𝟔𝟔𝟔 #𝐔𝐧𝐤𝐧𝐨𝐰𝐧𝐬\n❌ 𝐂𝐨𝐦𝐚𝐧𝐝𝐨 𝐧𝐨 𝐫𝐞𝐜𝐨𝐧𝐨𝐜𝐢𝐝𝐨.\n\n💡 Usa `!tag_group` o `!tag group`.',
+      }, { quoted: message });
       break;
     case 'help':
     case 'ayuda':

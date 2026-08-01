@@ -34,6 +34,7 @@ import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
 import { checkFlood, mutedTimeLeft } from './utils/antiFlood.js';
+import { enqueueGlobalCommandTask } from './utils/global_command_queue.js';
 import { checkStatusTag, checkGroupMentionedMessage } from './comandos_cerbero/anti_status_tag.js';
 
 // ==========================================
@@ -96,6 +97,11 @@ const lastCerberoTrigger = new Map(); // mapa para evitar spam por chat (cooldow
 const CERBERO_COOLDOWN_MS = 60 * 1000; // 1 minuto por chat (ajustable)
 const CERBERO_DELAY_MS = 5000; // 5 segundos de retraso antes de invocar la IA (ajustable)
 const CERBERO_RESPONSE_PROBABILITY = 0.3; // 30% de probabilidad de respuesta (ajustable)
+const CORE_COMMAND_DELAY_MS = 60 * 1000;
+
+async function applyCoreCommandDelayMs(ms) {
+  await delay(ms);
+}
 
 
 async function humanDelayWelcome(sock, groupId, minSeconds = 5, maxSeconds = 10) {
@@ -585,6 +591,7 @@ async function connectToWhatsApp() {
 
         const isCommand = text.startsWith('!');
         const [command, ...args] = isCommand ? text.slice(1).trim().split(/\s+/) : [''];
+        const commandLower = (command || '').toLowerCase();
 
         // ── ANTI-FLOOD: interceptar antes del procesador de comandos ────────────
         // Excluir: mensajes propios, mensajes que empiezan con . o # (no son comandos válidos),
@@ -706,31 +713,46 @@ async function connectToWhatsApp() {
           );
           console.log('');
             
-            // Amor bot queda dormido: no responder al comando !amor.
-            // if (command === 'amor') {
-            //     await amorCommand(sock, msg, args);
-            //     return;
-            // }
+            const queued = enqueueGlobalCommandTask(async () => {
+              // Amor bot queda dormido: no responder al comando !amor.
+              // if (command === 'amor') {
+              //     await amorCommand(sock, msg, args);
+              //     return;
+              // }
 
-            // Dinámica de confesiones anónimas
-            if (command === 'confesiones') {
+              // Dinámica de confesiones anónimas
+              if (commandLower === 'confesiones') {
+                await applyCoreCommandDelayMs(CORE_COMMAND_DELAY_MS);
                 await manejarComandoConf(sock, chatId, senderJid, isAdmin, args);
                 return;
-            }
+              }
 
-            // Dinamica de presentaciones con fotos por privado
-            if (command === 'presentaciones' || command === 'presentacion') {
+              // Dinamica de presentaciones con fotos por privado
+              if (commandLower === 'presentaciones' || commandLower === 'presentacion') {
+                await applyCoreCommandDelayMs(CORE_COMMAND_DELAY_MS);
                 await manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args);
                 return;
-            }
+              }
 
-            // Dinamica Tinder con fotos por privado y encuesta MATCH/NEXT
-            if (command === 'tinder') {
+              // Dinamica Tinder con fotos por privado y encuesta MATCH/NEXT
+              if (commandLower === 'tinder') {
+                await applyCoreCommandDelayMs(CORE_COMMAND_DELAY_MS);
                 await manejarComandoTinder(sock, chatId, senderJid, isAdmin, args);
                 return;
+              }
+
+              await commandsCerbero(sock, msg, isAdmin, groupMetadata);
+            }, {
+              command: commandLower,
+              chatId,
+              senderJid,
+            });
+
+            if (!queued.accepted) {
+              console.warn(`[CMD-QUEUE] comando descartado cmd=${commandLower} reason=${queued.reason || 'unknown'} pending=${queued.pending ?? 'n/a'}`);
             }
-            
-            await commandsCerbero(sock, msg, isAdmin, groupMetadata);
+
+            return;
         }
 
         // Autorespuesta local (cerbero_simi) solo cuando lo mencionan o responden directamente.
@@ -785,13 +807,32 @@ async function connectToWhatsApp() {
           if (isImage) {
             const imgType = _rawMsg.imageMessage ? 'normal' : _isViewOnceImage ? 'view-once' : 'document';
             console.log(`[NSFW] 🖼️ Imagen detectada (${imgType}) de ${msg.key.participant || msg.key.remoteJid}`);
-            await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
-            // Anti-QR primero (más ligero y específico).
-            // Si detecta QR, ya borró el mensaje y expulsó → saltar NSFW para no duplicar recursos.
-            const wasQr = await blockQr(sock, msg, isAdmin, groupMetadata);
-            if (!wasQr) {
-              await detectNSFW(sock, msg, isAdmin, groupMetadata);
-            }
+            // Defensa en paralelo: cada modulo inspecciona y actua sin bloquear a los otros.
+            // Esto mantiene proactividad ante amenazas mixtas (QR + NSFW + spam de imagen).
+            const securityTasks = [
+              (async () => {
+                try {
+                  await antiSpamMedia(sock, msg, isAdmin, groupMetadata);
+                } catch (antiSpamErr) {
+                  console.error('[SECURITY] antiSpamMedia fallo:', antiSpamErr?.message || antiSpamErr);
+                }
+              })(),
+              (async () => {
+                try {
+                  await blockQr(sock, msg, isAdmin, groupMetadata);
+                } catch (qrErr) {
+                  console.error('[SECURITY] blockQr fallo:', qrErr?.message || qrErr);
+                }
+              })(),
+              (async () => {
+                try {
+                  await detectNSFW(sock, msg, isAdmin, groupMetadata);
+                } catch (nsfwErr) {
+                  console.error('[SECURITY] detectNSFW fallo:', nsfwErr?.message || nsfwErr);
+                }
+              })(),
+            ];
+            void Promise.allSettled(securityTasks);
           }
           if (msg.message?.stickerMessage) {
             await handleStickerSpam(sock, msg, isAdmin);

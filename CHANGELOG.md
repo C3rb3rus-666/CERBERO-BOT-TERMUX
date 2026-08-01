@@ -2,6 +2,34 @@
 
 All notable changes to this project will be documented in this file.
 
+## [4.6.0] - 2026-07-31 (Build 123)
+### Fixed
+- **Delays de juegos restaurados en router de comandos** (`comandos_cerbero/index.js`): los comandos RPG/casino/minijuegos quedan excluidos del delay global de cola para que ejecuten su `humanDelay` propio.
+- **Evita doble latencia y ráfagas sin jitter**: los juegos ya no quedan bloqueados por la marca interna del delay global.
+
+### Versioning
+- Build global actualizada a **123** en `package.json` y superficies de UI (`menu`, `menu2`, `ping`, `programador`, `README`).
+
+## [4.6.0] - 2026-07-31 (Build 122)
+### Added
+- **Cola global de comandos** (`utils/global_command_queue.js`): todos los comandos que empiezan con `!` se interceptan desde `index.js` y se ejecutan en serie para evitar ráfagas paralelas.
+- **Retardo dinámico de cola global**: la cola aplica espera automática (hasta 60s) según actividad reciente del grupo y presión de cola.
+- **Bienvenida anti-oleadas** (`welcome.js`): sistema de batching por grupo con ventana de agregación, límite de menciones y espaciado entre envíos.
+
+### Changed
+- **Tinder/Presentaciones/Confesiones**: procesamiento silencioso por DM + cola interna + retardo exacto por acción para reducir uso intensivo de la API de WhatsApp.
+- **Administrador autónomo** (`admin_autonomo.js`):
+  - Inactividad objetivo aumentada a 45 min.
+  - Tick aumentado a 15 min.
+  - Cooldown de menciones subido a 2h.
+  - Ghost-scan reducido a cada 48h.
+  - Frases renovadas con formato técnico.
+  - Throttling por grupo para suprimir mensajes automáticos excesivos.
+
+### Versioning
+- Bump masivo de versión a **v4.6.0**.
+- Build global actualizada a **122** en `package.json` y superficies de UI (`menu`, `menu2`, `ping`, `programador`, `README`).
+
 ## [4.2.15] - 2026-03-28 (Build 88)
 ### Added
 - **Minijuego Buscaminas** (`buscaminas.js`): motor completo de Minesweeper para WhatsApp — flood-fill iterativo, primer clic seguro (zona 3×3), 3 dificultades (fácil/medio/difícil), banderas, y renderizado 100% emoji (🟦🚩💣💥1️⃣-8️⃣✅❌). Comandos: `!minas nuevo`, `!minas A3`, `!minas bandera A3`, `!minas ver`, `!minas rendirse`, `!minas ayuda`.

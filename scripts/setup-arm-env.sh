@@ -275,10 +275,11 @@ write_arm_env() {
 # Cargalo con: source .env.arm
 export PATH="$PWD/.venv/bin:$HOME/.local/bin:$PATH"
 
-# Anti-NSFW en ARM: Python primero, motores nativos Node apagados por defecto.
+# Anti-NSFW en ARM: modo híbrido (Xenova + Python), sin apagar motores clave.
 export NSFW_ENABLE_PY_DAEMON=1
-export NSFW_DISABLE_XENOVA=1
-export NSFW_DISABLE_NSFWJS=1
+export NSFW_FORCE_XENOVA=1
+export NSFW_DISABLE_XENOVA=0
+export NSFW_DISABLE_NSFWJS=0
 export NSFW_ENABLE_PY_CV2=0
 export NSFW_ENABLE_PY_ORT=1
 export NSFW_PY_WORKERS=1

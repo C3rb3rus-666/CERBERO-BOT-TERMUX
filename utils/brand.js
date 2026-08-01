@@ -16,7 +16,7 @@ export const IS_TERMUX = true;
 export const BOT_TAG = '*[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐓𝐄𝐑𝐌𝐔𝐗 📱]*';
 
 /** Versión y build del bot */
-export const BOT_VERSION = 'v4.4.19-TERMUX · Build 97';
+export const BOT_VERSION = 'v4.6.0-TERMUX · Build 123';
 
 /** Footer de firma — aparece al final de cada notificación importante */
 export const BRAND_FOOTER = '✦ CERBERO-BOT-TERMUX TERMUX ARM64 · AArch64 · by C3rb3rus-666 ✦';

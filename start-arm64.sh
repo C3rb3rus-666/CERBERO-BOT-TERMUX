@@ -19,6 +19,8 @@ if [[ $IS_ARM -eq 1 ]]; then
   echo "🔧 Configurando CERBERO-BOT para ARM64..."
   
   # Optimización de concurrencia para ARM
+  export NSFW_FORCE_XENOVA=1
+  export NSFW_DISABLE_XENOVA=0
   export NSFW_MAX_CONCURRENCY=1
   export NSFW_MAX_QUEUE=4
   export NSFW_DETECTION_TIMEOUT_MS=45000

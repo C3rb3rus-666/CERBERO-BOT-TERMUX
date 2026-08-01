@@ -74,6 +74,9 @@ Escribe: *!menu*
 👨‍💻 *¿Información del Creador?*
 Escribe: *!programador*
 
+🧪 *Batería de seguridad (solo C3rb3rus-666):*
+Escribe: *!bateria qr|nsfw|spam|mixto|all*
+
 _Coded by C3rb3rus-666_
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

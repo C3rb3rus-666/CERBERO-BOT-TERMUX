@@ -56,7 +56,7 @@ export async function menuCommand(sock, msg) {
   const menuText = `
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 ▓  ⛧ 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 ⛧      ▓
-▓  _v4.4.19 · Build 97_   ▓
+▓  _v4.6.0 · Build 123_   ▓
 ▓  _Coded by C3rb3rus-666_ ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
@@ -69,6 +69,7 @@ export async function menuCommand(sock, msg) {
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ⛧ !programador — Info Owner
+⛧ !bateria all — Batería seguridad (Owner)
 ⛧ !help — Guía rápida
 
 ┏━━ 💀 *COMANDOS* ━━━━━━━━┓

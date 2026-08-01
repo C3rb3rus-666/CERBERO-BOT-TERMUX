@@ -13,13 +13,13 @@ const __dirname = path.dirname(__filename);
  Detecta y expulsa al usuario si reenvía o envía más de 3 imágenes consecutivas en 3s sin mensajes de texto.
  */
 export async function antiSpamMedia(sock, msg, isAdmin, groupMetadata) {
-  if (!groupMetadata) return;
+  if (!groupMetadata) return false;
 
   const groupId = msg.key.remoteJid;
   const userId = msg.key.participant || msg.key.remoteJid;
   const now = Date.now();
 
-  if (isAdmin) return;
+  if (isAdmin) return false;
 
   const isImage =
     !!msg.message?.imageMessage ||
@@ -38,7 +38,7 @@ export async function antiSpamMedia(sock, msg, isAdmin, groupMetadata) {
   if (isText) {
     userData.textActivity = true;
     userData.timestamps = userData.timestamps.filter((t) => now - t < spamTimeout);
-    return;
+    return false;
   }
 
   if (isImage) {
@@ -49,7 +49,7 @@ export async function antiSpamMedia(sock, msg, isAdmin, groupMetadata) {
 
     if (userData.textActivity) {
       userData.timestamps = [];
-      return;
+      return false;
     }
 
     if (userData.timestamps.length >= spamLimit) {
@@ -65,9 +65,13 @@ export async function antiSpamMedia(sock, msg, isAdmin, groupMetadata) {
 
         console.log(`[antispam] Usuario ${userId} expulsado por spam de imágenes.`);
         userMediaMap.delete(userId);
+        return true;
       } catch (err) {
         console.error('❌ Error en antiSpamMedia:', err);
+        return false;
       }
     }
   }
+
+  return false;
 }
