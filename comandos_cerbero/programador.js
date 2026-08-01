@@ -34,7 +34,7 @@ function getRandomImage(imagesDir, preferredPrefixes = ['menu','ping']) {
 export async function creador(sock, msg) {
   const menuText = `
 ╔══════════════════════════════════════════╗
-║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓  𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑        ║
+║    👨‍💻 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓-𝐀𝐑𝐌 𝐃𝐄𝐕𝐄𝐋𝐎𝐏𝐄𝐑      ║
 ║    v4.6.0 (Build 123) — Online          ║
 ╚══════════════════════════════════════════╝
 

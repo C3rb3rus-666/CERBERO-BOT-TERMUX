@@ -94,9 +94,9 @@ export const ping = async (sock, msg, groupMetadata) => {
 
                         // Construir mensaje sin indentación extra para evitar líneas desordenadas
                         const messageLines = [
-'╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
+'╔═══[ *𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓-𝐀𝐑𝐌 𝐃𝐈𝐀𝐆𝐍𝐎𝐒𝐓𝐈𝐂𝐒* ]═══╗',
 '║',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.6.0 Build 123*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓-𝐀𝐑𝐌] v4.6.0 Build 123*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
 '╠══ [ *📡 SENSORS & THERMAL* ] ══',
@@ -134,7 +134,7 @@ export const ping = async (sock, msg, groupMetadata) => {
 ...statusLines.map((line) => `║ ${line}`),
 '║',
 '╚════════════════════════════╝',
-`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.6.0 Build 123*`,
+`║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓-𝐀𝐑𝐌] v4.6.0 Build 123*`,
 `║ _¿Quieres un bot como este? Contacta al creador C3rb3rus-666 · +57 3233704652_`
 ].join('\n');
 
