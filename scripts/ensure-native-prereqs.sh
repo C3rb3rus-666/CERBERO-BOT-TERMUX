@@ -84,4 +84,9 @@ case 1 in
     ;;
 esac
 
+if need_glib_header; then
+  echo "[CERBERO-INSTALL][WARN] glib-object.h sigue faltando. Instala libglib2.0-dev/glib-dev y reintenta npm audit fix --force." >&2
+  exit 0
+fi
+
 exit 0
