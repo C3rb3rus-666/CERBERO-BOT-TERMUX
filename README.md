@@ -10,18 +10,15 @@ Resumen rápido
 Instalación
 
 ```bash
-# instalar dependencias del sistema (opcional)
-# o usar el instalador automático (soporta Debian/Ubuntu, Arch/Manjaro, CentOS/RedHat y Termux)
-./install.sh
+cd /home/carlos/Documentos/CERBERO-BOT-TERMUX
+bash install.sh
+source .env.arm
+npm start
+```
 
-# instalar dependencias de node
-npm install
-
-# iniciar
-./start.sh
-``` 
-
-Notas: El instalador (`install.sh`) ahora detecta y soporta Arch Linux / Manjaro (pacman) e instala `python-pip`, `nodejs` y `npm`, además de `ffmpeg`, `git`, `curl`, y `yt-dlp` usando `python -m pip` para mayor compatibilidad.
+Instalador unificado:
+- `install.sh` instala dependencias del sistema (apt/pacman/apk/dnf/yum/zypper), dependencias Node y ejecuta setup ARM completo.
+- Si quieres que el script inicie el bot al final: `bash install.sh --start`
 
 Archivos importantes
 - `index.js` — punto de entrada y handling principal.

@@ -9,38 +9,32 @@ No hay rutas alternativas en este documento.
 cd /home/carlos/Documentos/CERBERO-BOT-TERMUX
 ```
 
-## 2. Instalar dependencias Node
+## 2. Ejecutar instalador automatico unico
 
 ```bash
-npm install
+bash install.sh
 ```
 
-## 3. Preparar entorno ARM del port
-
-```bash
-npm run arm:setup:full
-```
-
-Este paso aplica configuracion ARM y valida el port completo:
+Este paso instala dependencias del sistema, dependencias Node, aplica configuracion ARM y valida el port completo:
 
 - anti-NSFW en modo ARM (Xenova + señales Python)
 - stack Python requerido (Pillow, numpy, scipy, cv2, onnxruntime)
 - modulos nativos de Node (sharp/canvas)
 - creador de stickers y modulos de seguridad
 
-## 4. Cargar perfil de entorno
+## 3. Cargar perfil de entorno
 
 ```bash
 source .env.arm
 ```
 
-## 5. Iniciar el bot
+## 4. Iniciar el bot
 
 ```bash
 npm start
 ```
 
-## 6. Verificacion post-arranque
+## 5. Verificacion post-arranque
 
 En otra terminal:
 
@@ -58,7 +52,7 @@ Prueba funcional recomendada dentro de WhatsApp:
 3. !sticker con imagen
 4. !sticker con video corto
 
-## 7. Si falla onnxruntime
+## 6. Si falla onnxruntime
 
 Ejecuta exactamente esto:
 
@@ -69,7 +63,7 @@ python -m pip install --upgrade pip wheel setuptools
 python -m pip install -r requirements.txt
 python -m pip install --only-binary=:all: onnxruntime
 deactivate
-npm run arm:setup:full
+bash install.sh --skip-system
 source .env.arm
 npm start
 ```

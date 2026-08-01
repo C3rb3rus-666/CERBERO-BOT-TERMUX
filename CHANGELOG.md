@@ -7,6 +7,10 @@ All notable changes to this project will be documented in this file.
 - **Delays de juegos restaurados en router de comandos** (`comandos_cerbero/index.js`): los comandos RPG/casino/minijuegos quedan excluidos del delay global de cola para que ejecuten su `humanDelay` propio.
 - **Evita doble latencia y ráfagas sin jitter**: los juegos ya no quedan bloqueados por la marca interna del delay global.
 
+### Changed
+- **Instalador automatico unificado**: se agrega `install.sh` en la raiz del proyecto para ejecutar instalacion de sistema + `npm install` + setup ARM completo en un solo comando.
+- **Limpieza de documentacion obsoleta**: se elimina `START-TERMUX.md` y changelog auxiliar antiguo, manteniendo un solo `CHANGELOG.md` oficial.
+
 ### Versioning
 - Build global actualizada a **123** en `package.json` y superficies de UI (`menu`, `menu2`, `ping`, `programador`, `README`).
 

@@ -6,6 +6,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
+    "install:auto": "bash install.sh",
     "test:antinumbers": "node scripts/test_antinumbers.js",
     "arm:setup": "bash scripts/arm-port-setup.sh",
     "arm:setup:full": "bash scripts/arm-port-setup.sh --full",
