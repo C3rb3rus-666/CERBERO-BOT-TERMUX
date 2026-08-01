@@ -70,25 +70,27 @@ export const ping = async (sock, msg, groupMetadata) => {
 
         uptime = formatUptime(process.uptime());
 
-        // Telemetría workstation Linux
-        cpuLoad = (Math.random() * (35 - 8) + 8).toFixed(1);
-        cpuTemp = Math.floor(Math.random() * (85 - 55) + 55);
-        totalRam = 64;
-        usedRam = (Math.random() * (20 - 14) + 14).toFixed(2);
-        gpuTemp = Math.floor(Math.random() * (78 - 60) + 60);
-        fanSpeed = Math.floor(Math.random() * (5200 - 3500) + 3500);
+        // Telemetría ARM64 — Snapdragon / Dimensity hypertuned
+        cpuLoad = (Math.random() * (28 - 4) + 4).toFixed(1);
+        cpuTemp = Math.floor(Math.random() * (72 - 38) + 38);
+        totalRam = 16;
+        usedRam = (Math.random() * (5.8 - 2.1) + 2.1).toFixed(2);
+        gpuTemp = Math.floor(Math.random() * (65 - 35) + 35);
+        fanSpeed = 0; // SoC sin ventilador — enfriamiento pasivo/vapor
+        const nproc = os.cpus().length || 8;
+        const boostGhz = (Math.random() * (3.3 - 2.8) + 2.8).toFixed(2);
         specs = {
-            model: "MSI Titan GT77 HX (Custom Workstation)",
-            board: "Intel® HM670 Express Chipset",
-            cpu: "Intel® Core™ i5-12600HX (12C/16T) @ 4.60 GHz",
-            gpu: "NVIDIA® GeForce RTX™ 3080 Ti Laptop GPU",
-            vram: "16GB GDDR6 (Max-P 175W TGP)",
-            ram: "64 GB Samsung DDR4 @ 3200 MHz",
-            config: "4x16GB SO-DIMM (Quad Slot)",
-            storage: "1TB Kingston NV1 (OS) + 1TB Kingston A400 (Data)",
-            display: "17.3\" 4K UHD 120Hz Mini-LED"
+            model: "Samsung Galaxy S24 Ultra (SM-S928B)",
+            board: "Exynos 2400 · 10-Core AArch64 · 4nm EUV",
+            cpu: `ARM Cortex-X4 + A720 + A520 (${nproc}T) @ ${boostGhz} GHz`,
+            gpu: "Xclipse 940 (RDNA3 · 12 CU · 2.0 GHz)",
+            vram: "UMA — compartida con RAM (Dynamic)",
+            ram: "16 GB LPDDR5X @ 4267 MHz (dual-ch)",
+            config: "PoP integrada — SoC monolítico",
+            storage: "512 GB UFS 4.0 (seq R: 4.2 GB/s)",
+            display: "6.8\" QHD+ 120Hz LTPO AMOLED (2600 nits)"
         };
-        osDisplay = `Linux Kernel ${os.release()}`;
+        osDisplay = `Debian GNU/Linux 13 (trixie) · PRoot-Distro · Kernel ${os.release()} · aarch64`;
 
                         // Construir mensaje sin indentación extra para evitar líneas desordenadas
                         const messageLines = [
@@ -97,21 +99,21 @@ export const ping = async (sock, msg, groupMetadata) => {
 `║ 🤖 *[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] v4.6.0 Build 123*`,
 `║ ⏱️ *Uptime:* ${uptime}`,
 '║',
-'╠══ [ *📡 SENSORS & COOLING* ] ══',
+'╠══ [ *📡 SENSORS & THERMAL* ] ══',
 `║ 📶 *Ping:* ${latency} ms`,
 `║ 📉 *CPU:* ${cpuLoad}% @ ${cpuTemp}°C`,
-`║ 🌪️ *Fans:* ${fanSpeed} RPM (CoolerBoost)`,
-`║ 🌡️ *GPU:* ${gpuTemp}°C (High Perf)`,
+`║ ❄️ *Cooling:* Passive (Vapor Chamber)`,
+`║ 🌡️ *GPU:* ${gpuTemp}°C (Xclipse 940)`,
 `║ 🧠 *RAM:* ${usedRam}/${totalRam} GB`,
 '║',
-`╠══ [ *💻 DTR WORKSTATION* ] ══`,
-`║ 💻 *Chassis:* ${specs.model}`,
-`║ 💠 *Chipset:* ${specs.board}`,
+`╠══ [ *📱 ARM64 MOBILE SOC* ] ══`,
+`║ 📱 *Device:* ${specs.model}`,
+`║ 💠 *Platform:* ${specs.board}`,
 '║',
 '║ 🧮 *Processor:*',
 `║ └─ ${specs.cpu}`,
 '║',
-'║ 🎮 *Graphics Unit:*',
+'║ 🎮 *GPU (Mobile):*',
 `║ └─ ${specs.gpu}`,
 `║ └─ ${specs.vram}`,
 '║',
@@ -119,13 +121,13 @@ export const ping = async (sock, msg, groupMetadata) => {
 `║ └─ ${specs.ram}`,
 `║ └─ ${specs.config}`,
 '║',
-'║ 💽 *Storage:**',
+'║ 💽 *Storage:*',
 `║ └─ ${specs.storage}`,
 '║',
 '║ 🖥️ *Display:*',
 `║ └─ ${specs.display}`,
 '║',
-'║ 🖥️ *Operating System:*',
+'║ 🐧 *Operating System:*',
 `║ └─ ${osDisplay}`,
 '║',
 '╠══ [ *🛡️ BOT STATUS* ] ══',
