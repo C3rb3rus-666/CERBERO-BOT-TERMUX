@@ -79,7 +79,13 @@ function queueSafeBatchNotice(sock, groupId) {
 
     const text = `🛡️ Anti-NSFW: ${snapshot.count} imagen(es) seguras verificadas en cola.`;
     try {
-      await sock.sendMessage(groupId, { text });
+      const safeImagePath = getRandomMenuImage(['menu', 'ping', 'status']);
+      if (safeImagePath) {
+        const imageBuffer = fs.readFileSync(safeImagePath);
+        await sock.sendMessage(groupId, { image: imageBuffer, caption: text });
+      } else {
+        await sock.sendMessage(groupId, { text });
+      }
     } catch (err) {
       console.error('[NSFW] Error enviando resumen SAFE:', err.message || err);
     }
