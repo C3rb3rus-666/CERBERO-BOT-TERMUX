@@ -34,7 +34,7 @@ import { guardarEstadoRecuperacion, cargarEstadoRecuperacion, limpiarDeviceLists
 import { incrementCount } from './utils/messageCounter.js';
 import { initResetScheduler } from './utils/resetScheduler.js';
 import { checkFlood, mutedTimeLeft } from './utils/antiFlood.js';
-import { enqueueGlobalCommandTask } from './utils/global_command_queue.js';
+import { enqueueGlobalCommandTask, getGlobalCommandQueueStats } from './utils/global_command_queue.js';
 import { checkStatusTag, checkGroupMentionedMessage } from './comandos_cerbero/anti_status_tag.js';
 
 // ==========================================
@@ -98,6 +98,9 @@ const CERBERO_COOLDOWN_MS = 60 * 1000; // 1 minuto por chat (ajustable)
 const CERBERO_DELAY_MS = 5000; // 5 segundos de retraso antes de invocar la IA (ajustable)
 const CERBERO_RESPONSE_PROBABILITY = 0.3; // 30% de probabilidad de respuesta (ajustable)
 const CORE_COMMAND_DELAY_MS = 60 * 1000;
+const DYNAMIC_PHOTO_COMMAND_DELAY_MS = 30 * 1000;
+const DYNAMIC_PHOTO_COMMAND_DELAY_BUSY_MS = 25 * 1000;
+const DYNAMIC_PHOTO_QUEUE_PRESSURE_THRESHOLD = Number(process.env.CERBERO_DYNAMIC_PHOTO_QUEUE_THRESHOLD || 10);
 const ADMIN_REALTIME_COMMANDS = new Set([
   'ban', 'kick', 'promote', 'demote',
   'grupo', 'bienvenida', 'antilink', 'vigilar',
@@ -113,6 +116,17 @@ function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
 
 async function applyCoreCommandDelayMs(ms) {
   await delay(ms);
+}
+
+function resolveDynamicPhotoCommandDelayMs() {
+  try {
+    const stats = getGlobalCommandQueueStats();
+    const pending = Number(stats?.pending || 0);
+    if (pending >= DYNAMIC_PHOTO_QUEUE_PRESSURE_THRESHOLD) {
+      return DYNAMIC_PHOTO_COMMAND_DELAY_BUSY_MS;
+    }
+  } catch (_) {}
+  return DYNAMIC_PHOTO_COMMAND_DELAY_MS;
 }
 
 
@@ -747,14 +761,14 @@ async function connectToWhatsApp() {
 
               // Dinamica de presentaciones con fotos por privado
               if (commandLower === 'presentaciones' || commandLower === 'presentacion') {
-                await applyCoreCommandDelayMs(CORE_COMMAND_DELAY_MS);
+                await applyCoreCommandDelayMs(resolveDynamicPhotoCommandDelayMs());
                 await manejarComandoPresentacion(sock, chatId, senderJid, isAdmin, args);
                 return;
               }
 
               // Dinamica Tinder con fotos por privado y encuesta MATCH/NEXT
               if (commandLower === 'tinder') {
-                await applyCoreCommandDelayMs(CORE_COMMAND_DELAY_MS);
+                await applyCoreCommandDelayMs(resolveDynamicPhotoCommandDelayMs());
                 await manejarComandoTinder(sock, chatId, senderJid, isAdmin, args);
                 return;
               }

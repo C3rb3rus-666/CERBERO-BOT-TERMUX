@@ -51,10 +51,27 @@ const MAX_IMAGE_BYTES = Number(process.env.PRESENTACIONES_MAX_IMAGE_BYTES || (AR
 const PRESENTATION_MAX_PENDING = Number(process.env.PRESENTACIONES_MAX_PENDING || (ARM_SAFE_MODE ? 2 : 5));
 const PRESENTATION_FLOOD_WINDOW_MS = Number(process.env.PRESENTACIONES_FLOOD_WINDOW_MS || 60_000);
 const PRESENTATION_MAX_IMAGES_PER_WINDOW = Number(process.env.PRESENTACIONES_MAX_IMAGES_PER_WINDOW || 2);
-const PRESENTATION_GROUP_SEND_DELAY_MS = Number(process.env.PRESENTACIONES_GROUP_SEND_DELAY_MS || 3500);
+const PRESENTATION_MAX_SEND_DELAY_MS = 30_000;
+const PRESENTATION_BUSY_SEND_DELAY_MS = 25_000;
+const PRESENTATION_QUEUE_PRESSURE_THRESHOLD = Number(
+  process.env.PRESENTACIONES_QUEUE_PRESSURE_THRESHOLD || Math.max(2, Math.floor(PRESENTATION_MAX_PENDING * 0.6))
+);
+const PRESENTATION_GROUP_SEND_DELAY_MS = Math.min(
+  Number(process.env.PRESENTACIONES_GROUP_SEND_DELAY_MS || 3500),
+  PRESENTATION_MAX_SEND_DELAY_MS
+);
 
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function resolveDynamicPresentationDelayMs(baseMs) {
+  const base = Math.max(1000, Number(baseMs) || 1000);
+  if (base <= PRESENTATION_BUSY_SEND_DELAY_MS) return base;
+  if (presentationPendingCount >= PRESENTATION_QUEUE_PRESSURE_THRESHOLD) {
+    return PRESENTATION_BUSY_SEND_DELAY_MS;
+  }
+  return base;
 }
 
 // Delay humano con variabilidad (±500ms) para evitar detección automática
@@ -1029,7 +1046,8 @@ async function manejarDMPresentacionImagen(sock, senderJid, msg, imageContainer,
       console.error(`[PRESENTACION] Error publicando en ${groupId}:`, err.message || err);
     }
     if (index < destinations.length - 1) {
-      await sleep(getHumanDelay(PRESENTATION_GROUP_SEND_DELAY_MS));
+      const interSendDelay = resolveDynamicPresentationDelayMs(PRESENTATION_GROUP_SEND_DELAY_MS);
+      await sleep(getHumanDelay(interSendDelay));
     }
   }
 
