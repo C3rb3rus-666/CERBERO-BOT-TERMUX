@@ -110,7 +110,7 @@ export async function menuCommand(sock, msg) {
   ▸ !cerbero_yt <link> — Descargar video de YouTube
   ▸ !sticker — Convertir imagen/video a sticker
   ▸ !extractor — Extraer imagen de un sticker
-  ▸ !status_cerbero — Ver estado completo del bot
+  ▸ !status_cerbero (!status_Cerbero / !statuscerbero) — Ver estado completo del bot
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🎭 *ENTRETENIMIENTO*          ┃
@@ -236,7 +236,7 @@ export async function menuCommand(sock, msg) {
   ⚡ !leerlog — Ver registro de links bloqueados
   ⚡ !clear_log — Limpiar registros
   ⚡ !antistatustag [on|off] — Bloquear etiquetas del grupo en estados
-  ⚡ !status_cerbero — Ver estado completo del bot
+  ⚡ !status_cerbero (!status_Cerbero / !statuscerbero) — Ver estado completo del bot
   ⚡ !bateria [qr|nsfw|spam|mixto|all] — Checklist de pruebas por módulos (solo owner)
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓

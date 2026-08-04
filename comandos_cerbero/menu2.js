@@ -105,7 +105,7 @@ export async function menuCommand(sock, msg) {
   ⚡ !vigilar · !todos · !admins
   ⚡ !grupo · !clear_log
   ⚡ !antistatustag on/off
-  ⚡ !status_cerbero
+  ⚡ !status_cerbero · !status_Cerbero · !statuscerbero
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━┛
 
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
