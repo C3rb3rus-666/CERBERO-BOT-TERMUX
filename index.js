@@ -98,6 +98,20 @@ const CERBERO_COOLDOWN_MS = 60 * 1000; // 1 minuto por chat (ajustable)
 const CERBERO_DELAY_MS = 5000; // 5 segundos de retraso antes de invocar la IA (ajustable)
 const CERBERO_RESPONSE_PROBABILITY = 0.3; // 30% de probabilidad de respuesta (ajustable)
 const CORE_COMMAND_DELAY_MS = 60 * 1000;
+const ADMIN_REALTIME_COMMANDS = new Set([
+  'ban', 'kick', 'promote', 'demote',
+  'grupo', 'bienvenida', 'antilink', 'vigilar',
+  'antistatustag', 'todos', 'tag_group', 'admins',
+  'nuevos', 'actividad', 'activos',
+  'autonomo', 'status_cerbero', 'statuscerbero'
+]);
+
+function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
+  if (!isAdmin) return false;
+  const cmd = (command || '').toLowerCase();
+  if (cmd === 'tag' && (args[0] || '').toLowerCase() === 'group') return true;
+  return ADMIN_REALTIME_COMMANDS.has(cmd);
+}
 
 async function applyCoreCommandDelayMs(ms) {
   await delay(ms);
@@ -712,6 +726,12 @@ async function connectToWhatsApp() {
             (args.length ? chalk.hex('#888')(` ${args.join(' ')}`) : '')
           );
           console.log('');
+
+            if (isRealtimeAdminCommand(commandLower, args, isAdmin)) {
+              console.log(`[CMD-QUEUE] bypass admin realtime cmd=${commandLower} chat=${chatId}`);
+              await commandsCerbero(sock, msg, isAdmin, groupMetadata);
+              return;
+            }
             
             const queued = enqueueGlobalCommandTask(async () => {
               // Amor bot queda dormido: no responder al comando !amor.
@@ -746,6 +766,7 @@ async function connectToWhatsApp() {
               command: commandLower,
               chatId,
               senderJid,
+              isAdmin,
             });
 
             if (!queued.accepted) {

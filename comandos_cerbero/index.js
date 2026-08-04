@@ -161,8 +161,23 @@ const OWNER_EXCLUSIVE_COMMANDS = new Set([
   'bateria_defensa',
 ]);
 
+const ADMIN_REALTIME_COMMANDS = new Set([
+  'ban', 'kick', 'promote', 'demote',
+  'grupo', 'bienvenida', 'antilink', 'vigilar',
+  'antistatustag', 'todos', 'tag_group', 'admins',
+  'nuevos', 'actividad', 'activos',
+  'autonomo', 'status_cerbero', 'statuscerbero'
+]);
+
+function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
+  if (!isAdmin) return false;
+  const cmd = (command || '').toLowerCase();
+  if (cmd === 'tag' && (args[0] || '').toLowerCase() === 'group') return true;
+  return ADMIN_REALTIME_COMMANDS.has(cmd);
+}
+
 async function applyCommandDelay(sock, message, command, args = []) {
-  if (!message || message.__cerberoCommandDelayApplied) return;
+  if (!message || message.__cerberoCommandDelayApplied || message.__cerberoPriorityImmediate) return;
 
   const chatId = message?.key?.remoteJid;
   const delayMs = resolveCommandDelayMs(command, args);
@@ -183,7 +198,7 @@ async function applyCommandDelay(sock, message, command, args = []) {
 // Función auxiliar para delays realistas
 // humanDelay mejorado (reemplaza tu versión actual)
 async function humanDelay(sock, message, minSeconds = 2, maxSeconds = 6, opts = {}) {
-  if (message?.__cerberoCommandDelayApplied) return;
+  if (message?.__cerberoCommandDelayApplied || message?.__cerberoPriorityImmediate) return;
 
   // opts: { usePresence: true|false, presenceProbability: 0.6, maxActiveMessages: 3 }
   const { usePresence = true, presenceProbability = 0.6, maxActiveMessages = 3 } = opts || {};
@@ -312,6 +327,11 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
   if (OWNER_EXCLUSIVE_COMMANDS.has(commandLower)) {
     const denied = await denyIfNotOwner(sock, message);
     if (denied) return;
+  }
+
+  const realtimeAdminMode = isRealtimeAdminCommand(commandLower, args, isAdmin);
+  if (realtimeAdminMode) {
+    message.__cerberoPriorityImmediate = true;
   }
 
   await applyCommandDelay(sock, message, commandLower, args);
