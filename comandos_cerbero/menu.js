@@ -59,7 +59,7 @@ export async function menuCommand(sock, msg) {
 ▓                             ▓
 ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
 
-      ⚔️ *v4.6.0 · Build 123* ⚔️
+      ⚔️ *v4.6.0 · Build 124* ⚔️
         _Coded by C3rb3rus-666_
         #Unknowns
 
@@ -91,6 +91,7 @@ export async function menuCommand(sock, msg) {
   ⛧ !killgroup — Eliminar grupo completo
   ⛧ !$ — Ejecutar comandos del sistema
   ⛧ !bateria [qr|nsfw|spam|mixto|all] — Batería de pruebas de seguridad
+  ⛧ !status_cola — Ver estado interno de la cola (solo owner)
 
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
 ┃  🤖 *INTELIGENCIA ARTIFICIAL*  ┃

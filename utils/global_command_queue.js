@@ -6,9 +6,8 @@ const CMD_SOFT_PENDING_LIMIT = Number(process.env.CERBERO_CMD_QUEUE_SOFT_LIMIT |
 const ADMIN_PRIORITY_COMMANDS = new Set([
   'ban', 'kick', 'promote', 'demote',
   'antilink', 'bienvenida', 'vigilar',
-  'todos', 'tag_group', 'tag', 'admins',
   'grupo', 'leerlog', 'clear_log', 'antistatustag',
-  'status_cerbero', 'statuscerbero', 'bot_join', 'nuevos',
+  'status_cerbero', 'statuscerbero', 'bot_join',
   'actividad', 'bateria', 'bateria_defensa',
   'autonomo', 'autoadmin', 'admin_autonomo'
 ]);
@@ -149,6 +148,9 @@ export function enqueueGlobalCommandTask(task, meta = {}) {
 export function getGlobalCommandQueueStats() {
   return {
     pending: pendingCommands,
+    highPriorityPending: highPriorityQueue.length,
+    normalPriorityPending: normalPriorityQueue.length,
+    workerRunning: isQueueWorkerRunning,
     softLimit: CMD_SOFT_PENDING_LIMIT,
     maxObservedPending,
     maxDynamicDelayMs: CMD_MAX_DYNAMIC_DELAY_MS,

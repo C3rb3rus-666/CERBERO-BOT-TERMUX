@@ -101,15 +101,13 @@ const CORE_COMMAND_DELAY_MS = 60 * 1000;
 const ADMIN_REALTIME_COMMANDS = new Set([
   'ban', 'kick', 'promote', 'demote',
   'grupo', 'bienvenida', 'antilink', 'vigilar',
-  'antistatustag', 'todos', 'tag_group', 'admins',
-  'nuevos', 'actividad', 'activos',
+  'antistatustag', 'actividad', 'activos',
   'autonomo', 'status_cerbero', 'statuscerbero'
 ]);
 
 function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
   if (!isAdmin) return false;
   const cmd = (command || '').toLowerCase();
-  if (cmd === 'tag' && (args[0] || '').toLowerCase() === 'group') return true;
   return ADMIN_REALTIME_COMMANDS.has(cmd);
 }
 

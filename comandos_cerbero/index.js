@@ -55,6 +55,7 @@ import { statusCerberoCommand } from './status_cerbero.js';
 import { handleBuscaminas } from './buscaminas.js';
 import { runBateriaDefensa } from './bateria_defensa.js';
 import { denyIfNotOwner } from './owner_guard.js';
+import { getGlobalCommandQueueStats } from '../utils/global_command_queue.js';
 // juego RPG y Economía
 import {
   commandDaily,
@@ -159,21 +160,32 @@ const OWNER_EXCLUSIVE_COMMANDS = new Set([
   '$',
   'bateria',
   'bateria_defensa',
+  'status_cola',
+  'statuscola',
+  'cola_status',
+  'estadocola',
 ]);
 
 const ADMIN_REALTIME_COMMANDS = new Set([
   'ban', 'kick', 'promote', 'demote',
   'grupo', 'bienvenida', 'antilink', 'vigilar',
-  'antistatustag', 'todos', 'tag_group', 'admins',
-  'nuevos', 'actividad', 'activos',
+  'antistatustag', 'actividad', 'activos',
   'autonomo', 'status_cerbero', 'statuscerbero'
 ]);
 
 function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
   if (!isAdmin) return false;
   const cmd = (command || '').toLowerCase();
-  if (cmd === 'tag' && (args[0] || '').toLowerCase() === 'group') return true;
   return ADMIN_REALTIME_COMMANDS.has(cmd);
+}
+
+function formatQueueDelay(ms) {
+  if (!Number.isFinite(ms) || ms <= 0) return '0s';
+  const total = Math.floor(ms / 1000);
+  const min = Math.floor(total / 60);
+  const sec = total % 60;
+  if (min <= 0) return `${sec}s`;
+  return `${min}m ${sec}s`;
 }
 
 async function applyCommandDelay(sock, message, command, args = []) {
@@ -373,6 +385,24 @@ export async function commandsCerbero(sock, message, isAdmin, groupMetadata) {
       await humanDelay(sock, message, 1, 2);
       await runBateriaDefensa(sock, message, args);
       break;
+
+    case 'status_cola':
+    case 'statuscola':
+    case 'cola_status':
+    case 'estadocola': {
+      const stats = getGlobalCommandQueueStats();
+      const statusText =
+        `⚙️ *Estado de Cola CERBERO*\n\n` +
+        `• Pendientes totales: *${stats.pending}*\n` +
+        `• Carril alto: *${stats.highPriorityPending ?? 0}*\n` +
+        `• Carril normal: *${stats.normalPriorityPending ?? 0}*\n` +
+        `• Worker activo: *${stats.workerRunning ? 'SI' : 'NO'}*\n` +
+        `• Limite suave: *${stats.softLimit}*\n` +
+        `• Pico observado: *${stats.maxObservedPending}*\n` +
+        `• Delay dinamico max: *${formatQueueDelay(stats.maxDynamicDelayMs)}*`;
+      await sock.sendMessage(message.key.remoteJid, { text: statusText }, { quoted: message });
+      break;
+    }
     
     case 'todos':
       await humanDelay(sock, message, 2, 6);
