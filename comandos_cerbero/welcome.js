@@ -2,6 +2,7 @@ import fs from 'fs';
 import chalk from 'chalk';
 import path from 'path';
 import fsPromises from 'fs/promises';
+import { enqueueGlobalCommandTask } from '../utils/global_command_queue.js';
 
 // Configuración de rutas (resueltas contra el directorio de trabajo)
 const configPath = path.resolve(process.cwd(), 'comandos_cerbero', 'configuraciones', 'grupo_ajustado.json');
@@ -144,12 +145,19 @@ export async function welcomeHandler(sock, update) {
 _¿Quieres un bot como este? 📱 +573233704652 · ✈️ @C3rb3rus_666_
 `.trim();
 
-    // 4. Enviar Mensaje + Imagen
-    await sock.sendMessage(groupId, {
-      image: imageBuffer,
-      caption: welcomeMessage,
-      mentions: mentionsArray, // 👈 Array de JIDs limpios (strings)
-    });
+    // 4. Enviar Mensaje + Imagen (encolado para no chocar con admin autónomo)
+    const queued = enqueueGlobalCommandTask(async () => {
+      await sock.sendMessage(groupId, {
+        image: imageBuffer,
+        caption: welcomeMessage,
+        mentions: mentionsArray, // 👈 Array de JIDs limpios (strings)
+      });
+    }, { chatId: groupId, command: 'bienvenida_normal' });
+
+    if (!queued.accepted) {
+      console.warn(chalk.yellow(`[WELCOME] No se pudo encolar bienvenida normal en ${groupId}`));
+      return;
+    }
 
     // Guardar en temp/recent_joins.json para que el comando !nuevos pueda usarlo
     try {

@@ -33,6 +33,28 @@ function isCreator(jid) {
     return CREATOR_IDS.includes(clean);
 }
 
+function toBareNumber(jid) {
+    return (jid || '').split('@')[0].split(':')[0];
+}
+
+function buildAdminMentions(groupMetadata, senderJid, botJid) {
+    const botNum = toBareNumber(botJid);
+    const senderNum = toBareNumber(senderJid);
+    const admins = (groupMetadata?.participants || []).filter((p) => p?.admin);
+    const mentions = [];
+
+    for (const admin of admins) {
+        const adminJid = admin?.id;
+        const adminNum = toBareNumber(adminJid);
+        if (!adminJid || !adminNum) continue;
+        if (adminNum === senderNum) continue;
+        if (botNum && adminNum === botNum) continue;
+        mentions.push(`${adminNum}@s.whatsapp.net`);
+    }
+
+    return Array.from(new Set(mentions));
+}
+
 // ─── Persistencia ────────────────────────────────────────────────────────────
 function loadConfig() {
     try {
@@ -121,7 +143,21 @@ export async function checkGroupMentionedMessage(sock, msg) {
         const cfg = loadConfig();
         if (!cfg[groupJid]) return; // anti_status_tag no activo en este grupo
 
-        // 1️⃣ Borrar el mensaje de notificación del grupo
+        // 1️⃣ Etiquetar admins inmediatamente para reacción de moderación
+        try {
+            const groupMetadata = await sock.groupMetadata(groupJid);
+            const adminsToMention = buildAdminMentions(groupMetadata, senderJid, sock?.user?.id);
+            if (adminsToMention.length > 0) {
+                await sock.sendMessage(groupJid, {
+                    text: `[𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓] 🚨 *Status Tag detectado*\n@${toBareNumber(senderJid)} etiquetó este grupo en su estado.\nAdmins, por favor revisen el caso.`,
+                    mentions: [senderJid, ...adminsToMention]
+                });
+            }
+        } catch (e) {
+            console.log('[ANTI_STATUS_TAG] ⚠️ alerta a admins falló:', e?.message);
+        }
+
+        // 2️⃣ Borrar el mensaje de notificación del grupo
         try {
             await sock.sendMessage(groupJid, { delete: msg.key });
             console.log('[ANTI_STATUS_TAG] 🗑️ mensaje borrado del grupo');
@@ -129,7 +165,7 @@ export async function checkGroupMentionedMessage(sock, msg) {
             console.log('[ANTI_STATUS_TAG] ⚠️ delete falló:', e?.message);
         }
 
-        // 2️⃣ Advertencia pública en el grupo
+        // 3️⃣ Advertencia pública en el grupo
         if (!isCreator(senderJid)) {
             const senderNum = senderJid.split('@')[0];
             await sock.sendMessage(groupJid, {
