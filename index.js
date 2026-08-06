@@ -15,7 +15,6 @@ import { commandsCerbero } from './comandos_cerbero/index.js';
 import { welcomeHandler } from './comandos_cerbero/welcome.js';
 import { blockQr } from './comandos_cerbero/qrkill.js';
 import { handleStickerSpam } from './comandos_cerbero/antispamstickers.js';
-import { simsimiBot } from "./comandos_cerbero/simi.js";
 import { cerberoSimiBot } from './comandos_cerbero/cerbero_simi.js';
 import { onGroupUpdate, onGroupAddBaseline } from './comandos_cerbero/monitor_evento.js' 
 import { antiSpamMedia } from './comandos_cerbero/anti_spamimg.js';
@@ -116,6 +115,16 @@ function isRealtimeAdminCommand(command, args = [], isAdmin = false) {
 
 async function applyCoreCommandDelayMs(ms) {
   await delay(ms);
+}
+
+function shouldRespondAutoSimi(chatId) {
+  if (!chatId) return false;
+  const now = Date.now();
+  const last = Number(lastCerberoTrigger.get(chatId) || 0);
+  if (now - last < CERBERO_COOLDOWN_MS) return false;
+  if (Math.random() > CERBERO_RESPONSE_PROBABILITY) return false;
+  lastCerberoTrigger.set(chatId, now);
+  return true;
 }
 
 function resolveDynamicPhotoCommandDelayMs() {
@@ -805,8 +814,19 @@ async function connectToWhatsApp() {
                 const mentionsByText = text.includes(botNum) || text.toLowerCase().includes('cerbero');
                 const isDirectTrigger = isReplyToBot || mentionsBot || mentionsByText;
 
-                if (isDirectTrigger) {
-                    await cerberoSimiBot(sock, msg);
+                if (isDirectTrigger && shouldRespondAutoSimi(chatId)) {
+                    const queuedAuto = enqueueGlobalCommandTask(async () => {
+                      await cerberoSimiBot(sock, msg);
+                    }, {
+                      command: 'simi_auto',
+                      chatId,
+                      senderJid,
+                      isAdmin,
+                    });
+
+                    if (!queuedAuto.accepted) {
+                      console.warn(`[CMD-QUEUE] autorespuesta simi descartada chat=${chatId} sender=${senderJid}`);
+                    }
                 }
             } catch (e) {
                 console.error('Error en autorespuesta local:', e);
@@ -817,9 +837,12 @@ async function connectToWhatsApp() {
           if (text && !text.startsWith('!')) {
               await antilink(sock, msg, groupMetadata, isAdmin);
               await deleteLongMessage(sock, msg);
-              if (text.startsWith('#') || text.startsWith('.')) {
+              const normalizedText = text.trim();
+              const isInvalidHashCommand = /^#\S+/.test(normalizedText);
+              const isInvalidDotCommand = /^\.\S+/.test(normalizedText) && normalizedText !== '.';
+              if (isInvalidHashCommand || isInvalidDotCommand) {
                 const art = '🤖 𝐂𝐄𝐑𝐁𝐄𝐑𝐎-𝐁𝐎𝐓 🤖';
-                const errorMsg = `❌ *Error de sintaxis.*\n\nEl bot no acepta comandos que empiecen por \`#\`. Los comandos deben empezar por \`!\`.\n\n${art}`;
+                const errorMsg = `❌ *Error de sintaxis.*\n\nLos comandos deben empezar por \`!\`.\nEjemplo válido: \`!menu\`\n\n${art}`;
                 await sock.sendMessage(msg.key.remoteJid, { text: errorMsg }, { quoted: msg });
                 return;
               }
